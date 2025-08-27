@@ -5,7 +5,7 @@ pub mod entry;
 pub mod storage;
 pub mod plugins;
 pub mod feedback;
-	pub mod ffi;
+pub mod ffi;
 
 
 #[cfg(test)]
@@ -50,7 +50,3 @@ mod tests {
 	}
 }
 
-#[no_mangle]
-pub extern "C" fn lumen_list_entries() -> *mut c_char {
-    // Function implementation goes here...
-}
