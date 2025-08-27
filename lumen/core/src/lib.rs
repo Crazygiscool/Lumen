@@ -1,5 +1,4 @@
 
-use std::os::raw::c_char;
 
 pub mod entry;
 pub mod storage;
