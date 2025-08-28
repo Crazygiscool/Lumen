@@ -15,10 +15,45 @@ class LumenApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lumen Journal',
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
-  home: const JournalListScreen(),
+      title: 'Lumen',
+      theme: ThemeData(
+        brightness: Brightness.light,
+        primaryColor: const Color(0xFFFFD600),
+        colorScheme: ColorScheme.fromSwatch(
+          primarySwatch: Colors.yellow,
+          accentColor: Colors.orangeAccent,
+        ).copyWith(
+          secondary: Colors.orangeAccent,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFFFF8E1),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFFFD600),
+          foregroundColor: Colors.deepOrange,
+          elevation: 4,
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: Color(0xFFFFD600),
+          foregroundColor: Colors.white,
+          elevation: 8,
+        ),
+        textTheme: const TextTheme(
+          headlineMedium: TextStyle(
+            color: Colors.deepOrange,
+            fontWeight: FontWeight.bold,
+            fontSize: 28,
+            shadows: [Shadow(color: Colors.orangeAccent, blurRadius: 8)],
+          ),
+          bodyMedium: TextStyle(
+            color: Colors.brown,
+            fontSize: 16,
+          ),
+        ),
+        useMaterial3: true, // Modern Material Design
+      ),
+      home: const JournalListScreen(),
+      debugShowCheckedModeBanner: false,
+      // Set the app icon for supported platforms
+      // For desktop, use windowManager or similar package for icon
     );
   }
 }
