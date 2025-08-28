@@ -61,13 +61,18 @@ class _JournalListScreenState extends State<JournalListScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFFFF8E1), Color(0xFFFFD600)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [BoxShadow(color: Colors.orangeAccent, blurRadius: 12)],
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[900]
+                : Colors.white,
+            gradient: Theme.of(context).brightness == Brightness.dark
+                ? null
+                : const LinearGradient(
+                    colors: [Color(0xFFFFF8E1), Color(0xFFFFD600)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            boxShadow: const [BoxShadow(color: Colors.orangeAccent, blurRadius: 12)],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -119,29 +124,26 @@ class _JournalListScreenState extends State<JournalListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lumen', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: null,
         centerTitle: true,
+        backgroundColor: isDark ? Colors.black : null,
+        elevation: 0,
       ),
       body: Stack(
         children: [
           Positioned.fill(
-            child: Opacity(
-              opacity: 0.25,
-              child: Image.asset(
-                'lib/assets/lumen_logo.png',
-                fit: BoxFit.cover,
-              ),
+            child: Container(
+              color: Colors.black,
             ),
           ),
           Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFFFF8E1), Color(0xFFFFD600), Color(0xFFFFA726)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black
+                  : Colors.grey[100],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -155,7 +157,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
                         children: [
                           Container(
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: isDark ? Colors.grey[900]?.withOpacity(0.5) : Colors.white.withOpacity(0.3),
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.2), blurRadius: 8)],
                             ),
@@ -165,7 +167,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
                                 Icon(Icons.local_fire_department, color: Colors.deepOrange, size: 28),
                                 const SizedBox(width: 8),
                                 Text('Streak: ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
-                                Text('$streak days', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
+                                Text('$streak days', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.brown)),
                               ],
                             ),
                           ),
@@ -173,20 +175,17 @@ class _JournalListScreenState extends State<JournalListScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Welcome to Lumen',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
                         'Reflect freely. Store safely. Extend endlessly.',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: isDark ? Colors.white70 : null,
+                            ),
                       ),
                     ],
                   ),
                 ),
                 Expanded(
                   child: entries.isEmpty
-                      ? const Center(child: Text('No journal entries yet. Tap + to add one!', style: TextStyle(fontSize: 16)))
+                      ? Center(child: Text('No journal entries yet. Tap + to add one!', style: TextStyle(fontSize: 16, color: isDark ? Colors.white70 : null)))
                       : ListView.builder(
                           itemCount: entries.length,
                           itemBuilder: (context, index) {
@@ -199,13 +198,13 @@ class _JournalListScreenState extends State<JournalListScreen> {
                                 child: BackdropFilter(
                                   filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                                   child: Card(
-                                    color: Colors.white.withOpacity(0.6),
+                                    color: isDark ? Colors.grey[900]?.withOpacity(0.7) : Colors.white.withOpacity(0.6),
                                     elevation: 6,
                                     child: ListTile(
                                       leading: Icon(Icons.book_rounded, color: Colors.orangeAccent, size: 32),
-                                      title: Text('Entry #$id', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      subtitle: Text('Created: ${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.brown)),
-                                      trailing: const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.deepOrange),
+                                      title: Text('Entry #$id', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : null)),
+                                      subtitle: Text('Created: ${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}', style: TextStyle(color: isDark ? Colors.white70 : Colors.brown)),
+                                      trailing: Icon(Icons.arrow_forward_ios, size: 18, color: Colors.deepOrange),
                                       onTap: () {
                                         // TODO: Navigate to entry details
                                       },
@@ -226,6 +225,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
         onPressed: _addEntry,
         child: const Icon(Icons.wb_sunny),
         tooltip: 'New Entry',
+        backgroundColor: isDark ? Colors.deepOrange : null,
       ),
     );
   }
