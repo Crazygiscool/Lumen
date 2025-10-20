@@ -44,7 +44,7 @@ Lumen is licensed under the **Lumen Non-Commercial Software License v1.0**.
 > This software is free for personal, educational, and research use only.  
 > **Commercial use is strictly prohibited** without prior written consent.
 
-See [`LICENSE.txt`](./LICENSE.txt) for full terms.
+See [`LICENSE.txt`](./LICENSE) for full terms.
 
 ---
 
