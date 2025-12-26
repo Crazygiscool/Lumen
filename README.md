@@ -95,8 +95,7 @@ For commercial licensing inquiries or collaboration proposals:
 
 - [x] Encrypted local storage with per-entry provenance  
 - [x] Plugin registry and template engine  
-- [ ] Docker sync server with CRDT support  
-- [ ] GEORGE plugin for branded AI feedback  
+- [ ] Docker sync server with CRDT support    
 - [ ] GitHub integration for commit journaling  
 - [ ] Multi-author journaling plugin
 
