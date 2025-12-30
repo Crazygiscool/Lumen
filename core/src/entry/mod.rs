@@ -1,8 +1,7 @@
-//! Journal entry structs, encryption, provenance
-
 use chrono::{DateTime, Utc};
-mod encryption;
 use serde::{Serialize, Deserialize};
+
+mod encryption;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provenance {
@@ -15,28 +14,53 @@ pub struct Provenance {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub id: String,
-    pub encrypted: Vec<u8>, // Encrypted content
-    pub nonce: Vec<u8>,     // Nonce used for encryption
+
+    // --- Encryption fields ---
+    pub encrypted: Vec<u8>,
+    pub nonce: Vec<u8>,
+    pub salt: Vec<u8>,        // <-- REQUIRED for key derivation
+
+    // --- Metadata ---
     pub provenance: Provenance,
 }
 
 impl JournalEntry {
-    pub fn new(id: String, text: String, author: String, plugin_origin: Option<String>, password: &str) -> Self {
+    pub fn new(
+        id: String,
+        text: String,
+        author: String,
+        plugin_origin: Option<String>,
+        password: &str,
+    ) -> Self {
         let timestamp = Utc::now();
+
         let provenance = Provenance {
             timestamp,
             plugin_origin,
             author,
             feedback: None,
         };
+
+        // Generate salt for PBKDF2/Argon2
         let salt: [u8; 16] = rand::random();
-        let key = encryption::derive_key(password, &salt);
+
+        // Derive key
+        let key = encryption::derive_key(password, &salt[..]);
+
+        // Encrypt
         let (encrypted, nonce) = encryption::encrypt(&text, &key);
-        JournalEntry { id, encrypted, nonce, provenance }
+
+        JournalEntry {
+            id,
+            encrypted,
+            nonce,
+            salt: salt.to_vec(),
+            provenance,
+        }
     }
 
-    pub fn decrypt_text(&self, password: &str, salt: &[u8]) -> String {
-        let key = encryption::derive_key(password, salt);
+    pub fn decrypt_text(&self, password: &str) -> String {
+        let key = encryption::derive_key(password, &self.salt);
         encryption::decrypt(&self.encrypted, &self.nonce, &key)
     }
 }
