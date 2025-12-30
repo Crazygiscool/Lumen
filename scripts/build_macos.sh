@@ -12,9 +12,6 @@ DIST_DIR="$ROOT_DIR/dist"
 # Extract version from pubspec.yaml
 VERSION=$(grep '^version:' "$UI_DIR/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
 
-# Timestamp for release naming
-TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-
 echo "Root:        $ROOT_DIR"
 echo "Core:        $CORE_DIR"
 echo "UI:          $UI_DIR"
@@ -43,7 +40,7 @@ echo "=== Step 4: Package .app into a zip ==="
 mkdir -p "$DIST_DIR"
 
 APP_PATH="$UI_DIR/build/macos/Build/Products/Release/Lumen.app"
-ZIP_NAME="Lumen-macos-v${VERSION}-${TIMESTAMP}.zip"
+ZIP_NAME="Lumen-macos-v${VERSION}.zip"
 
 cd "$(dirname "$APP_PATH")"
 zip -r "$DIST_DIR/$ZIP_NAME" "$(basename "$APP_PATH")"

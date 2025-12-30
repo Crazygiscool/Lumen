@@ -33,8 +33,10 @@ echo "=== Step 2: Create source tarball ==="
 mkdir -p "$DIST_DIR"
 cd "$ROOT_DIR"
 
-TAR_NAME="Lumen-$VERSION.tar.gz"
+TAR_NAME="Lumen-linux-x64-$VERSION.tar.gz"
 tar -czvf "$DIST_DIR/$TAR_NAME" "Lumen-$VERSION"
+
+rm -rf "$SRC_DIR"
 
 echo ""
 echo "=== DONE ==="
