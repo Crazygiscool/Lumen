@@ -1,6 +1,6 @@
 # 🌟 Lumen
 
-**Lumen** is a modular, offline-first journaling engine designed for clarity, privacy, and expressive self-reflection. Built with a secure Rust core and a cross-platform Flutter UI, Lumen empowers users to write, reflect, and extend their journaling experience through plugins, templates, and encrypted provenance.
+**Lumen** is a secure, offline‑first journaling engine built with a Rust core and a cross‑platform Flutter UI. It focuses on privacy, clarity, and long‑term durability — giving you a fast, encrypted space to write without distractions.
 
 > *Illuminate your inner world. Write in light. Store in silence.*
 
@@ -8,100 +8,133 @@
 
 ## ✨ Features
 
-- 🔐 **Encrypted by Default**  
-  All entries are locally encrypted using AES-256 and Argon2. Your thoughts stay yours.
+- 🔐 **Local Encryption**  
+  Entries are encrypted using AES‑256 and Argon2. Nothing leaves your device.
 
-- 🧱 **Modular Architecture**  
-  Core journaling logic is written in Rust, with clean separation from UI and plugins.
+- 🧱 **Rust Core Engine**  
+  Handles encryption, storage, entry management, and provenance metadata.
 
-- 🧩 **Plugin Support**  
-  Extend Lumen with templates, sync adapters, AI feedback, multi-author modes, and more.
-
-- 🖥️ **Cross-Platform UI**  
-  Flutter-powered interface for iOS, Android, macOS, Linux, Windows, and Web.
+- 🖥️ **Cross‑Platform UI**  
+  Flutter interface for Linux and macOS (other platforms compile but are not yet polished).
 
 - 🧑‍💻 **Terminal UI (TUI)**  
-  A fallback journaling interface with expressive feedback and clean CLI design.
+  A functional command‑line journaling interface for quick writing and reading.
 
-- 🔄 **Import/Export Adapters**  
-  Compatible with Day One, Obsidian, Journey, Diaro, and plaintext Markdown.
+- 📁 **Import/Export**  
+  Export entries to plaintext Markdown. Import from plaintext and basic JSON.
 
-- 🐳 **Future Sync Support**  
-  Optional Docker-hosted sync server with plugin-based adapters (GitHub, WebDAV, IPFS, etc.)
+- 🗂️ **Entry Metadata**  
+  Each entry includes timestamps, edit history, and structured provenance.
 
----
-
-## 🧠 Philosophy
-
-Lumen is designed for single-user journaling with deep customization, emotional intelligence, and provenance tracking. Plugins are treated as lenses—modular extensions that shape how your thoughts are captured, interpreted, and stored.
+- 🛠️ **Cross‑Platform Build Pipeline**  
+  Automated builds for Linux and macOS, including Rust FFI and Flutter bundling.
 
 ---
 
-## 🚫 License
+## 🛠️ Installation
 
-Lumen is licensed under the **Lumen Non-Commercial Software License v1.0**.
+### **Linux (Arch / Manjaro / EndeavourOS)**  
 
-> This software is free for personal, educational, and research use only.  
-> **Commercial use is strictly prohibited** without prior written consent.
-
-See [`LICENSE.txt`](./LICENSE) for full terms.
-
----
-
-## 🛠️ Getting Started
+Lumen is available on the AUR:
 
 ```bash
-# Clone the repo
+yay -S lumen-journal
+```
+
+Or build manually:
+
+```bash
 git clone https://github.com/your-username/lumen.git
 cd lumen
+./scripts/build_linux.sh
+```
 
-# Build the Rust core
+The resulting binary and desktop files will be placed in:
+
+```txt
+build/linux/
+```
+
+### **macOS**
+
+```bash
+git clone https://github.com/your-username/lumen.git
+cd lumen
+./scripts/build_macos.sh
+```
+
+The macOS `.app` bundle will appear in:
+
+```txt
+build/macos/
+```
+
+### **From Source (Rust + Flutter)**
+
+```bash
+# Rust core
 cargo build --release
 
-# Run the Flutter UI
+# Flutter UI
+flutter pub get
 flutter run
 ```
 
-For TUI mode:
+### **TUI Mode**
+
 ```bash
 cargo run --bin lumen-cli
 ```
 
 ---
 
-## 🔌 Plugin Development
+## 📦 File Structure
 
-Plugins are registered via manifest files and can extend Lumen’s capabilities.  
-See [`docs/plugins.md`](./docs/plugins.md) for plugin API and lifecycle hooks.
+```
+lumen/
+ ├─ core/          # Rust engine (encryption, storage, provenance)
+ ├─ ui/            # Flutter interface
+ ├─ cli/           # Terminal UI
+ ├─ scripts/       # Build + packaging scripts
+ ├─ LICENSE        # License file
+ └─ README.md
+```
+
+---
+
+## 📚 Documentation
+
+- Core architecture: `docs/core.md`  
+- Storage format: `docs/storage.md`  
+- TUI usage: `docs/tui.md`  
+
+---
+
+## 🚫 License
+
+Lumen is provided under the terms described in `LICENSE` / `LICENSE.txt`.
+
+Personal, educational, and research use is permitted.  
+Commercial use requires prior written permission.
 
 ---
 
 ## 📣 Contributing
 
-We welcome contributions that align with Lumen’s non-commercial philosophy.  
-Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before submitting PRs.
+Contributions are welcome as long as they align with the project’s non‑commercial terms.  
+See `CONTRIBUTING.md` before submitting pull requests.
 
 ---
 
 ## 📬 Contact
 
-For commercial licensing inquiries or collaboration proposals:  
-**Author**: Crazygiscool  
-**Email**: [crazygiscool@proton.me](mailto:crazygiscool@proton.me)
+For questions or licensing inquiries:
+
+**Author:** Crazygiscool  
+**Email:** [crazygiscool@proton.me](mailto:crazygiscool@proton.me)
 
 ---
 
-## 🧭 Roadmap Highlights
+## 🪞 Reflect Freely. Store Safely.
 
-- [x] Encrypted local storage with per-entry provenance  
-- [x] Plugin registry and template engine  
-- [ ] Docker sync server with CRDT support    
-- [ ] GitHub integration for commit journaling  
-- [ ] Multi-author journaling plugin
-
----
-
-## 🪞 Reflect Freely. Store Safely. Extend Endlessly.
-
-Lumen isn’t just a journaling app—it’s a framework for expressive, secure, and modular thought.  
-Let your ideas shine, and let your tools stay out of the way.
+Lumen is a secure, expressive foundation for private journaling — built to stay fast, local, and yours.

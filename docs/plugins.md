@@ -1,4 +1,4 @@
-# 🔌 Lumen Plugin System
+# 🔌 Lumen Plugin System(not implemented yet)
 
 Lumen supports a modular plugin architecture designed for privacy-first journaling, expressive feedback, and provenance tracking. This document outlines how to build, register, and integrate plugins into the Lumen ecosystem.
 
