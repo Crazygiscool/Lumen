@@ -21,7 +21,7 @@ pub unsafe extern "C" fn lumen_add_entry(
     text: *const c_char,
     author: *const c_char,
     password: *const c_char,
-) {
+) { unsafe {
     let id = CStr::from_ptr(id).to_string_lossy().into_owned();
     let text = CStr::from_ptr(text).to_string_lossy().into_owned();
     let author = CStr::from_ptr(author).to_string_lossy().into_owned();
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn lumen_add_entry(
 
     let entry = JournalEntry::new(id, text, author, None, &password);
     STORAGE.lock().unwrap().add_entry(entry);
-}
+}}
 
 // ------------------------------------------------------------
 // LIST ENTRIES (JSON)
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn lumen_list_entries() -> *mut c_char {
 pub unsafe extern "C" fn lumen_decrypt_entry(
     id: *const c_char,
     password: *const c_char,
-) -> *mut c_char {
+) -> *mut c_char { unsafe {
     let id = CStr::from_ptr(id).to_string_lossy().into_owned();
     let password = CStr::from_ptr(password).to_string_lossy().into_owned();
 
@@ -62,14 +62,14 @@ pub unsafe extern "C" fn lumen_decrypt_entry(
     // Return decrypted text or an error message back to caller; avoid panics
     let out = CString::new(decrypted).unwrap_or_else(|_| CString::new("ERROR: invalid decrypted string").unwrap());
     out.into_raw()
-}
+}}
 
 // ------------------------------------------------------------
 // FREE STRING
 // ------------------------------------------------------------
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lumen_free_string(s: *mut c_char) {
+pub unsafe extern "C" fn lumen_free_string(s: *mut c_char) { unsafe {
     if !s.is_null() {
         let _ = CString::from_raw(s);
     }
-}
+}}
