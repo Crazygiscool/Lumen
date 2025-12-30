@@ -1,52 +1,40 @@
 #!/usr/bin/env bash
 set -e
 
-# Script is inside /scripts, so go up one directory to project root
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-
-CORE_DIR="$ROOT_DIR/core"
-UI_DIR="$ROOT_DIR/ui"
-LINUX_LIB_DIR="$UI_DIR/linux/lib"
-OUTPUT_DIR="$UI_DIR/build/linux/x64/release/bundle"
 DIST_DIR="$ROOT_DIR/dist"
 
 # Extract version from Flutter pubspec.yaml
-VERSION=$(grep '^version:' "$UI_DIR/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
+VERSION=$(grep '^version:' "$ROOT_DIR/ui/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
 
-# Generate timestamp
-TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-
-echo "Root:        $ROOT_DIR"
-echo "Core:        $CORE_DIR"
-echo "UI:          $UI_DIR"
-echo "Linux lib:   $LINUX_LIB_DIR"
-echo "Output:      $OUTPUT_DIR"
-echo "Dist:        $DIST_DIR"
-echo "Version:     $VERSION"
-echo "Timestamp:   $TIMESTAMP"
+echo "Root:    $ROOT_DIR"
+echo "Dist:    $DIST_DIR"
+echo "Version: $VERSION"
 
 echo ""
-echo "=== Step 1: Build Rust core ==="
-cd "$CORE_DIR"
-cargo build --release
+echo "=== Step 1: Prepare source staging directory ==="
+SRC_DIR="$ROOT_DIR/Lumen-$VERSION"
+rm -rf "$SRC_DIR"
+mkdir -p "$SRC_DIR"
+
+echo "Copying source tree..."
+rsync -av --exclude 'dist' \
+          --exclude 'package' \
+          --exclude 'target' \
+          --exclude 'build' \
+          --exclude '.git' \
+          --exclude '.dart_tool' \
+          --exclude '.idea' \
+          --exclude '.vscode' \
+          "$ROOT_DIR/" "$SRC_DIR/"
 
 echo ""
-echo "=== Step 2: Copy liblumen_core.so into Flutter linux/lib ==="
-mkdir -p "$LINUX_LIB_DIR"
-cp "$CORE_DIR/target/release/liblumen_core.so" "$LINUX_LIB_DIR/"
-
-echo ""
-echo "=== Step 3: Build Flutter Linux release ==="
-cd "$UI_DIR"
-flutter build linux --release
-
-echo ""
-echo "=== Step 4: Package final tar.gz ==="
+echo "=== Step 2: Create source tarball ==="
 mkdir -p "$DIST_DIR"
-cd "$OUTPUT_DIR"
+cd "$ROOT_DIR"
 
-TAR_NAME="Lumen-linux-x64-v${VERSION}-${TIMESTAMP}.tar.gz"
-tar -czvf "$DIST_DIR/$TAR_NAME" *
+TAR_NAME="Lumen-$VERSION.tar.gz"
+tar -czvf "$DIST_DIR/$TAR_NAME" "Lumen-$VERSION"
 
 echo ""
 echo "=== DONE ==="
