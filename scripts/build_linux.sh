@@ -5,12 +5,14 @@ export GZIP=-n
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 
-# Extract version from Flutter pubspec.yaml
-VERSION=$(grep '^version:' "$ROOT_DIR/ui/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
+# Extract version from Flutter pubspec.yaml (strip CRLF)
+VERSION=$(grep '^version:' "$ROOT_DIR/ui/pubspec.yaml" \
+    | awk '{print $2}' \
+    | cut -d'+' -f1 \
+    | tr -d '\r')
 
-echo "Root:    $ROOT_DIR"
-echo "Dist:    $DIST_DIR"
-echo "Version: $VERSION"
+printf 'VERSION raw: "%s"\n' "$VERSION"
+printf 'VERSION escaped: %q\n' "$VERSION"
 
 echo ""
 echo "=== Step 1: Prepare source staging directory ==="
@@ -30,11 +32,17 @@ rsync -av --exclude 'dist' \
           "$ROOT_DIR/" "$SRC_DIR/"
 
 echo ""
-echo "=== Step 2: Normalize CRLF line endings ==="
+echo "=== Step 2: Normalize CRLF in directory names ==="
+find "$SRC_DIR" -depth -name '*'$'\r' -exec bash -c '
+    for f; do mv "$f" "${f%$'\''\r'\''}"; done
+' _ {} +
+
+echo ""
+echo "=== Step 3: Normalize CRLF line endings ==="
 find "$SRC_DIR" -type f -print0 | xargs -0 dos2unix || true
 
 echo ""
-echo "=== Step 3: Create source tarball ==="
+echo "=== Step 4: Create source tarball ==="
 mkdir -p "$DIST_DIR"
 cd "$ROOT_DIR"
 
