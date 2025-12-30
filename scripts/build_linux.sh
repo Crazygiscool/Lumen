@@ -5,11 +5,12 @@ export GZIP=-n
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 
-# Extract version from Flutter pubspec.yaml (strip CRLF)
+# Extract version from Flutter pubspec.yaml (strip CRLF + newline)
 VERSION=$(grep '^version:' "$ROOT_DIR/ui/pubspec.yaml" \
     | awk '{print $2}' \
     | cut -d'+' -f1 \
-    | tr -d '\r')
+    | tr -d '\r' \
+    | tr -d '\n')
 
 printf 'VERSION raw: "%s"\n' "$VERSION"
 printf 'VERSION escaped: %q\n' "$VERSION"
