@@ -59,7 +59,9 @@ pub unsafe extern "C" fn lumen_decrypt_entry(
     let entry = entries.iter().find(|e| e.id == id).unwrap();
 
     let decrypted = entry.decrypt_text(&password);
-    CString::new(decrypted).unwrap().into_raw()
+    // Return decrypted text or an error message back to caller; avoid panics
+    let out = CString::new(decrypted).unwrap_or_else(|_| CString::new("ERROR: invalid decrypted string").unwrap());
+    out.into_raw()
 }
 
 // ------------------------------------------------------------

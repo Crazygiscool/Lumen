@@ -28,13 +28,15 @@ pub fn encrypt(text: &str, key: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
     (ciphertext, nonce.to_vec())
 }
 
-pub fn decrypt(ciphertext: &[u8], nonce: &[u8], key: &[u8; 32]) -> String {
+pub fn decrypt(ciphertext: &[u8], nonce: &[u8], key: &[u8; 32]) -> Result<String, String> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce_obj = Nonce::from_slice(nonce);
 
-    let plaintext = cipher
-        .decrypt(nonce_obj, ciphertext)
-        .expect("Decryption failed");
-
-    String::from_utf8(plaintext).expect("Invalid UTF-8")
+    match cipher.decrypt(nonce_obj, ciphertext) {
+        Ok(plaintext) => match String::from_utf8(plaintext) {
+            Ok(s) => Ok(s),
+            Err(_) => Err("Invalid UTF-8 in decrypted payload".into()),
+        },
+        Err(_) => Err("Decryption failed".into()),
+    }
 }

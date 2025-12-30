@@ -70,6 +70,9 @@ impl JournalEntry {
 
     pub fn decrypt_text(&self, password: &str) -> String {
         let key = encryption::derive_key(password, &self.salt);
-        encryption::decrypt(&self.encrypted, &self.nonce, &key)
+        match encryption::decrypt(&self.encrypted, &self.nonce, &key) {
+            Ok(s) => s,
+            Err(e) => format!("ERROR: {}", e),
+        }
     }
 }
