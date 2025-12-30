@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer};
+use base64::{engine::general_purpose, Engine as _};
 
 mod encryption;
 
@@ -11,14 +12,27 @@ pub struct Provenance {
     pub feedback: Option<String>,
 }
 
+fn as_base64<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let encoded = general_purpose::STANDARD.encode(bytes);
+    serializer.serialize_str(&encoded)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub id: String,
 
     // --- Encryption fields ---
+    #[serde(serialize_with = "as_base64")]
     pub encrypted: Vec<u8>,
+
+    #[serde(serialize_with = "as_base64")]
     pub nonce: Vec<u8>,
-    pub salt: Vec<u8>,        // <-- REQUIRED for key derivation
+
+    #[serde(serialize_with = "as_base64")]
+    pub salt: Vec<u8>,
 
     // --- Metadata ---
     pub provenance: Provenance,
@@ -41,13 +55,8 @@ impl JournalEntry {
             feedback: None,
         };
 
-        // Generate salt for PBKDF2/Argon2
         let salt: [u8; 16] = rand::random();
-
-        // Derive key
         let key = encryption::derive_key(password, &salt[..]);
-
-        // Encrypt
         let (encrypted, nonce) = encryption::encrypt(&text, &key);
 
         JournalEntry {

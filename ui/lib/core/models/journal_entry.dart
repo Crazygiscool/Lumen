@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../lumen_core.dart';
 
 class Provenance {
@@ -19,9 +21,9 @@ class Provenance {
 
 class JournalEntry {
   final String id;
-  final String encrypted;
-  final String nonce;
-  final String salt;
+  final List<int> encrypted;
+  final List<int> nonce;
+  final List<int> salt;
   final Provenance provenance;
 
   JournalEntry({
@@ -33,13 +35,30 @@ class JournalEntry {
   });
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
+    List<int> parseBytes(dynamic v) {
+      if (v is List) return v.map((e) => e as int).toList();
+      if (v is String) {
+        // Could be a base64 string or a JSON-encoded array string
+        try {
+          return base64Decode(v).toList();
+        } catch (_) {
+          try {
+            final decoded = jsonDecode(v) as List<dynamic>;
+            return decoded.map((e) => e as int).toList();
+          } catch (e) {
+            rethrow;
+          }
+        }
+      }
+      throw FormatException('Unsupported byte representation: ${v.runtimeType}');
+    }
+
     return JournalEntry(
       id: json['id'] as String,
-      encrypted: json['encrypted'] as String,
-      nonce: json['nonce'] as String,
-      salt: json['salt'] as String,
-      provenance:
-          Provenance.fromJson(json['provenance'] as Map<String, dynamic>),
+      encrypted: parseBytes(json['encrypted']),
+      nonce: parseBytes(json['nonce']),
+      salt: parseBytes(json['salt']),
+      provenance: Provenance.fromJson(json['provenance'] as Map<String, dynamic>),
     );
   }
 
