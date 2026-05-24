@@ -4,8 +4,6 @@
 
 > *Illuminate your inner world. Write in light. Store in silence.*
 
----
-
 ## ✨ Features
 
 - 🔐 **Local Encryption**  
@@ -28,8 +26,6 @@
 
 - 🛠️ **Cross‑Platform Build Pipeline**  
   Automated builds for Linux and macOS, including Rust FFI and Flutter bundling.
-
----
 
 ## 🛠️ Installation
 
@@ -86,8 +82,6 @@ flutter run
 cargo run --bin lumen-cli
 ```
 
----
-
 ## 📦 File Structure
 
 ```
@@ -100,15 +94,11 @@ lumen/
  └─ README.md
 ```
 
----
-
 ## 📚 Documentation
 
 - Core architecture: `docs/core.md`  
 - Storage format: `docs/storage.md`  
 - TUI usage: `docs/tui.md`  
-
----
 
 ## 🚫 License
 
@@ -117,14 +107,10 @@ Lumen is provided under the terms described in `LICENSE` / `LICENSE.txt`.
 Personal, educational, and research use is permitted.  
 Commercial use requires prior written permission.
 
----
-
 ## 📣 Contributing
 
 Contributions are welcome as long as they align with the project’s non‑commercial terms.  
 See `CONTRIBUTING.md` before submitting pull requests.
-
----
 
 ## 📬 Contact
 
@@ -132,8 +118,6 @@ For questions or licensing inquiries:
 
 **Author:** Crazygiscool  
 **Email:** [crazygiscool@proton.me](mailto:crazygiscool@proton.me)
-
----
 
 ## 🪞 Reflect Freely. Store Safely.
 
