@@ -6,6 +6,13 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 UI_PUBSPEC="$ROOT_DIR/ui/pubspec.yaml"
 CORE_CARGO="$ROOT_DIR/core/Cargo.toml"
 
+DRY_RUN=false
+for arg in "$@"; do
+    case $arg in
+        --dry-run) DRY_RUN=true ;;
+    esac
+done
+
 echo "Project root: $ROOT_DIR"
 
 # Extract version from pubspec.yaml
@@ -22,7 +29,8 @@ echo "Current version: $MAJOR.$MINOR.$PATCH"
 echo "Git commits: $COMMITS"
 
 # Detect if user manually bumped major/minor
-LAST_TAG=$(git -C "$ROOT_DIR" describe --tags --abbrev=0 2>/dev/null || echo "$MAJOR.$MINOR.$PATCH")
+# Strip optional v prefix from last tag for comparison
+LAST_TAG=$(git -C "$ROOT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "$MAJOR.$MINOR.$PATCH")
 
 IFS='.' read -r LAST_MAJOR LAST_MINOR LAST_PATCH <<< "$LAST_TAG"
 
@@ -39,6 +47,11 @@ FINAL_VERSION="$MAJOR.$MINOR.$PATCH+$COMMITS"
 
 echo "Final version: $FINAL_VERSION"
 
+if [ "$DRY_RUN" = true ]; then
+    echo "Dry run — no files written."
+    exit 0
+fi
+
 # Update pubspec.yaml
 sed -i.bak "s/^version:.*/version: $FINAL_VERSION/" "$UI_PUBSPEC"
 rm "$UI_PUBSPEC.bak"
@@ -50,4 +63,15 @@ rm "$CORE_CARGO.bak"
 echo "Updated:"
 echo " - ui/pubspec.yaml"
 echo " - core/Cargo.toml"
+
+# Create tag
+TAG="v$MAJOR.$MINOR.$PATCH"
+if git -C "$ROOT_DIR" rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "Tag $TAG already exists — skipping tag"
+else
+    git -C "$ROOT_DIR" tag -a "$TAG" -m "Release $MAJOR.$MINOR.$PATCH"
+    echo "Created tag: $TAG"
+    echo "Push with: git push --follow-tags"
+fi
+
 echo "Done."
