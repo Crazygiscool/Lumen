@@ -1,4 +1,5 @@
 # 🌟 Lumen
+[![wakatime](https://wakatime.com/badge/user/94726172-a5c4-4c20-b247-f01d1fc63010/project/e0433b06-9daf-4418-aba1-3f71a3af8149.svg)](https://wakatime.com/badge/user/94726172-a5c4-4c20-b247-f01d1fc63010/project/e0433b06-9daf-4418-aba1-3f71a3af8149)
 
 **Lumen** is a secure, offline‑first journaling engine built with a Rust core and a cross‑platform Flutter UI. It focuses on privacy, clarity, and long‑term durability — giving you a fast, encrypted space to write without distractions.
 
