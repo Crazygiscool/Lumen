@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize, Serializer};
-use base64::{engine::general_purpose, Engine as _};
+use serde::{Serialize, Deserialize};
 
 mod encryption;
 
@@ -12,26 +11,15 @@ pub struct Provenance {
     pub feedback: Option<String>,
 }
 
-fn as_base64<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let encoded = general_purpose::STANDARD.encode(bytes);
-    serializer.serialize_str(&encoded)
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub id: String,
 
     // --- Encryption fields ---
-    #[serde(serialize_with = "as_base64")]
     pub encrypted: Vec<u8>,
 
-    #[serde(serialize_with = "as_base64")]
     pub nonce: Vec<u8>,
 
-    #[serde(serialize_with = "as_base64")]
     pub salt: Vec<u8>,
 
     // --- Metadata ---
