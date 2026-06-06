@@ -14,151 +14,171 @@ From encrypted journaling engine to a full localized productivity platform — c
 
 ---
 
-## Phase 0 — Architectural Debt (must fix before building)
+## Phase 0 — Architectural Debt ✅
 
-These are bugs and omissions in the current codebase that will block every subsequent phase if left unfixed.
+- **Persistent storage wiring** — auto-load from `{data_dir}/lumen/journal.bin` on first FFI call, auto-save after every `add_entry`. Corrupted files renamed to `.bin.corrupted`.
+- **FFI memory leaks** — fixed: `lumen_free_string` called from Dart after every `listEntries`/`decryptEntry`.
+- **Flutter state management** — deferred to Phase 3 (Riverpod).
+- **Cargo.lock for release builds** — deferred to build script updates (add `--locked`).
 
-### Persistent storage wiring
+## Phase 1 — Data Model Expansion ✅
 
-**Problem**: `Storage::save_to_file` and `load_from_file` exist in `core/src/storage/mod.rs` but are never called from the FFI layer. All data lives in a `Vec<JournalEntry>` in memory. Restarting the app erases everything.
+- **Entry kind system** — `EntryKind` enum (Journal/Note/Task/Project/Custom) with custom serde (lowercase strings).
+- **Tags** — `tags: Vec<String>` in plaintext metadata for searchability.
+- **Content format** — `flutter_markdown` rendering with selectable text and task checklist support.
+- **YAML frontmatter** — kind-specific structured data (`title`, `priority`) saved as `---\nkey: value\n---` in encrypted body; parsed on decrypt for clean display.
+- **`display_title`** — optional plaintext field for list preview. Toggle in UI to encrypt title or not.
+- **Migration path** — `#[serde(default)]` on `kind`, `tags`, `display_title` so old entries load without stubs.
+- **Search index** — replaced by SQLite FTS5 in Phase 1b.
 
-**What to do**:
-- Choose a default file path for the journal data file (e.g. `~/.lumen/journal.bin` on Unix, `%APPDATA%/Lumen/journal.bin` on Windows).
-- Call `load_from_file` once during FFI initialization so existing entries survive restarts.
-- Call `save_to_file` after every `add_entry` call. This is write-amortized enough for journaling, but may need deferral (batch save on timer) for high-frequency use later.
-- Expose the data file path (or an alternative path) through the FFI so the Flutter side can offer "export journal" / "import journal" in settings.
-
-### FFI memory leaks
-
-**Problem**: `lumen_list_entries` and `lumen_decrypt_entry` return `*mut c_char` allocated by Rust (`CString::into_raw()`). The Dart side never calls `lumen_free_string`, so every call leaks memory.
-
-**What to do**:
-- On the Dart side (`ui/lib/core/lumen_core.dart`), look up the `lumen_free_string` function and call it on every returned pointer after the string has been read.
-- Alternatively, change the FFI contract: return the string in a pre-allocated buffer passed by the caller, avoiding heap allocation on the Rust side. This is more idiomatic for FFI but requires changing all four exported functions.
-
-### Flutter state management
-
-**Problem**: `JournalListScreen` uses raw `setState` to reload the entire entry list after every operation. As features grow, this will cause unnecessary rebuilds, stale data, and tangled UI logic.
-
-**What to do**:
-- Introduce a state management library. Provider is the simplest path and is Flutter-endorsed. Riverpod is a more modern alternative with better testability.
-- The `LumenCore` FFI wrapper should become a service class, registered at the app root, rather than threaded through widget constructors via `required this.lumen`.
-
-### Cargo.lock missing for release builds
-
-**Problem**: `Cargo.lock` exists in the repo but the build scripts run `cargo build --release` without `--locked`. This means different build machines may resolve different dependency versions, potentially introducing subtle bugs.
-
-**What to do**:
-- Add `--locked` to both `build_linux.sh` and `build_windows.sh` after verifying the lockfile is up to date with `cargo update`.
+### Files changed
+- `core/src/entry/mod.rs`, `core/src/ffi.rs`, `core/src/lib.rs`
+- `ui/lib/core/lumen_core.dart`, `ui/lib/core/models/journal_entry.dart`
+- `ui/lib/screens/journal_list_screen.dart`, `ui/lib/screens/new_entry_screen.dart`, `ui/lib/screens/entry_view_screen.dart`
+- `ui/lib/widgets/entry_card.dart`
+- `ui/lib/utils/frontmatter.dart` (new)
 
 ---
 
-## Phase 1 — Data Model Expansion
+## Phase 1b — SQLite Migration
 
-The current `JournalEntry` represents a single encrypted text blob with provenance metadata. To support notes, tasks, and projects, this model must become polymorphic.
+Replace bincode serialization with SQLite as the single storage backend. Combines persistent storage, search, and metadata filtering into one engine.
 
-### Entry kind system
+### What to do
 
-Introduce a `kind` field on `JournalEntry`:
+#### core (Rust)
+- **`core/Cargo.toml`** — add `rusqlite = { version = "0.34", features = ["bundled"] }`, remove `bincode`.
+- **`core/src/storage/mod.rs`** — rewrite `Storage` to use SQLite at `{data_dir}/lumen/lumen.db`.
+- **`core/src/storage/schema.rs`** — define and migrate the schema.
 
+```sql
+CREATE TABLE entries (
+    id TEXT PRIMARY KEY,
+    encrypted BLOB NOT NULL,
+    nonce BLOB NOT NULL,
+    salt BLOB NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'journal',
+    tags TEXT NOT NULL DEFAULT '[]',
+    display_title TEXT NOT NULL DEFAULT '',
+    pinned INTEGER NOT NULL DEFAULT 0,
+    mood TEXT,
+    author TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    plugin_origin TEXT,
+    feedback TEXT,
+    priority TEXT,
+    status TEXT DEFAULT 'todo',
+    due_date TEXT,
+    parent_project_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE folders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    parent_id TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE recurring_tasks (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    every_n_days INTEGER,
+    day_of_week INTEGER,
+    priority TEXT DEFAULT 'medium',
+    tags TEXT NOT NULL DEFAULT '[]',
+    project_id TEXT,
+    created_at TEXT NOT NULL,
+    next_due TEXT NOT NULL
+);
 ```
-entry_kind: enum {
-    JournalEntry,
-    Note,
-    Task,
-    Project,
-    Milestone,
-    Custom
-}
+
+- **Migration from bincode**: detect `journal.bin`, read entries, write to SQLite, rename `journal.bin` → `journal.bin.migrated`.
+- **Search**: SQL `WHERE` / `LIKE` on plaintext columns (kind, tags, display_title, author, timestamp). Body stays encrypted — no FTS on ciphertext. Body content search can be added later via a `search_terms` column with hashed tokens.
+- **New FFI functions**:
+  - `lumen_update_entry(id, text, author, password, kind, tags_json, display_title)` — update body + metadata
+  - `lumen_delete_entry(id)` — delete by ID
+  - `lumen_search_entries(query)` — SQL WHERE on metadata fields, returns JSON array
+
+#### ui (Flutter)
+- **`ui/lib/core/lumen_core.dart`** — add `updateEntry()`, `deleteEntry()`, `searchEntries()` methods.
+- **`ui/lib/core/models/journal_entry.dart`** — unchanged (JSON mapping stays the same).
+
+#### Dependencies
 ```
-
-Each kind carries optional type-specific metadata stored alongside the encrypted payload. The metadata itself is unencrypted (for searchability) but minimal to avoid leaking content:
-
-- **Task**: `status` (todo/in_progress/done/archived), `due_date`, `priority`, `assignee`, `parent_project_id`
-- **Project**: `start_date`, `target_date`, `status`, `color_label`, `member_ids`
-- **Milestone**: `target_date`, `parent_project_id`, `is_complete`
-- **Note**: `tags[]`, `pinned`, `word_count`
-
-Because metadata is unencrypted, the search index never needs to decrypt entries. The encrypted payload remains the entry body.
-
-### Content format upgrade
-
-Current entries store plaintext. For notes and projects, Markdown is the natural format:
-
-- Store body as Markdown text, encrypt the raw Markdown string.
-- On the Flutter side, render with a `flutter_markdown` widget.
-- For tasks, support Markdown checklists (`- [ ]` / `- [x]`) as a rendering convention.
-
-### Tags and cross-cutting concerns
-
-A simple tag system that sits outside the encrypted body so it is searchable without decryption:
-
+Add:  rusqlite (bundled SQLite)
+Remove:  bincode
+Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs, base64
 ```
-tags: Vec<String>
-```
-
-Tags are stored in plaintext (alongside `provenance`). The tradeoff is accepted: tags are metadata, not content. A future enhancement could encrypt tag names with a separate key.
-
-### Search index
-
-Without a database, search means decrypting every entry and scanning — impractical at scale. A local search index solves this:
-
-- Maintain a sidecar file alongside `journal.bin` (e.g. `journal.idx`) that maps term hashes to entry IDs.
-- Build or update the index incrementally when entries are added/edited.
-- The index itself is stored unencrypted (a hash of each word, not the word itself). For stronger privacy, encrypt the index with a derived key.
-- On the Flutter side, expose a `search(query)` FFI function that consults the index, returns matching entry IDs, then lazily decrypts only those entries for display.
-
-Do not attempt to build a general-purpose database. A flat-file index is sufficient for a single-user desktop app with thousands of entries.
-
-### Migration path for existing entries
-
-Existing entries have no `kind` field. On first launch after the migration:
-
-- Entries without `kind` default to `JournalEntry`.
-- The `tags` field defaults to an empty vector.
-- No re-encryption needed; the struct change is additive.
 
 ---
 
 ## Phase 2 — Feature Modules
 
-Once the data model supports multiple entry kinds, build the feature-specific UIs and backend logic.
+### 2a: Journaling refinements
 
-### Journaling refinements
+#### core
+- **`core/src/entry/mod.rs`** — add `EditRecord { timestamp, author, reason }` struct. `Provenance.history: Vec<EditRecord>` appended on each `update_entry`.
+- **FFI** — `lumen_get_streak() -> u32` — `SELECT DISTINCT DATE(timestamp) FROM entries WHERE kind='journal' ORDER BY timestamp DESC`, count consecutive days from today backward.
 
-- **Writing prompt system** — a local bank of prompts; daily or random prompt shown on new entry creation.
-- **Mood/emotional tagging** — before encrypted save, user selects a mood emoji; stored in unencrypted metadata.
-- **Streak tracking** — count consecutive days with at least one journal entry; displayed as a widget in the journal view.
-- **Entry history / edit provenance** — each edit appends to a `history: Vec<EditRecord>` where each record stores a timestamp and the plugin or user that made the change. Only the *latest* encrypted body need be stored, but the history chain proves integrity.
+#### ui
+- **`ui/lib/screens/new_entry_screen.dart`** — mood emoji picker row (😊 😐 😔 😡 😴) shown when `kind == 'journal'`. Saved as `mood` metadata.
+- **`ui/lib/utils/journal_prompts.dart`** — local JSON bank of ~50 writing prompts. Random prompt displayed above body field on new journal entry.
+- **`ui/lib/widgets/streak_widget.dart`** — calls `lumen_get_streak()`, displays flame icon + count in sidebar/journal view.
+- **Edit history** — `entry_view_screen.dart` shows history timeline when kind=journal and `history` is non-empty.
 
-### Note-taking subsystem
+### 2b: Note-taking subsystem
 
-- **Quick note capture** — a global hotkey (platform-native) that opens a small floating window. The note is saved as kind `Note`, tagged automatically with `inbox`.
-- **Folders** — a lightweight hierarchical folder system mapped as `folder_id: Option<Uuid>`. Folders are stored as a separate flat file (`folders.json`, unencrypted). A folder contains only IDs — no content.
-- **Linking between notes** — wiki-style `[[note-id-or-title]]` links. The renderer detects these and creates in-app navigation. The link target is resolved by ID lookup, not by decrypting content.
-- **Pinboard / favorites** — pinned entries appear at the top of their respective list views.
+#### core
+- **`core/src/ffi.rs`** — `lumen_list_folders()` → JSON, `lumen_create_folder(name, parent_id)` → folder ID, `lumen_delete_folder(id)`, `lumen_move_to_folder(entry_id, folder_id)`.
+- Folders stored in the `folders` table (already in schema). Max nested depth: 3.
 
-### Task management
+#### ui
+- **`ui/lib/screens/note_list_screen.dart`** — folder tree sidebar + note list filtered by selected folder. "New Folder" context menu.
+- **`ui/lib/utils/wiki_links.dart`** — regex `\[\[([^\]]+)\]\]` detected in Markdown body. Custom `MarkdownElementBuilder` that renders matched text as a tappable `TextSpan`. On tap → `Navigator.push` to view target entry (resolved by ID or display_title lookup).
+- **Pinboard** — `pinned` column already in schema. Sort `pinned DESC, timestamp DESC` in list queries. Pin/unpin via long-press context menu.
+- **Quick capture** — `ui/lib/screens/quick_note_screen.dart` — small floating window (popup). Saves as `kind=note`, tagged `inbox`. Platform hotkey implementation deferred (requires native plugin).
 
-- **Task views** — "Today", "Upcoming", "All", "By Project". Each filters by `kind == Task` and applies the relevant metadata filter.
-- **Quick-add task bar** — a text field at the top of the task view that parses `"Buy groceries p:high due:friday #personal"` into structured fields. Natural-language date parsing (e.g. `chrono` on the Rust side or `chrono`-like logic).
-- **Kanban board** — a project-level view showing tasks grouped by `status`. Drag-and-drop changes status. Implemented entirely on the Flutter side; it merely re-orders displayed entries without changing their storage.
-- **Recurring tasks** — a separate `RecurringTask` struct stored in a sidecar file. On each app launch, check if any recurring tasks are due and create the corresponding child tasks. Recurrence rules follow a simplified iCalendar subset.
+### 2c: Task management
 
-### Project planning
+#### core
+- **`core/src/ffi.rs`** — `lumen_parse_task(text) -> *mut c_char` — Rust-side natural language parser returning JSON:
+  ```json
+  {"title": "Buy groceries", "priority": "high", "due_date": "2026-06-12", "tags": ["personal"]}
+  ```
+  Parses:
+  - `p:high` / `priority:high` → priority
+  - `due:friday` / `due:2026-06-10` / `due:next week` → due_date via `chrono`
+  - `#tag` → tags
+  - All other text → title
 
-- **Project entity** — a project is an entry of kind `Project` containing a Markdown description, a list of member IDs, and a status.
-- **Milestone tracking** — milestones are child entries linked by `parent_project_id`.
-- **Gantt / timeline view** — a horizontal timeline rendered on the Flutter canvas using `CustomPainter`, reading task `due_date` and `status` from metadata. All entries on screen are decrypted once and cached.
-- **Project export** — export a project's entries (ordered by timestamp) as a single Markdown document. This reuses the existing export plugin hook.
+#### ui
+- **`ui/lib/screens/task_list_screen.dart`** — filter tabs: Today / Upcoming / All / By Project. Each calls appropriate SQL query:
+  - Today: `WHERE kind='task' AND due_date = date('now')`
+  - Upcoming: `WHERE kind='task' AND due_date > date('now') AND status != 'done'`
+  - All: `WHERE kind='task'`
+  - By Project: `WHERE kind='task' AND parent_project_id = ?`
+- **`ui/lib/widgets/quick_add_bar.dart`** — text field at top of task list. On submit → calls `lumen_parse_task` → shows populated form for confirmation → saves.
+- **`ui/lib/screens/kanban_screen.dart`** — three columns: Todo / In Progress / Done. Tasks rendered as draggable cards. On drop into new column → calls `lumen_update_entry` to set `status`. Kanban is filtered by `parent_project_id` (project-level) or all tasks.
+- **`core/src/entry/recurring.rs`** — on app init startup, query `recurring_tasks` table. For each task where `next_due <= now()`, generate a child entry of `kind=task` with the recurring task's metadata. Update `next_due` based on interval. Runs in `ensure_loaded()`.
 
-### Entry import/export
+### 2d: Project planning
 
-The existing `import/export` feature is mentioned in README but not implemented:
+#### ui
+- **`ui/lib/screens/project_list_screen.dart`** — lists entries where `kind='project'`. Each project card shows status, task count, date range. Tap → project detail view with milestone list + kanban board filtered by `parent_project_id`.
+- **Milestones** — entries with `kind` set in frontmatter or as a separate kind. Filtered by `parent_project_id`. Displayed as a timeline section in project detail.
+- **`ui/lib/widgets/gantt_chart.dart`** — `CustomPainter` rendering tasks as horizontal bars on a date axis. X-axis = dates, Y-axis = tasks sorted by due_date. Scrollable horizontally, pinch-zoom. All entries decrypted once and cached for the view.
+- **Project export** — `lumen_export_project(project_id, password)` → iterates project task entries, decrypts each, concatenates as a single Markdown document with `##` headings per task. Returns string via FFI.
 
-- **Export** — iterate entries, decrypt each with the provided password, write to Markdown. Offer per-entry and batch export.
-- **Import** — parse Markdown files (detecting frontmatter for metadata) and create entries. Unknown metadata fields are silently dropped.
-- **Plaintext worry** — the exported Markdown is plaintext. The app must warn the user that exported files are not encrypted. Consider a "re-encrypt export" option that produces an encrypted `.lumenpack` archive instead.
+### 2e: Entry import/export
+
+#### core
+- **`core/src/ffi.rs`** — `lumen_export_all(password) -> *mut c_char` — JSON array of `{id, kind, body, metadata}` with all entries decrypted. `lumen_import(json) -> i32` — batch INSERT, returns count of imported entries.
+
+#### ui
+- **`ui/lib/screens/export_screen.dart`** — wizard: select scope (single entry / project / all), choose format (Markdown / `.lumenpack` encrypted archive), pick save directory via file dialog. Warn user that Markdown export is plaintext.
+- **`ui/lib/screens/import_screen.dart`** — file picker → parse JSON or Markdown frontmatter → preview list of detected entries → confirm import → batch insert.
 
 ---
 
@@ -166,127 +186,142 @@ The existing `import/export` feature is mentioned in README but not implemented:
 
 ### State layer
 
-Replace the ad-hoc `LumenCore` threading pattern with a proper service layer:
-
-- `LumenService` — wraps all FFI calls and maintains an in-memory cache of the entry list.
-- `AuthService` — manages the master password session (see Phase 5). Stores a session token derived from the password so the user does not re-enter it on every operation.
-- `SearchService` — coordinates with the search index, returns entry references.
-- `PluginService` — manages the plugin lifecycle and routes hook results.
-
-On the Flutter side, these services are provided via dependency injection (Provider or Riverpod). Screens consume them without knowing about FFI.
+- **`ui/pubspec.yaml`** — add `flutter_riverpod`.
+- **`ui/lib/core/services/lumen_service.dart`** — `StateNotifierProvider<LumenService, List<JournalEntry>>` wrapping all FFI calls. Entry list cached in memory, refreshed after every mutation (add/update/delete). Screens consume via `ref.watch(lumenServiceProvider)`.
+- **`ui/lib/main.dart`** — wrap in `ProviderScope`. Remove `required this.lumen` threading; screens get services via Riverpod.
+- **`ui/lib/core/services/auth_service.dart`** — wraps `lumen_unlock`/`lumen_lock` calls. Exposes `isUnlocked` state. Stub for Phase 5.
 
 ### UI alignment with DESIGN.md
 
-The current light-yellow theme differs significantly from the dark-mode design spec in `DESIGN.md`. A phased UI rewrite:
-
-- **Theme system** — define light and dark variants. The dark variant matches `DESIGN.md` (obsidian background, deep cobalt primary, Geist typography). The light variant is an inversion (white background, dark text).
-- **Sidebar navigation** — replace the default `AppBar` + FAB layout with a fixed left sidebar (matching the DESIGN.md spec). The sidebar contains: Journal, Notes, Tasks, Projects, Settings, and a search bar. Active section is highlighted with a primary-colored left border ("the lumen").
-- **Writing view** — full-screen editor with minimal chrome. The text area is centered, max-width 900px. Title and metadata controls slide in on hover/focus.
-- **Entry cards** — replace the `Card(elevation: 2)` with a border-only card (1px solid `#334155` in dark mode), matching the "sheets of paper" concept from DESIGN.md.
-- **Typography** — add Geist font (open source, available from Vercel's CDN or bundled as an asset). Define text styles matching the DESIGN.md spec (body-lg at 18px/28px line height for reading, code-sm at 13px for inline code).
-- **Status badges** — small colored dots next to entry titles indicating encryption status and sync status (if sync is configured).
+- **`ui/lib/utils/theme.dart`** — complete rewrite to dark theme:
+  - Background: `#0f172a` (obsidian)
+  - Surface: `#1e293b` (charcoal) for cards, sidebar, inputs
+  - Primary: `#1e2ebd` (deep cobalt) for buttons, focus states
+  - Secondary: `#c4b5fd` (violet) for accents
+  - Borders: 1px solid `#334155`
+  - Border radius: `4px` (0.25rem) for components, up to `8px` for containers
+  - All color values from `DESIGN.md`
+- **Geist font** — bundled in `ui/fonts/`:
+  - `Geist-Regular.ttf`, `Geist-Bold.ttf`, `Geist-Medium.ttf`, `Geist-SemiBold.ttf`, `Geist-Mono.ttf`
+  - Declared in `pubspec.yaml` fonts section (offline-first, no network needed)
+- **`ui/lib/screens/home_screen.dart`** — new root screen:
+  - `Row` with fixed left sidebar (280px) + content area
+  - Sidebar items: Journal, Notes, Tasks, Projects, Settings (icons + labels)
+  - Active section highlighted with primary-colored left border (2px, the "lumen")
+  - Search bar at top of sidebar
+- **`ui/lib/widgets/entry_card.dart`** — replace `Card(elevation: 2)` with `Container`: 1px `#334155` border, `#1e293b` background, 0.25rem radius. No elevation (matches DESIGN.md "sheets of paper").
+- **Status badges** — small `Container(8x8, circle)` colored dot next to each entry title: green (encrypted), grey (placeholder for future sync status).
 
 ### Responsive layout
 
-- **Desktop** (default): three-column layout — sidebar | list | detail/editor. The list column is ~300px, the detail column is fluid with max 900px.
-- **Narrow window** (< 800px): the list and detail columns collapse into a single stack, navigated by back/forward (like a mobile layout). The sidebar becomes a hamburger drawer.
-- **Focus mode** — hides the sidebar and list columns, showing only the editor or reading view. Toggled by `Ctrl+.` (or `Cmd+.`).
+- **`ui/lib/utils/responsive.dart`** — breakpoint utilities:
+  - `isNarrow(context)` — `MediaQuery.of(context).size.width < 800`
+  - `isWide(context)` — `MediaQuery.of(context).size.width >= 800`
+- **Desktop (default, wide)** — sidebar (280px) | list (300px) | detail/editor (fluid, max 900px). Three-column `Row`.
+- **Narrow (< 800px)** — list and detail collapse into single stack, navigated by back/forward (Navigator push/replace). Sidebar becomes a hamburger `Drawer`.
+- **Writing view** — full-screen editor, centered column max-width 900px. Title and metadata controls visible on focus/hover (future enhancement).
+- **Focus mode** — `Ctrl+.` / `Cmd+.` toggles. Hides sidebar + list columns, showing only editor or reading view. Implemented via `KeyboardListener` at `HomeScreen` level.
 
 ---
 
 ## Phase 4 — Plugin System Wiring
 
-The plugin infrastructure exists as Rust traits but is never invoked in the real data path. Completing it unlocks modular features without bloating the core.
-
 ### Current state
 
-- `Plugin` trait: `on_entry`, `on_export` hooks
-- `PluginManager`: register, run_on_entry — but `run_on_entry` discards plugin return values
-- `plugin.toml` manifest is documented in `docs/plugins.md` but no parser exists
-- No plugin loading mechanism (loading `.so`/`.dylib` plugins at runtime)
+- `Plugin` trait: `on_entry`, `on_export` hooks exist but `run_on_entry` discards return values.
+- `plugin.toml` manifest documented in `docs/plugins.md` but no parser exists.
+- No dynamic loading mechanism.
 
 ### What to build
 
-- **Manifest parser** — read `plugin.toml` from `~/.lumen/plugins/<name>/plugin.toml`. Validate fields (name, version, hooks).
-- **Dynamic loading** — use `libloading` (Rust crate) to load plugin `.so`/`.dylib` files from the plugins directory. Each plugin exports C-compatible functions matching the hook signatures.
-- **Hook pipeline** — in the `add_entry` data path, after encryption but before save, call `run_on_entry` on all registered plugins. Collect feedback strings and attach them to `Provenance.feedback`. Do not allow plugins to modify the encrypted payload (read-only access to metadata, write access to feedback only).
-- **Sandboxing** — plugins share the process address space. There is no memory sandbox (Wasm-based plugin runners are a much larger project). Audit plugins manually before inclusion. Document this limitation.
-- **Plugin registry URL** — a future `~/.lumen/plugins/registry.toml` could point to a community registry. The app checks the registry for updates and new plugins. This is optional and disabled by default.
+- **`core/Cargo.toml`** — add `libloading = "0.8"`.
+- **`core/src/plugins/manifest.rs`** — `PluginManifest { name, version, author, description, hooks: Vec<String> }`. Parsed from `plugin.toml` files.
+- **`core/src/plugins/loader.rs`** — scans `~/.lumen/plugins/*/plugin.toml`, loads each plugin's `.so`/`.dylib` via `libloading`. Each plugin exports C-compatible functions: `lumen_plugin_on_entry`, `lumen_plugin_on_export`.
+- **`core/src/plugins/mod.rs`** — update `PluginManager`:
+  - `run_on_entry(&self, entry: &JournalEntry) -> Vec<String>` — collects feedback strings instead of discarding.
+  - `Provenance.feedback` — populated with plugin feedback in `lumen_add_entry`, after encryption but before save.
+- **Plugin sandboxing** — document that plugins share the process address space. No Wasm sandbox; audit manually.
 
-### Built-in plugin candidates
+### Built-in plugin: Export Markdown
 
-- **Export Markdown** — iterates entries, decrypts, writes `.md` files to a user-chosen directory.
-- **Daily summary** — collects all today's entries (any kind) and renders a single read-only digest.
-- **Word count tracker** — logs word counts per entry over time; displays a chart.
+- **`core/src/plugins/builtin/export_md.rs`** — registered by default. Iterates entries of a given project, decrypts, writes `.md` files to a chosen directory.
+
+### Built-in plugin: Daily summary
+- **`core/src/plugins/builtin/daily_summary.rs`** — collects all today's entries, renders a single read-only Markdown digest.
+
+### Built-in plugin: Word count tracker
+- **`core/src/plugins/builtin/wordcount.rs`** — logs word counts per entry to a sidecar table. Displays a simple chart on the dashboard.
 
 ---
 
 ## Phase 5 — Authentication and Multi-Entry Support
 
-Single-user offline app currently has no password management. The user types their password on every add and decrypt. This is unacceptable at scale.
-
 ### Session management
 
-- On app launch, prompt for a master password. Derive a session key using Argon2 (same as encryption key derivation).
-- Store the session key in memory for the duration of the app session. Use it to automatically decrypt entries without re-prompting.
-- The master password is never stored on disk. The session key is derived fresh each launch.
-- Add a "lock" button that clears the session key and returns to the password prompt.
+- **`core/src/auth.rs`** — `SessionManager` struct holding `Option<[u8; 32]>` session key in memory.
+- **FFI**:
+  - `lumen_unlock(password)` — derives Argon2 key, stores in `SessionManager`.
+  - `lumen_lock()` — clears session key.
+- **Existing FFI signatures unchanged** — `lumen_add_entry` and `lumen_decrypt_entry` still accept a `password` param. If a session key is active, the password param is ignored and the session key is used instead. This maintains backward compatibility while enabling the auto-unlock flow.
+- **`ui/lib/screens/lock_screen.dart`** — full-screen password prompt on app launch. "Lock" button in sidebar to re-lock.
+- **`ui/lib/core/services/auth_service.dart`** — wraps unlock/lock, exposes `isUnlocked` state to Riverpod.
 
-### Multiple journals / workspaces
+### Multiple vaults
 
-- A journal (or "vault") is a directory containing a `journal.bin`, optional `journal.idx`, and a `config.toml`.
-- The user can create multiple vaults (`~/.lumen/Personal/`, `~/.lumen/Work/`, etc.).
-- Vaults are independent — each has its own encryption keys and data files.
-- The sidebar has a vault switcher at the top.
-- Each vault remembers its open section (journal, notes, tasks, etc.) independently.
+- **`core/src/ffi.rs`** — `lumen_open_vault(path)` changes `DATA_PATH` to a new directory. Each vault is a separate `lumen.db`. `lumen_list_vaults()` scans `~/.lumen/*/lumen.db`.
+- **Vault config** — `~/.lumen/<vault>/config.toml` stores settings (theme preference, last-active section).
+- **`ui/lib/widgets/vault_switcher.dart`** — dropdown at top of sidebar. "New Vault" button beside it.
 
-### Biometric unlock (platform-native)
+### Biometric unlock
 
-- Use platform biometric APIs (Windows Hello, macOS Touch ID, Linux `libsecret`/`pam`) to unlock without typing the master password every time.
-- On first unlock, derive the session key and store it in the platform keychain (encrypted with the biometric key).
-- On subsequent launches, the keychain provides the session key after biometric verification.
-- If the keychain is unavailable, fall back to password prompt.
+- **`ui/lib/core/services/biometric_service.dart`** — uses `local_auth` Flutter package for platform biometric prompt (Windows Hello, macOS Touch ID, Linux `libsecret`/`pam`).
+- On first unlock, store a keychain entry that returns the Argon2-derived key after biometric verification.
+- On subsequent launches, biometric prompt retrieves the session key from the keychain. If unavailable, fall back to password prompt.
 
 ---
 
-## Phase 6 — Sync (Optional)
-
-Sync is explicitly optional. The app works fully without it. When enabled, it should be end-to-end encrypted.
+## Phase 6 — Sync (Local SQLite)
 
 ### Architecture
 
-- **Sync adapter trait** — a new Rust trait `SyncBackend` with methods: `push(entry_ids)`, `pull() -> Vec<EntryId>`, `resolve(conflicts) -> Vec<Entry>`.
-- **Conflict resolution** — last-writer-wins by `provenance.timestamp`. A future enhancement could show both versions and let the user choose.
-- **Storage format** — the sync backend stores encrypted blobs. It never sees plaintext. The encryption is already handled by the entry layer; the sync layer just ships bytes.
-- **Provider implementations**:
-  - **Local file** — sync to a USB drive or network share. The `SyncBackend` writes `.lumenpack` files to a directory.
-  - **WebDAV** — sync to a Nextcloud instance. Requires the user to enter a URL and credentials (stored in platform keychain).
-  - **Custom S3-compatible** — for advanced users.
-- **Frequency** — on every entry create/edit (debounced 30 seconds), or on manual "Sync Now". No background daemon is necessary for a desktop app.
+Sync is fully local (no cloud). Data is copied between SQLite databases on removable media or network shares.
 
-### Conflict UI
-
-- When conflicts are detected, show a list in the Flutter UI: "2 entries changed on another device." The user can accept remote, keep local, or view both.
-- Conflicts are stored in a sidecar `conflicts.json` until resolved.
+- **`core/src/sync/mod.rs`** — `trait SyncBackend`:
+  ```rust
+  pub trait SyncBackend {
+      fn push(&self, entry_ids: &[String]) -> Result<(), String>;
+      fn pull(&self) -> Result<Vec<JournalEntry>, String>;
+      fn resolve(&self, conflicts: Vec<Conflict>) -> Vec<JournalEntry>;
+  }
+  ```
+- **`core/src/sync/local_sqlite.rs`** — opens a second SQLite DB at a user-specified path (e.g., USB drive `E:/lumen_sync.db`):
+  - `push` — copies entries from primary DB to sync DB (INSERT OR REPLACE).
+  - `pull` — copies entries from sync DB into primary DB.
+  - `resolve` — last-writer-wins by `provenance.timestamp`. Stores conflicting versions in a `conflicts` table.
+- **Frequency** — on every entry create/edit (debounced 30s), or on manual "Sync Now". No background daemon.
+- **`ui/lib/screens/sync_settings_screen.dart`** — configure sync directory path, "Sync Now" button, conflict list UI.
+- **Conflict UI** — list of conflicted entries showing local vs remote. User can accept local, accept remote, or view both.
 
 ---
 
 ## Phase 7 — Localization
 
-The UI is currently English-only. Localization should be added once the feature set stabilizes (to avoid re-translating moving targets).
+- **`ui/pubspec.yaml`** — add `flutter_localizations` (sdk).
+- **`ui/lib/l10n/`** — `app_en.arb`, `app_es.arb`, `app_fr.arb` with extracted strings.
+- **`ui/lib/main.dart`** — add `localizationsDelegates`, `supportedLocales: [Locale('en'), Locale('es'), Locale('fr')]`.
+- Extract all hardcoded user-facing strings from screens into ARB references. Rust core continues to produce machine-readable output (JSON, error codes), not user-facing strings.
 
-### Approach
+---
 
-- Use Flutter's built-in `flutter_localizations` and ARB files.
-- Extract all user-facing strings into `.arb` files under `ui/lib/l10n/`.
-- Start with 2–3 languages (English, Spanish, French) as a proof of concept.
-- Localize only the Flutter UI. The Rust core produces machine-readable output (JSON, error codes), not user-facing strings.
+## TUI
 
-### What not to localize
+Expand `tui/lumen_tui.rs` from welcome-message stub to a read-only terminal client:
 
-- Encryption key material (obviously)
-- Log output and debug strings
-- Plugin feedback text (plugin authors manage their own strings)
+- Open the SQLite DB at `{data_dir}/lumen/lumen.db`.
+- List entries (paginated, with kind badge).
+- Select an entry → enter password → decrypt and display body.
+- Search by kind/date range via CLI flags (`--kind task`, `--since 2026-01-01`).
+- Uses `clap` for argument parsing, `chrono` for date handling.
 
 ---
 
@@ -294,58 +329,53 @@ The UI is currently English-only. Localization should be added once the feature 
 
 ### Linux
 
-Current `scripts/build_linux.sh` produces a relocatable tarball. For distribution:
-
-- **AppImage** — package the Flutter bundle into an AppImage using `appimagetool`. Requires a desktop file and icon, both of which already exist in the AUR package.
-- **Flatpak** — a `flatpak-builder` manifest. More complex but better sandboxing. The Flutter Linux bundle is self-contained, so the Flatpak definition is straightforward.
-- **AUR** — already maintained. The PKGBUILD clones the tagged source and builds locally.
+- `scripts/build_linux.sh` — add `--locked` flag.
+- **AppImage** — wrap Flutter bundle + `.so` into AppImage via `appimagetool`.
+- **Flatpak** — `flatpak-builder` manifest.
+- **AUR** — already maintained. Update PKGBUILD to handle SQLite dependency (bundled in binary, no extra dep needed).
 
 ### macOS
 
-- `scripts/build_macos.sh` produces a `.app` bundle inside a `.zip`.
-- For distribution outside the Mac App Store: notarize the `.app` with `xcrun notarytool`.
-- For distribution on the Mac App Store: requires sandbox entitlements and a full review. This conflicts with the non-commercial license.
+- `scripts/build_macos.sh` — add `--locked` flag.
+- Notarize `.app` bundle with `xcrun notarytool` for distribution outside App Store.
 
 ### Windows
 
-- `scripts/build_windows.sh` produces a `.zip` of the release bundle.
-- For a proper installer, use `innosetup` or `wix` to create an `.msi` or `.exe` installer.
-- The Flutter Windows bundle includes all dependencies except Visual C++ Redistributable, which must be installed separately or bundled.
+- `scripts/build_windows.sh` — add `--locked` flag.
+- **MSI installer** — WiX or InnoSetup for proper installer.
 
-### Automated nightly builds
+### CI/CD
 
-- A GitHub Actions workflow (not yet in the repo) can build all three platforms on tag push.
-- Linux builds on `ubuntu-latest`, macOS on `macos-latest`, Windows on `windows-latest`.
-- The workflow checks out the tag, runs the appropriate `build_*.sh` script, and uploads artifacts to the release.
+- `.github/workflows/release.yml` — on tag push, build all 3 platforms, upload artifacts to release.
+- Linux: `ubuntu-latest`, macOS: `macos-latest`, Windows: `windows-latest`.
+- Each job runs the appropriate `build_*.sh` script.
 
 ---
 
 ## Testing Strategy
 
-The repo currently has one integration test in `core/src/lib.rs` and no Flutter tests. A sustainable testing approach for a multi-feature app:
-
 ### Rust core
 
-- **Unit tests** — test encryption/decryption round-trips, `Storage::add_entry`/`list_entries`, tag parsing, search index building and querying.
-- **Integration tests** — test the FFI functions through `unsafe` wrappers. Currently the only test lives at `core/src/lib.rs`. Expand this into `core/tests/` directory.
-- **Property-based testing** — use `proptest` to verify that encryption/decryption is idempotent for arbitrary inputs.
+- Unit tests for encryption/decryption round-trips, SQL queries, tag parsing.
+- Integration tests for FFI functions through safe wrappers.
+- `proptest` for property-based encryption idempotency checks.
 
 ### Flutter UI
 
-- **Widget tests** — verify that each screen renders without crashing given empty state, populated state, and error state.
-- **Golden tests** — capture rendered screenshots and compare against a baseline. Essential for catching visual regressions as the DESIGN.md theme is implemented.
-- **Integration tests** — use `integration_test` package to run the full app (with a mock Rust backend) and simulate user flows: create entry → list → decrypt → delete.
+- Widget tests for each screen (empty state, populated state, error state).
+- Golden tests for visual regression during Phase 3 redesign.
+- `integration_test` package with mock Rust backend for full user flows.
 
 ### TUI
 
-- Snapshot tests that compare CLI output against expected text. Use `insta` or `assert_cmd` for Rust CLI testing.
+- Snapshot tests with `insta` or `assert_cmd`.
 
 ---
 
 ## Important Non-Goals
 
-- **Cloud sync as default** — sync is optional, opt-in, and end-to-end encrypted. The app ships with zero cloud dependencies.
-- **Mobile platforms** — the Flutter code can compile for iOS/Android, but the platform-specific code (FFI loading, biometric auth, file system paths) and the DESIGN.md layout assume desktop. Mobile would require a separate UX pass.
-- **Real-time collaboration** — conflict resolution is last-writer-wins. Real-time collaboration (Operational Transform / CRDT) is an order of magnitude more complex and is not planned.
-- **Plugin sandboxing beyond process isolation** — Wasm-based sandboxing would be ideal but is a significant engineering investment. The plugin system documents this limitation.
-- **Self-hosted server** — sync is peer-to-peer. A "server" concept is not needed and would violate the offline-first principle.
+- **Cloud sync as default** — sync is optional, opt-in, local-only. Zero cloud dependencies.
+- **Mobile platforms** — desktop-only UX. iOS/Android would require a separate design pass.
+- **Real-time collaboration** — last-writer-wins conflict resolution is sufficient.
+- **Plugin sandboxing** — Wasm-based sandboxing is a significant project. Document the limitation.
+- **Self-hosted server** — sync is peer-to-peer between SQLite databases on local media.
