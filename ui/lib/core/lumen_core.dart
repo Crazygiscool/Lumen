@@ -10,8 +10,12 @@ typedef LumenAddEntryNative = Void Function(
   Pointer<Utf8>,
   Pointer<Utf8>,
   Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
 );
 typedef LumenAddEntry = void Function(
+  Pointer<Utf8>,
+  Pointer<Utf8>,
   Pointer<Utf8>,
   Pointer<Utf8>,
   Pointer<Utf8>,
@@ -53,18 +57,25 @@ class LumenCore {
         'lumen_free_string');
   }
 
-  void addEntry(String id, String text, String author, String password) {
+  void addEntry(String text, String author, String password,
+      {String id = '', String kind = 'journal', List<String> tags = const []}) {
+    final tagsJson = jsonEncode(tags);
+
     final idPtr = id.toNativeUtf8();
     final textPtr = text.toNativeUtf8();
     final authorPtr = author.toNativeUtf8();
     final passwordPtr = password.toNativeUtf8();
+    final kindPtr = kind.toNativeUtf8();
+    final tagsPtr = tagsJson.toNativeUtf8();
 
-    _addEntry(idPtr, textPtr, authorPtr, passwordPtr);
+    _addEntry(idPtr, textPtr, authorPtr, passwordPtr, kindPtr, tagsPtr);
 
     malloc.free(idPtr);
     malloc.free(textPtr);
     malloc.free(authorPtr);
     malloc.free(passwordPtr);
+    malloc.free(kindPtr);
+    malloc.free(tagsPtr);
   }
 
   List<JournalEntry> listEntries() {

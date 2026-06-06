@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod encryption;
 
@@ -9,6 +9,51 @@ pub struct Provenance {
     pub plugin_origin: Option<String>,
     pub author: String,
     pub feedback: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum EntryKind {
+    #[default]
+    Journal,
+    Note,
+    Task,
+    Project,
+    Custom(String),
+}
+
+impl Serialize for EntryKind {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for EntryKind {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(EntryKind::from_str(&s))
+    }
+}
+
+impl EntryKind {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "journal" => EntryKind::Journal,
+            "note" => EntryKind::Note,
+            "task" => EntryKind::Task,
+            "project" => EntryKind::Project,
+            _ => EntryKind::Custom(s.to_string()),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            EntryKind::Journal => "journal",
+            EntryKind::Note => "note",
+            EntryKind::Task => "task",
+            EntryKind::Project => "project",
+            EntryKind::Custom(s) => s.as_str(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +69,12 @@ pub struct JournalEntry {
 
     // --- Metadata ---
     pub provenance: Provenance,
+
+    #[serde(default)]
+    pub kind: EntryKind,
+
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl JournalEntry {
@@ -33,6 +84,8 @@ impl JournalEntry {
         author: String,
         plugin_origin: Option<String>,
         password: &str,
+        kind: EntryKind,
+        tags: Vec<String>,
     ) -> Self {
         let timestamp = Utc::now();
 
@@ -53,6 +106,8 @@ impl JournalEntry {
             nonce,
             salt: salt.to_vec(),
             provenance,
+            kind,
+            tags,
         }
     }
 

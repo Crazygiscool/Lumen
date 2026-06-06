@@ -25,6 +25,8 @@ class JournalEntry {
   final List<int> nonce;
   final List<int> salt;
   final Provenance provenance;
+  final String kind;
+  final List<String> tags;
 
   JournalEntry({
     required this.id,
@@ -32,13 +34,14 @@ class JournalEntry {
     required this.nonce,
     required this.salt,
     required this.provenance,
+    this.kind = 'journal',
+    this.tags = const [],
   });
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
     List<int> parseBytes(dynamic v) {
       if (v is List) return v.map((e) => e as int).toList();
       if (v is String) {
-        // Could be a base64 string or a JSON-encoded array string
         try {
           return base64Decode(v).toList();
         } catch (_) {
@@ -59,6 +62,8 @@ class JournalEntry {
       nonce: parseBytes(json['nonce']),
       salt: parseBytes(json['salt']),
       provenance: Provenance.fromJson(json['provenance'] as Map<String, dynamic>),
+      kind: (json['kind'] as String?) ?? 'journal',
+      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
     );
   }
 

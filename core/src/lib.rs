@@ -13,10 +13,10 @@ pub use ffi::{
 
 #[cfg(test)]
 mod tests {
-    use crate::entry::JournalEntry;
-    use crate::storage::Storage;
-    use crate::plugins::{Plugin, PluginManager};
-    use crate::feedback::GeorgeFeedback;
+use crate::entry::{EntryKind, JournalEntry};
+use crate::storage::Storage;
+use crate::plugins::{Plugin, PluginManager};
+use crate::feedback::GeorgeFeedback;
 
     struct TestPlugin;
     impl Plugin for TestPlugin {
@@ -37,6 +37,8 @@ mod tests {
             "crazygiscool".to_string(),
             None,
             password,
+            EntryKind::Journal,
+            vec![],
         );
         let mut storage = Storage::new();
         storage.add_entry(entry.clone());

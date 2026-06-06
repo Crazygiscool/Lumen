@@ -11,22 +11,61 @@ class NewEntryScreen extends StatefulWidget {
 }
 
 class _NewEntryScreenState extends State<NewEntryScreen> {
-  final _idController = TextEditingController();
-  final _textController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _bodyController = TextEditingController();
   final _authorController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _tagsController = TextEditingController();
 
+  String _kind = 'journal';
+  String _priority = 'medium';
+  final _kinds = ['journal', 'note', 'task', 'project'];
+  final _priorities = ['low', 'medium', 'high'];
   bool _saving = false;
+
+  String _buildBody() {
+    switch (_kind) {
+      case 'journal':
+        return _bodyController.text.trim();
+      case 'note':
+      case 'task':
+      case 'project':
+        final buf = StringBuffer();
+        buf.writeln('---');
+        buf.writeln('kind: $_kind');
+        if (_titleController.text.trim().isNotEmpty) {
+          buf.writeln('title: ${_titleController.text.trim()}');
+        }
+        if (_kind == 'task') {
+          buf.writeln('priority: $_priority');
+        }
+        buf.writeln('---');
+        buf.writeln('');
+        buf.write(_bodyController.text.trim());
+        return buf.toString();
+      default:
+        return _bodyController.text.trim();
+    }
+  }
 
   void _saveEntry() async {
     setState(() => _saving = true);
 
     try {
+      final tags = _tagsController.text.trim().isEmpty
+          ? <String>[]
+          : _tagsController.text
+              .split(',')
+              .map((t) => t.trim())
+              .where((t) => t.isNotEmpty)
+              .toList();
+
       widget.lumen.addEntry(
-        _idController.text.trim(),
-        _textController.text.trim(),
+        _buildBody(),
         _authorController.text.trim(),
         _passwordController.text.trim(),
+        kind: _kind,
+        tags: tags,
       );
 
       if (mounted) Navigator.pop(context);
@@ -47,14 +86,56 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(
-              controller: _idController,
-              decoration: const InputDecoration(labelText: "Entry ID"),
+            // Kind selector
+            DropdownButtonFormField<String>(
+              initialValue: _kind,
+              decoration: const InputDecoration(labelText: "Kind"),
+              items: _kinds
+                  .map((k) => DropdownMenuItem(value: k, child: Text(k)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _kind = v);
+              },
             ),
             const SizedBox(height: 12),
+
+            // Title field (for all kinds except journal)
+            if (_kind != 'journal')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(labelText: "Title"),
+                ),
+              ),
+
+            // Priority field (task only)
+            if (_kind == 'task')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _priority,
+                  decoration: const InputDecoration(labelText: "Priority"),
+                  items: _priorities
+                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _priority = v);
+                  },
+                ),
+              ),
+
+            // Metadata
             TextField(
               controller: _authorController,
               decoration: const InputDecoration(labelText: "Author"),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _tagsController,
+              decoration: const InputDecoration(
+                labelText: "Tags (comma-separated)",
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -63,11 +144,13 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 12),
+
+            // Body text
             Expanded(
               child: TextField(
-                controller: _textController,
+                controller: _bodyController,
                 decoration: const InputDecoration(
-                  labelText: "Entry Text",
+                  labelText: "Body",
                   alignLabelWithHint: true,
                 ),
                 maxLines: null,

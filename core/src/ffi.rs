@@ -5,9 +5,10 @@ use std::os::raw::c_char;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::Once;
+use chrono::Utc;
 use lazy_static::lazy_static;
 
-use crate::entry::JournalEntry;
+use crate::entry::{EntryKind, JournalEntry};
 use crate::storage::Storage;
 
 lazy_static! {
@@ -29,6 +30,13 @@ fn ensure_loaded() {
             let mut storage = STORAGE.lock().unwrap();
             if let Err(e) = storage.load_from_file(path) {
                 eprintln!("[lumen] Failed to load journal: {e}");
+                let mut backup = path.to_path_buf();
+                backup.set_extension("bin.corrupted");
+                if let Err(r) = std::fs::rename(path, &backup) {
+                    eprintln!("[lumen] Could not back up corrupted file: {r}");
+                } else {
+                    eprintln!("[lumen] Moved corrupted file to {:?}", backup);
+                }
             }
         }
     });
@@ -43,14 +51,31 @@ pub unsafe extern "C" fn lumen_add_entry(
     text: *const c_char,
     author: *const c_char,
     password: *const c_char,
+    kind: *const c_char,
+    tags_json: *const c_char,
 ) { unsafe {
-    let id = CStr::from_ptr(id).to_string_lossy().into_owned();
+    let id_raw = CStr::from_ptr(id).to_string_lossy().into_owned();
     let text = CStr::from_ptr(text).to_string_lossy().into_owned();
     let author = CStr::from_ptr(author).to_string_lossy().into_owned();
     let password = CStr::from_ptr(password).to_string_lossy().into_owned();
+    let kind_str = CStr::from_ptr(kind).to_string_lossy().into_owned();
+    let tags_str = CStr::from_ptr(tags_json).to_string_lossy().into_owned();
 
     ensure_loaded();
-    let entry = JournalEntry::new(id, text, author, None, &password);
+    let id = if id_raw.is_empty() {
+        let ts = Utc::now().timestamp();
+        let rand_part: u32 = rand::random();
+        format!("{}_{:08x}", ts, rand_part)
+    } else {
+        id_raw
+    };
+    let kind = EntryKind::from_str(&kind_str);
+    let tags: Vec<String> = if tags_str.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&tags_str).unwrap_or_default()
+    };
+    let entry = JournalEntry::new(id, text, author, None, &password, kind, tags);
     STORAGE.lock().unwrap().add_entry(entry);
 
     if let Err(e) = STORAGE.lock().unwrap().save_to_file(DATA_PATH.as_path()) {

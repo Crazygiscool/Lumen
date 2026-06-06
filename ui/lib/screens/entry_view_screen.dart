@@ -51,14 +51,48 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Author: ${entry.provenance.author}",
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    entry.kind,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Author: ${entry.provenance.author}",
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Created: ${entry.provenance.timestamp}",
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
             ),
-            Text(
-              "Created: ${entry.provenance.timestamp}",
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
+            if (entry.tags.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Wrap(
+                  spacing: 4,
+                  children: entry.tags
+                      .map((t) => Chip(
+                            label: Text(t, style: const TextStyle(fontSize: 11)),
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                          ))
+                      .toList(),
+                ),
+              ),
             const SizedBox(height: 20),
             Expanded(
               child: SingleChildScrollView(
