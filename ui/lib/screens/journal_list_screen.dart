@@ -116,6 +116,7 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
                           preview: entry.author,
                           kind: entry.kind,
                           status: entry.status,
+                          mood: entry.mood,
                           tags: entry.tags,
                           onTap: () {
                             Navigator.push(

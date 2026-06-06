@@ -119,6 +119,12 @@ typedef LumenLock = int Function();
 typedef LumenIsUnlockedNative = Int32 Function();
 typedef LumenIsUnlocked = int Function();
 
+typedef LumenHasPasswordNative = Int32 Function();
+typedef LumenHasPassword = int Function();
+
+typedef LumenSetPasswordNative = Int32 Function(Pointer<Utf8>);
+typedef LumenSetPassword = int Function(Pointer<Utf8>);
+
 typedef LumenListVaultsNative = Pointer<Utf8> Function();
 typedef LumenListVaults = Pointer<Utf8> Function();
 
@@ -155,6 +161,8 @@ class LumenCore {
   late final LumenUnlock _unlock;
   late final LumenLock _lock;
   late final LumenIsUnlocked _isUnlocked;
+  late final LumenHasPassword _hasPassword;
+  late final LumenSetPassword _setPassword;
   late final LumenListVaults _listVaults;
   late final LumenSyncPush _syncPush;
   late final LumenSyncPull _syncPull;
@@ -204,6 +212,8 @@ class LumenCore {
     _unlock = _lib.lookupFunction<LumenUnlockNative, LumenUnlock>('lumen_unlock');
     _lock = _lib.lookupFunction<LumenLockNative, LumenLock>('lumen_lock');
     _isUnlocked = _lib.lookupFunction<LumenIsUnlockedNative, LumenIsUnlocked>('lumen_is_unlocked');
+    _hasPassword = _lib.lookupFunction<LumenHasPasswordNative, LumenHasPassword>('lumen_has_password');
+    _setPassword = _lib.lookupFunction<LumenSetPasswordNative, LumenSetPassword>('lumen_set_password');
     _listVaults = _lib.lookupFunction<LumenListVaultsNative, LumenListVaults>('lumen_list_vaults');
     _syncPush =
         _lib.lookupFunction<LumenSyncPushNative, LumenSyncPush>('lumen_sync_push');
@@ -440,6 +450,17 @@ class LumenCore {
 
   bool isUnlocked() {
     return _isUnlocked() != 0;
+  }
+
+  bool hasPassword() {
+    return _hasPassword() != 0;
+  }
+
+  bool setPassword(String password) {
+    final pwPtr = password.toNativeUtf8();
+    final result = _setPassword(pwPtr);
+    malloc.free(pwPtr);
+    return result != 0;
   }
 
   List<String> listVaults() {

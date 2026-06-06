@@ -5,6 +5,7 @@ import 'core/providers.dart';
 import 'screens/home_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/new_entry_screen.dart';
+import 'screens/setup_screen.dart';
 import 'utils/theme.dart';
 
 void main() {
@@ -18,12 +19,15 @@ class LumenApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unlocked = ref.watch(authProvider);
+    final hasPassword = ref.read(authProvider.notifier).hasPassword();
 
     return MaterialApp(
       title: 'Lumen',
       theme: buildLumenTheme(),
       debugShowCheckedModeBanner: false,
-      home: unlocked ? const HomeScreen() : const LockScreen(),
+      home: unlocked
+          ? const HomeScreen()
+          : (!hasPassword ? const SetupScreen() : const LockScreen()),
       routes: {
         '/new': (context) => const NewEntryScreen(),
       },

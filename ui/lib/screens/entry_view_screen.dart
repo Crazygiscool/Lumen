@@ -6,6 +6,7 @@ import '../core/models/journal_entry.dart';
 import '../core/providers.dart';
 import '../utils/frontmatter.dart';
 import '../utils/wiki_links.dart';
+import 'home_screen.dart';
 
 class EntryViewScreen extends ConsumerStatefulWidget {
   final JournalEntry entry;
@@ -142,153 +143,169 @@ class _EntryViewScreenState extends ConsumerState<EntryViewScreen> {
     final entry = widget.entry;
     final title = _parsed?.metadata['title'];
     final cs = Theme.of(context).colorScheme;
+    final focusMode = ref.watch(focusModeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(title ?? entry.id)),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      appBar: focusMode ? null : AppBar(title: Text(title ?? entry.id)),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainer,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: cs.outlineVariant, width: 1),
-                  ),
-                  child: Text(
-                    entry.kind,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                      fontFamily: 'Geist',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Author: ${entry.provenance.author}",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Created: ${entry.provenance.timestamp}",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            if (entry.tags.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Wrap(
-                  spacing: 4,
-                  children: entry.tags
-                      .map((t) => Chip(
-                            label: Text(t),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                          ))
-                      .toList(),
-                ),
-              ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: _decryptedText != null && _parsed != null
-                  ? ListView(
-                      children: [
-                        if (_parsed!.metadata['priority'] != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Chip(
-                              label: Text(
-                                'Priority: ${_parsed!.metadata['priority']}',
-                              ),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                            ),
-                          ),
-                        Markdown(
-                          data: renderWikiLinks(_parsed!.body),
-                          selectable: true,
-                          onTapLink: (text, href, title) {
-                            if (href != null) {
-                              final target = parseWikiLinkTap(href);
-                              if (target != null) {
-                                final allEntries =
-                                    ref.read(entriesProvider);
-                                final matched = allEntries.where((e) =>
-                                    e.displayTitle.toLowerCase() ==
-                                        target.toLowerCase() ||
-                                    e.id == target);
-                                if (matched.isNotEmpty) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => EntryViewScreen(
-                                          entry: matched.first),
-                                    ),
-                                  );
-                                }
-                              }
-                            }
-                          },
+                if (!focusMode) ...[
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainer,
+                          borderRadius: BorderRadius.circular(4),
+                          border:
+                              Border.all(color: cs.outlineVariant, width: 1),
                         ),
-                        if (entry.kind == 'journal' && entry.history.isNotEmpty)
-                          _buildHistoryTimeline(cs, entry),
-                      ],
-                    )
-                  : SingleChildScrollView(
-                      child: Text(
-                        _decryptedText ??
-                            "This entry is encrypted.\nEnter password to decrypt.",
+                        child: Text(
+                          entry.kind,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                            fontFamily: 'Geist',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Author: ${entry.provenance.author}",
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           color: cs.onSurfaceVariant,
                         ),
                       ),
-                    ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: "Password",
-                      hintText: "Enter encryption password",
-                    ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Created: ${entry.provenance.timestamp}",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _decrypting ? null : _attemptDecrypt,
-                  child: _decrypting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                  if (entry.tags.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Wrap(
+                        spacing: 4,
+                        children: entry.tags
+                            .map((t) => Chip(
+                                  label: Text(t),
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                ],
+                Expanded(
+                  child: _decryptedText != null && _parsed != null
+                      ? ListView(
+                          children: [
+                            if (!focusMode &&
+                                _parsed!.metadata['priority'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Chip(
+                                  label: Text(
+                                    'Priority: ${_parsed!.metadata['priority']}',
+                                  ),
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                            Markdown(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              data: renderWikiLinks(_parsed!.body),
+                              selectable: true,
+                              onTapLink: (text, href, title) {
+                                if (href != null) {
+                                  final target = parseWikiLinkTap(href);
+                                  if (target != null) {
+                                    final allEntries =
+                                        ref.read(entriesProvider);
+                                    final matched = allEntries.where((e) =>
+                                        e.displayTitle.toLowerCase() ==
+                                            target.toLowerCase() ||
+                                        e.id == target);
+                                    if (matched.isNotEmpty) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => EntryViewScreen(
+                                              entry: matched.first),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
+                            ),
+                            if (!focusMode &&
+                                entry.kind == 'journal' &&
+                                entry.history.isNotEmpty)
+                              _buildHistoryTimeline(cs, entry),
+                          ],
                         )
-                      : const Text("Decrypt"),
+                      : SingleChildScrollView(
+                          child: Text(
+                            _decryptedText ??
+                                "This entry is encrypted.\nEnter password to decrypt.",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                 ),
+                const SizedBox(height: 20),
+                if (!focusMode || _decryptedText == null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: "Password",
+                            hintText: "Enter encryption password",
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _decrypting ? null : _attemptDecrypt,
+                        child: _decrypting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text("Decrypt"),
+                      ),
+                    ],
+                  ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );

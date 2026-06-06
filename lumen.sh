@@ -38,36 +38,7 @@ cargo build --release
 cd ..
 
 # -----------------------------------------
-# DEV MODE: Run flutter run (DDS + hot reload)
-# -----------------------------------------
-if [ "$DEV_MODE" = true ]; then
-    echo "🧪 Dev mode enabled — running with flutter run (DDS + hot reload)"
-    cd "$UI_DIR"
-    flutter run
-    cd ..
-
-    if [ "$TUI_MODE" = true ]; then
-        echo "🖥️ Running Rust TUI..."
-        cargo run --manifest-path "$CORE_DIR/Cargo.toml" --bin lumen_tui
-    fi
-
-    echo "✨ Dev session ended."
-    exit 0
-fi
-
-# -----------------------------------------
-# STEP 2 — Build Flutter bundle (normal mode)
-# -----------------------------------------
-echo "📦 Building Flutter bundle..."
-cd "$UI_DIR"
-flutter build linux --debug
-cd ..
-
-mkdir -p "$FLUTTER_BUNDLE_DIR"
-mkdir -p "$FLUTTER_BUNDLE_DIR/lib"   # <-- THIS WAS MISSING
-
-# -----------------------------------------
-# STEP 3 — Copy .so into Flutter bundle
+# STEP 2 — Ensure shared library is linked
 # -----------------------------------------
 if [ ! -f "$TARGET_LIB" ]; then
     echo "❌ ERROR: $TARGET_LIB does not exist."
@@ -77,15 +48,34 @@ if [ ! -f "$TARGET_LIB" ]; then
     exit 1
 fi
 
-echo "🔗 Copying shared library into Flutter bundle..."
-cp "$TARGET_LIB" "$FLUTTER_BUNDLE_DIR/lib/$LIB_NAME"
-echo "✔ Linked: $FLUTTER_BUNDLE_DIR/lib/$LIB_NAME"
+echo "🔗 Linking shared library..."
+# Copy to source dir so 'flutter run' and build pick it up
+mkdir -p "$UI_DIR/linux/lib"
+cp "$TARGET_LIB" "$UI_DIR/linux/lib/$LIB_NAME"
+echo "✔ Updated: $UI_DIR/linux/lib/$LIB_NAME"
 
 # -----------------------------------------
-# STEP 4 — Run Flutter frontend (compiled binary)
+# EXECUTION
 # -----------------------------------------
-echo "🚀 Running Lumen from bundle..."
-"$FLUTTER_BUNDLE_DIR"/Lumen
+if [ "$DEV_MODE" = true ]; then
+    echo "🧪 Dev mode enabled — running with flutter run (DDS + hot reload)"
+    cd "$UI_DIR"
+    flutter run
+    cd ..
+else
+    echo "📦 Building Flutter bundle..."
+    cd "$UI_DIR"
+    flutter build linux --debug
+    cd ..
+
+    # Copy to bundle dir for direct execution
+    mkdir -p "$FLUTTER_BUNDLE_DIR/lib"
+    cp "$TARGET_LIB" "$FLUTTER_BUNDLE_DIR/lib/$LIB_NAME"
+    echo "✔ Updated: $FLUTTER_BUNDLE_DIR/lib/$LIB_NAME"
+
+    echo "🚀 Running Lumen from bundle..."
+    "$FLUTTER_BUNDLE_DIR"/Lumen
+fi
 
 # -----------------------------------------
 # STEP 5 — Optional: Run Rust TUI backend AFTER UI closes

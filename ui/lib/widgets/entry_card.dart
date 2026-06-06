@@ -7,6 +7,7 @@ class EntryCard extends StatelessWidget {
   final String preview;
   final String kind;
   final String? status;
+  final String? mood;
   final List<String> tags;
   final VoidCallback onTap;
 
@@ -16,6 +17,7 @@ class EntryCard extends StatelessWidget {
     required this.preview,
     required this.kind,
     this.status,
+    this.mood,
     this.tags = const [],
     required this.onTap,
   });
@@ -25,6 +27,15 @@ class EntryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
+    final moodEmoji = switch (mood) {
+      'happy' => '😊',
+      'neutral' => '😐',
+      'sad' => '😔',
+      'angry' => '😡',
+      'tired' => '😴',
+      _ => null,
+    };
+
     return Card(
       child: ListTile(
         title: Row(
@@ -33,6 +44,12 @@ class EntryCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: StatusBadge(status!),
+              ),
+            ],
+            if (moodEmoji != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(moodEmoji, style: const TextStyle(fontSize: 16)),
               ),
             ],
             Expanded(

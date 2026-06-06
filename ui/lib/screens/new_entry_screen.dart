@@ -119,11 +119,14 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("New Entry")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
               initialValue: _kind,
               decoration: const InputDecoration(labelText: "Kind"),
               items: _kinds
@@ -284,6 +287,8 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
 import '../utils/responsive.dart';
+import '../widgets/streak_widget.dart';
 import 'journal_list_screen.dart';
 import 'note_list_screen.dart';
 import 'task_list_screen.dart';
@@ -235,38 +236,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       );
                     }),
-                      const Spacer(),
-                      // Lock button
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        child: Material(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: () => ref.read(authProvider.notifier).lock(),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.lock_outline,
-                                      size: 20, color: cs.onSurfaceVariant),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Lock',
-                                    style: TextStyle(
-                                      color: cs.onSurfaceVariant,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                // Streak
+                const StreakWidget(),
+                // Lock button
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => ref.read(authProvider.notifier).lock(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_outline,
+                                size: 20, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Lock',
+                              style: TextStyle(
+                                color: cs.onSurfaceVariant,
+                                fontWeight: FontWeight.w400,
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],

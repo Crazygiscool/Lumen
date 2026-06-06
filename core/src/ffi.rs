@@ -94,7 +94,7 @@ fn to_json<T: serde::Serialize>(val: &T) -> *mut c_char {
 // ------------------------------------------------------------
 // ADD ENTRY
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_add_entry(
     id: *const c_char,
     text: *const c_char,
@@ -135,7 +135,7 @@ pub unsafe extern "C" fn lumen_add_entry(
 // ------------------------------------------------------------
 // LIST ENTRIES (JSON)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_list_entries() -> *mut c_char {
     ensure_loaded();
     let entries = with_storage(|s| s.list_entries().unwrap_or_default());
@@ -145,7 +145,7 @@ pub unsafe extern "C" fn lumen_list_entries() -> *mut c_char {
 // ------------------------------------------------------------
 // GET SINGLE ENTRY BY ID
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_get_entry(id: *const c_char) -> *mut c_char {
     ensure_loaded();
     let id = unsafe { c_str_to_owned(id) };
@@ -156,7 +156,7 @@ pub unsafe extern "C" fn lumen_get_entry(id: *const c_char) -> *mut c_char {
 // ------------------------------------------------------------
 // UPDATE ENTRY
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_update_entry(
     id: *const c_char,
     text: *const c_char,
@@ -216,7 +216,7 @@ pub unsafe extern "C" fn lumen_update_entry(
 // ------------------------------------------------------------
 // SET ENTRY MOOD (metadata-only, no password needed)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_set_entry_mood(id: *const c_char, mood: *const c_char) {
     ensure_loaded();
     let id = unsafe { c_str_to_owned(id) };
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn lumen_set_entry_mood(id: *const c_char, mood: *const c_
 // ------------------------------------------------------------
 // SET ENTRY STATUS (metadata-only, no password needed)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_set_entry_status(id: *const c_char, status: *const c_char) {
     ensure_loaded();
     let id = unsafe { c_str_to_owned(id) };
@@ -249,7 +249,7 @@ pub unsafe extern "C" fn lumen_set_entry_status(id: *const c_char, status: *cons
 // ------------------------------------------------------------
 // DELETE ENTRY
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_delete_entry(id: *const c_char) {
     ensure_loaded();
     let id = unsafe { c_str_to_owned(id) };
@@ -261,14 +261,14 @@ pub unsafe extern "C" fn lumen_delete_entry(id: *const c_char) {
 // ------------------------------------------------------------
 // FOLDER OPERATIONS
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_list_folders() -> *mut c_char {
     ensure_loaded();
     let folders = with_storage(|s| s.list_folders().unwrap_or_default());
     to_json(&folders)
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_create_folder(
     name: *const c_char,
     parent_id: *const c_char,
@@ -280,7 +280,7 @@ pub unsafe extern "C" fn lumen_create_folder(
     CString::new(id).unwrap_or_default().into_raw()
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_delete_folder(id: *const c_char) {
     ensure_loaded();
     let id = unsafe { c_str_to_owned(id) };
@@ -289,7 +289,7 @@ pub unsafe extern "C" fn lumen_delete_folder(id: *const c_char) {
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_move_to_folder(
     entry_id: *const c_char,
     folder_id: *const c_char,
@@ -305,7 +305,7 @@ pub unsafe extern "C" fn lumen_move_to_folder(
 // ------------------------------------------------------------
 // TOGGLE PIN
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_toggle_pin(entry_id: *const c_char) -> i32 {
     ensure_loaded();
     let entry_id = unsafe { c_str_to_owned(entry_id) };
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn lumen_toggle_pin(entry_id: *const c_char) -> i32 {
 // ------------------------------------------------------------
 // SEARCH ENTRIES
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_search_entries(query: *const c_char) -> *mut c_char {
     ensure_loaded();
     let query = unsafe { c_str_to_owned(query) };
@@ -326,7 +326,7 @@ pub unsafe extern "C" fn lumen_search_entries(query: *const c_char) -> *mut c_ch
 // ------------------------------------------------------------
 // GET STREAK
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_get_streak() -> u32 {
     ensure_loaded();
     with_storage(|s| s.get_streak().unwrap_or(0))
@@ -335,7 +335,7 @@ pub unsafe extern "C" fn lumen_get_streak() -> u32 {
 // ------------------------------------------------------------
 // DECRYPT ENTRY
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_decrypt_entry(
     id: *const c_char,
     password: *const c_char,
@@ -355,7 +355,7 @@ pub unsafe extern "C" fn lumen_decrypt_entry(
 // ------------------------------------------------------------
 // EXPORT PROJECT (decrypts all child tasks → Markdown)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_export_project(
     project_id: *const c_char,
     password: *const c_char,
@@ -395,7 +395,7 @@ pub unsafe extern "C" fn lumen_export_project(
 // ------------------------------------------------------------
 // PARSE TASK (natural language → JSON)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_parse_task(text: *const c_char) -> *mut c_char {
     let input = unsafe { c_str_to_owned(text) };
 
@@ -474,7 +474,7 @@ fn parse_due_date(val: &str) -> Option<String> {
 // ------------------------------------------------------------
 // EXPORT ALL (JSON array of decrypted entries)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_export_all(password: *const c_char) -> *mut c_char {
     ensure_loaded();
     let password = unsafe { c_str_to_owned(password) };
@@ -507,7 +507,7 @@ pub unsafe extern "C" fn lumen_export_all(password: *const c_char) -> *mut c_cha
 // ------------------------------------------------------------
 // IMPORT (batch insert from JSON array)
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_import(json: *const c_char) -> i32 {
     ensure_loaded();
     let json_str = unsafe { c_str_to_owned(json) };
@@ -532,12 +532,12 @@ pub unsafe extern "C" fn lumen_import(json: *const c_char) -> i32 {
 // ------------------------------------------------------------
 // AUTH — password set, unlock, lock
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_has_password() -> i32 {
     if auth::has_password() { 1 } else { 0 }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_set_password(password: *const c_char) -> i32 {
     let password = unsafe { c_str_to_owned(password) };
     match auth::set_password(&password) {
@@ -549,19 +549,19 @@ pub unsafe extern "C" fn lumen_set_password(password: *const c_char) -> i32 {
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_unlock(password: *const c_char) -> i32 {
     let password = unsafe { c_str_to_owned(password) };
     if auth::unlock(&password) { 1 } else { 0 }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_lock() -> i32 {
     auth::lock();
     1
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_is_unlocked() -> i32 {
     if auth::is_unlocked() { 1 } else { 0 }
 }
@@ -569,7 +569,7 @@ pub unsafe extern "C" fn lumen_is_unlocked() -> i32 {
 // ------------------------------------------------------------
 // VAULTS
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_list_vaults() -> *mut c_char {
     let mut vaults = Vec::new();
     if let Some(data_dir) = dirs::data_dir() {
@@ -591,7 +591,7 @@ pub unsafe extern "C" fn lumen_list_vaults() -> *mut c_char {
 // ------------------------------------------------------------
 // SYNC
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_sync_push(
     sync_db_path: *const c_char,
     entry_ids_json: *const c_char,
@@ -634,7 +634,7 @@ pub unsafe extern "C" fn lumen_sync_push(
     }
 }
 
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_sync_pull(sync_db_path: *const c_char) -> *mut c_char {
     let path = unsafe { c_str_to_owned(sync_db_path) };
 
@@ -659,7 +659,7 @@ pub unsafe extern "C" fn lumen_sync_pull(sync_db_path: *const c_char) -> *mut c_
 // ------------------------------------------------------------
 // FREE STRING
 // ------------------------------------------------------------
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn lumen_free_string(s: *mut c_char) { unsafe {
     if !s.is_null() {
         let _ = CString::from_raw(s);
