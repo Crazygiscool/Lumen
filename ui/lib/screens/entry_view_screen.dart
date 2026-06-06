@@ -1,24 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/models/journal_entry.dart';
-import '../core/lumen_core.dart';
+import '../core/providers.dart';
 import '../utils/frontmatter.dart';
+import '../utils/wiki_links.dart';
 
-class EntryViewScreen extends StatefulWidget {
+class EntryViewScreen extends ConsumerStatefulWidget {
   final JournalEntry entry;
-  final LumenCore lumen;
 
-  const EntryViewScreen({
-    super.key,
-    required this.entry,
-    required this.lumen,
-  });
+  const EntryViewScreen({super.key, required this.entry});
 
   @override
-  State<EntryViewScreen> createState() => _EntryViewScreenState();
+  ConsumerState<EntryViewScreen> createState() => _EntryViewScreenState();
 }
 
-class _EntryViewScreenState extends State<EntryViewScreen> {
+class _EntryViewScreenState extends ConsumerState<EntryViewScreen> {
   String? _decryptedText;
   bool _decrypting = false;
   final _passwordController = TextEditingController();
@@ -28,8 +26,9 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
     setState(() => _decrypting = true);
 
     try {
-      final text = widget.entry
-          .decryptText(_passwordController.text.trim(), widget.lumen);
+      final text = ref
+          .read(entriesProvider.notifier)
+          .decryptEntry(widget.entry.id, _passwordController.text.trim());
 
       setState(() {
         _decryptedText = text;
@@ -50,10 +49,99 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
     super.dispose();
   }
 
+  Widget _buildHistoryTimeline(ColorScheme cs, JournalEntry entry) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Divider(color: cs.outlineVariant),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.history, size: 16, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text(
+                  'Edit History',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...entry.history.reversed.map((record) {
+            final ts = record.timestamp;
+            final date = ts.length >= 10 ? ts.substring(0, 10) : ts;
+            final time = ts.length >= 19 ? ts.substring(11, 19) : '';
+            return Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 8),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: cs.primary.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              width: 1,
+                              color: cs.outlineVariant.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            record.reason,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          Text(
+                            '$date $time — ${record.author}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final entry = widget.entry;
     final title = _parsed?.metadata['title'];
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: Text(title ?? entry.id)),
@@ -68,23 +156,34 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: cs.surfaceContainer,
                     borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: cs.outlineVariant, width: 1),
                   ),
                   child: Text(
                     entry.kind,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                      fontFamily: 'Geist',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   "Author: ${entry.provenance.author}",
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   "Created: ${entry.provenance.timestamp}",
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -95,7 +194,7 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
                   spacing: 4,
                   children: entry.tags
                       .map((t) => Chip(
-                            label: Text(t, style: const TextStyle(fontSize: 11)),
+                            label: Text(t),
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
                             visualDensity: VisualDensity.compact,
@@ -107,8 +206,7 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
             const SizedBox(height: 20),
             Expanded(
               child: _decryptedText != null && _parsed != null
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ? ListView(
                       children: [
                         if (_parsed!.metadata['priority'] != null)
                           Padding(
@@ -116,7 +214,6 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
                             child: Chip(
                               label: Text(
                                 'Priority: ${_parsed!.metadata['priority']}',
-                                style: const TextStyle(fontSize: 12),
                               ),
                               materialTapTargetSize:
                                   MaterialTapTargetSize.shrinkWrap,
@@ -124,19 +221,44 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
                               padding: EdgeInsets.zero,
                             ),
                           ),
-                        Expanded(
-                          child: Markdown(
-                            data: _parsed!.body,
-                            selectable: true,
-                          ),
+                        Markdown(
+                          data: renderWikiLinks(_parsed!.body),
+                          selectable: true,
+                          onTapLink: (text, href, title) {
+                            if (href != null) {
+                              final target = parseWikiLinkTap(href);
+                              if (target != null) {
+                                final allEntries =
+                                    ref.read(entriesProvider);
+                                final matched = allEntries.where((e) =>
+                                    e.displayTitle.toLowerCase() ==
+                                        target.toLowerCase() ||
+                                    e.id == target);
+                                if (matched.isNotEmpty) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => EntryViewScreen(
+                                          entry: matched.first),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          },
                         ),
+                        if (entry.kind == 'journal' && entry.history.isNotEmpty)
+                          _buildHistoryTimeline(cs, entry),
                       ],
                     )
                   : SingleChildScrollView(
                       child: Text(
                         _decryptedText ??
                             "This entry is encrypted.\nEnter password to decrypt.",
-                        style: const TextStyle(fontSize: 16),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ),
             ),
@@ -147,7 +269,10 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
                   child: TextField(
                     controller: _passwordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: "Password"),
+                    decoration: const InputDecoration(
+                      labelText: "Password",
+                      hintText: "Enter encryption password",
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),

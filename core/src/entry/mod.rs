@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-mod encryption;
+pub(crate) mod encryption;
+pub(crate) mod recurring;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provenance {
@@ -9,6 +10,13 @@ pub struct Provenance {
     pub plugin_origin: Option<String>,
     pub author: String,
     pub feedback: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditRecord {
+    pub timestamp: DateTime<Utc>,
+    pub author: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -78,6 +86,27 @@ pub struct JournalEntry {
 
     #[serde(default)]
     pub display_title: String,
+
+    #[serde(default)]
+    pub pinned: bool,
+
+    #[serde(default)]
+    pub mood: Option<String>,
+
+    #[serde(default)]
+    pub priority: Option<String>,
+
+    #[serde(default)]
+    pub status: Option<String>,
+
+    #[serde(default)]
+    pub due_date: Option<String>,
+
+    #[serde(default)]
+    pub parent_project_id: Option<String>,
+
+    #[serde(default)]
+    pub history: Vec<EditRecord>,
 }
 
 impl JournalEntry {
@@ -113,6 +142,13 @@ impl JournalEntry {
             kind,
             tags,
             display_title,
+            pinned: false,
+            mood: None,
+            priority: None,
+            status: None,
+            due_date: None,
+            parent_project_id: None,
+            history: Vec::new(),
         }
     }
 

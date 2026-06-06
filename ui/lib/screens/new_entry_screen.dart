@@ -1,16 +1,19 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
-import '../core/lumen_core.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class NewEntryScreen extends StatefulWidget {
-  final LumenCore lumen;
+import '../core/providers.dart';
+import '../utils/journal_prompts.dart';
 
-  const NewEntryScreen({super.key, required this.lumen});
+class NewEntryScreen extends ConsumerStatefulWidget {
+  const NewEntryScreen({super.key});
 
   @override
-  State<NewEntryScreen> createState() => _NewEntryScreenState();
+  ConsumerState<NewEntryScreen> createState() => _NewEntryScreenState();
 }
 
-class _NewEntryScreenState extends State<NewEntryScreen> {
+class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   final _authorController = TextEditingController();
@@ -19,10 +22,25 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
 
   String _kind = 'journal';
   String _priority = 'medium';
+  String? _mood;
   bool _encryptTitle = false;
   final _kinds = ['journal', 'note', 'task', 'project'];
   final _priorities = ['low', 'medium', 'high'];
   bool _saving = false;
+
+  static const _moods = [
+    ('😊', 'happy'),
+    ('😐', 'neutral'),
+    ('😔', 'sad'),
+    ('😡', 'angry'),
+    ('😴', 'tired'),
+  ];
+
+  String _generateId() {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final rand = Random().nextInt(0xFFFFFFFF);
+    return '${ts}_${rand.toRadixString(16).padLeft(8, '0')}';
+  }
 
   String _buildBody() {
     switch (_kind) {
@@ -61,24 +79,40 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
               .where((t) => t.isNotEmpty)
               .toList();
 
-      widget.lumen.addEntry(
-        _buildBody(),
-        _authorController.text.trim(),
-        _passwordController.text.trim(),
-        kind: _kind,
-        tags: tags,
-        displayTitle:
-            _encryptTitle ? '' : _titleController.text.trim(),
-      );
+      final id = _generateId();
+
+      ref.read(entriesProvider.notifier).addEntry(
+            _buildBody(),
+            _authorController.text.trim(),
+            _passwordController.text.trim(),
+            id: id,
+            kind: _kind,
+            tags: tags,
+            displayTitle:
+                _encryptTitle ? '' : _titleController.text.trim(),
+          );
+
+      if (_kind == 'journal' && _mood != null) {
+        ref.read(entriesProvider.notifier).setEntryMood(id, _mood);
+      }
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() => _saving = false);
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to save entry: $e")),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    _authorController.dispose();
+    _passwordController.dispose();
+    _tagsController.dispose();
+    super.dispose();
   }
 
   @override
@@ -89,7 +123,6 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Kind selector
             DropdownButtonFormField<String>(
               initialValue: _kind,
               decoration: const InputDecoration(labelText: "Kind"),
@@ -101,8 +134,73 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
               },
             ),
             const SizedBox(height: 12),
-
-            // Title field (for all kinds except journal)
+            if (_kind == 'journal') ...[
+              // Mood picker
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: _moods.map((m) {
+                    final (emoji, value) = m;
+                    final selected = _mood == value;
+                    return GestureDetector(
+                      onTap: () => setState(
+                          () => _mood = selected ? null : value),
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: selected ? 1.0 : 0.4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: selected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              // Journal prompt
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline,
+                          size: 16,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          randomPrompt(),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             if (_kind != 'journal')
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -111,8 +209,6 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
                   decoration: const InputDecoration(labelText: "Title"),
                 ),
               ),
-
-            // Priority field (task only)
             if (_kind == 'task')
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -127,8 +223,6 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
                   },
                 ),
               ),
-
-            // Encrypt title toggle (visible when title field is)
             if (_kind != 'journal')
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -148,8 +242,6 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
                   ],
                 ),
               ),
-
-            // Metadata
             TextField(
               controller: _authorController,
               decoration: const InputDecoration(labelText: "Author"),
@@ -168,8 +260,6 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 12),
-
-            // Body text
             Expanded(
               child: TextField(
                 controller: _bodyController,

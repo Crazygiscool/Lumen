@@ -10,7 +10,10 @@ class EmptyState extends StatelessWidget {
     return Center(
       child: Text(
         message,
-        style: const TextStyle(fontSize: 18, color: Colors.grey),
+        style: TextStyle(
+          fontSize: 18,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }

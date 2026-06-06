@@ -1,35 +1,31 @@
 import 'package:flutter/material.dart';
-import 'core/lumen_core.dart';
-import 'screens/journal_list_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/providers.dart';
+import 'screens/home_screen.dart';
+import 'screens/lock_screen.dart';
 import 'screens/new_entry_screen.dart';
 import 'utils/theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize backend once
-  final lumen = LumenCore();
-
-  runApp(LumenApp(lumen: lumen));
+  runApp(const ProviderScope(child: LumenApp()));
 }
 
-class LumenApp extends StatelessWidget {
-  final LumenCore lumen;
-
-  const LumenApp({super.key, required this.lumen});
+class LumenApp extends ConsumerWidget {
+  const LumenApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unlocked = ref.watch(authProvider);
+
     return MaterialApp(
       title: 'Lumen',
       theme: buildLumenTheme(),
       debugShowCheckedModeBanner: false,
-
-      // Use named routes so your "New Entry" button works
-      initialRoute: '/',
+      home: unlocked ? const HomeScreen() : const LockScreen(),
       routes: {
-        '/': (context) => JournalListScreen(lumen: lumen),
-        '/new': (context) => NewEntryScreen(lumen: lumen),
+        '/new': (context) => const NewEntryScreen(),
       },
     );
   }
