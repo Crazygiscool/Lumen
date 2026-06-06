@@ -30,11 +30,15 @@ typedef LumenDecryptEntry = Pointer<Utf8> Function(
   Pointer<Utf8>,
 );
 
+typedef LumenFreeStringNative = Void Function(Pointer<Utf8>);
+typedef LumenFreeString = void Function(Pointer<Utf8>);
+
 class LumenCore {
   late final DynamicLibrary _lib;
   late final LumenAddEntry _addEntry;
   late final LumenListEntries _listEntries;
   late final LumenDecryptEntry _decryptEntry;
+  late final LumenFreeString _freeString;
 
   LumenCore() {
     _lib = loadLumenLibrary();
@@ -45,6 +49,8 @@ class LumenCore {
         LumenListEntries>('lumen_list_entries');
     _decryptEntry = _lib.lookupFunction<LumenDecryptEntryNative,
         LumenDecryptEntry>('lumen_decrypt_entry');
+    _freeString = _lib.lookupFunction<LumenFreeStringNative, LumenFreeString>(
+        'lumen_free_string');
   }
 
   void addEntry(String id, String text, String author, String password) {
@@ -64,6 +70,7 @@ class LumenCore {
   List<JournalEntry> listEntries() {
     final ptr = _listEntries();
     final jsonStr = ptr.toDartString();
+    _freeString(ptr);
 
     final decoded = jsonDecode(jsonStr) as List<dynamic>;
     return decoded
@@ -77,6 +84,7 @@ class LumenCore {
 
     final resultPtr = _decryptEntry(idPtr, pwPtr);
     final result = resultPtr.toDartString();
+    _freeString(resultPtr);
 
     malloc.free(idPtr);
     malloc.free(pwPtr);

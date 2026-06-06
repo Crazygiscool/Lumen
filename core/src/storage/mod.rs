@@ -24,16 +24,21 @@ impl Storage {
         &self.entries
     }
 
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) {
-        let serialized = bincode::serialize(&self.entries).expect("Serialization failed");
-        let mut file = File::create(path).expect("Unable to create file");
-        file.write_all(&serialized).expect("Write failed");
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+        let serialized = bincode::serialize(&self.entries).map_err(|e| e.to_string())?;
+        File::create(path.as_ref())
+            .and_then(|mut f| f.write_all(&serialized))
+            .map_err(|e| e.to_string())
     }
 
-    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) {
-        let mut file = OpenOptions::new().read(true).open(path).expect("Unable to open file");
+    pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), String> {
+        if !path.as_ref().exists() {
+            return Ok(());
+        }
+        let mut file = OpenOptions::new().read(true).open(path.as_ref()).map_err(|e| e.to_string())?;
         let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).expect("Read failed");
-        self.entries = bincode::deserialize(&buffer).expect("Deserialization failed");
+        file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+        self.entries = bincode::deserialize(&buffer).map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
