@@ -39,6 +39,7 @@ use crate::feedback::GeorgeFeedback;
             password,
             EntryKind::Journal,
             vec![],
+            String::new(),
         );
         let mut storage = Storage::new();
         storage.add_entry(entry.clone());

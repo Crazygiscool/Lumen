@@ -53,6 +53,7 @@ pub unsafe extern "C" fn lumen_add_entry(
     password: *const c_char,
     kind: *const c_char,
     tags_json: *const c_char,
+    display_title: *const c_char,
 ) { unsafe {
     let id_raw = CStr::from_ptr(id).to_string_lossy().into_owned();
     let text = CStr::from_ptr(text).to_string_lossy().into_owned();
@@ -60,6 +61,7 @@ pub unsafe extern "C" fn lumen_add_entry(
     let password = CStr::from_ptr(password).to_string_lossy().into_owned();
     let kind_str = CStr::from_ptr(kind).to_string_lossy().into_owned();
     let tags_str = CStr::from_ptr(tags_json).to_string_lossy().into_owned();
+    let display_title_raw = CStr::from_ptr(display_title).to_string_lossy().into_owned();
 
     ensure_loaded();
     let id = if id_raw.is_empty() {
@@ -75,7 +77,7 @@ pub unsafe extern "C" fn lumen_add_entry(
     } else {
         serde_json::from_str(&tags_str).unwrap_or_default()
     };
-    let entry = JournalEntry::new(id, text, author, None, &password, kind, tags);
+    let entry = JournalEntry::new(id, text, author, None, &password, kind, tags, display_title_raw);
     STORAGE.lock().unwrap().add_entry(entry);
 
     if let Err(e) = STORAGE.lock().unwrap().save_to_file(DATA_PATH.as_path()) {

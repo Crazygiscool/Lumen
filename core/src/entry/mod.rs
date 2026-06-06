@@ -75,6 +75,9 @@ pub struct JournalEntry {
 
     #[serde(default)]
     pub tags: Vec<String>,
+
+    #[serde(default)]
+    pub display_title: String,
 }
 
 impl JournalEntry {
@@ -86,6 +89,7 @@ impl JournalEntry {
         password: &str,
         kind: EntryKind,
         tags: Vec<String>,
+        display_title: String,
     ) -> Self {
         let timestamp = Utc::now();
 
@@ -108,6 +112,7 @@ impl JournalEntry {
             provenance,
             kind,
             tags,
+            display_title,
         }
     }
 

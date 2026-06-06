@@ -90,7 +90,9 @@ class _JournalListScreenState extends State<JournalListScreen> {
                       final entry = entries[index];
 
                       return EntryCard(
-                        title: entry.id,
+                        title: entry.displayTitle.isNotEmpty
+                            ? entry.displayTitle
+                            : entry.id,
                         preview: entry.author,
                         kind: entry.kind,
                         tags: entry.tags,

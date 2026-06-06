@@ -27,6 +27,7 @@ class JournalEntry {
   final Provenance provenance;
   final String kind;
   final List<String> tags;
+  final String displayTitle;
 
   JournalEntry({
     required this.id,
@@ -36,6 +37,7 @@ class JournalEntry {
     required this.provenance,
     this.kind = 'journal',
     this.tags = const [],
+    this.displayTitle = '',
   });
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,7 @@ class JournalEntry {
       provenance: Provenance.fromJson(json['provenance'] as Map<String, dynamic>),
       kind: (json['kind'] as String?) ?? 'journal',
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
+      displayTitle: (json['display_title'] as String?) ?? '',
     );
   }
 

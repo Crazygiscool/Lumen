@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../core/models/journal_entry.dart';
 import '../core/lumen_core.dart';
+import '../utils/frontmatter.dart';
 
 class EntryViewScreen extends StatefulWidget {
   final JournalEntry entry;
@@ -20,6 +22,7 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
   String? _decryptedText;
   bool _decrypting = false;
   final _passwordController = TextEditingController();
+  ParsedEntry? _parsed;
 
   void _attemptDecrypt() {
     setState(() => _decrypting = true);
@@ -30,6 +33,7 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
 
       setState(() {
         _decryptedText = text;
+        _parsed = parseFrontmatter(text);
         _decrypting = false;
       });
     } catch (e) {
@@ -41,11 +45,18 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
   }
 
   @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final entry = widget.entry;
+    final title = _parsed?.metadata['title'];
 
     return Scaffold(
-      appBar: AppBar(title: Text(entry.id)),
+      appBar: AppBar(title: Text(title ?? entry.id)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -95,13 +106,39 @@ class _EntryViewScreenState extends State<EntryViewScreen> {
               ),
             const SizedBox(height: 20),
             Expanded(
-              child: SingleChildScrollView(
-                child: Text(
-                  _decryptedText ??
-                      "This entry is encrypted.\nEnter password to decrypt.",
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
+              child: _decryptedText != null && _parsed != null
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_parsed!.metadata['priority'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Chip(
+                              label: Text(
+                                'Priority: ${_parsed!.metadata['priority']}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        Expanded(
+                          child: Markdown(
+                            data: _parsed!.body,
+                            selectable: true,
+                          ),
+                        ),
+                      ],
+                    )
+                  : SingleChildScrollView(
+                      child: Text(
+                        _decryptedText ??
+                            "This entry is encrypted.\nEnter password to decrypt.",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
             ),
             const SizedBox(height: 20),
             Row(

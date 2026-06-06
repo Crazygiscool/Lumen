@@ -19,6 +19,7 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
 
   String _kind = 'journal';
   String _priority = 'medium';
+  bool _encryptTitle = false;
   final _kinds = ['journal', 'note', 'task', 'project'];
   final _priorities = ['low', 'medium', 'high'];
   bool _saving = false;
@@ -66,6 +67,8 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
         _passwordController.text.trim(),
         kind: _kind,
         tags: tags,
+        displayTitle:
+            _encryptTitle ? '' : _titleController.text.trim(),
       );
 
       if (mounted) Navigator.pop(context);
@@ -122,6 +125,27 @@ class _NewEntryScreenState extends State<NewEntryScreen> {
                   onChanged: (v) {
                     if (v != null) setState(() => _priority = v);
                   },
+                ),
+              ),
+
+            // Encrypt title toggle (visible when title field is)
+            if (_kind != 'journal')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Show title in list',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    Switch(
+                      value: !_encryptTitle,
+                      onChanged: (v) =>
+                          setState(() => _encryptTitle = !v),
+                    ),
+                  ],
                 ),
               ),
 
