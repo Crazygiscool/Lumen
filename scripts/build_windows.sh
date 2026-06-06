@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CORE_DIR="$ROOT_DIR/core"
 UI_DIR="$ROOT_DIR/ui"
 DIST_DIR="$ROOT_DIR/dist"
+TARGET="x86_64-pc-windows-msvc"
 
 VERSION=$(grep '^version:' "$UI_DIR/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1 | tr -d '\r\n')
 
@@ -13,32 +14,43 @@ echo "Core:    $CORE_DIR"
 echo "UI:      $UI_DIR"
 echo "Dist:    $DIST_DIR"
 echo "Version: $VERSION"
+echo "Target:  $TARGET"
+
+# ── Prerequisite check ──────────────────────────────────────────────
+if [ ! -d "$UI_DIR/windows" ]; then
+    echo ""
+    echo "ERROR: ui/windows/ not found."
+    echo "Run this once to generate Windows platform files:"
+    echo "  cd ui && flutter create --platforms=windows ."
+    echo "  flutter config --enable-windows-desktop"
+    exit 1
+fi
 
 echo ""
 echo "=== Step 1: Build Rust core ==="
-cargo build --release --manifest-path "$CORE_DIR/Cargo.toml"
+cargo build --release --target "$TARGET" --manifest-path "$CORE_DIR/Cargo.toml"
 
 echo ""
-echo "=== Step 2: Build Flutter Linux release ==="
+echo "=== Step 2: Copy lumen_core.dll into Flutter windows/lib ==="
+mkdir -p "$UI_DIR/windows/lib"
+cp "$CORE_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
+
+echo ""
+echo "=== Step 3: Build Flutter Windows release ==="
 cd "$UI_DIR"
-flutter build linux --release
+flutter build windows --release
 cd "$ROOT_DIR"
 
 echo ""
-echo "=== Step 3: Copy liblumen_core.so into Flutter bundle ==="
-BUNDLE_DIR="$UI_DIR/build/linux/x64/release/bundle"
-mkdir -p "$BUNDLE_DIR/lib"
-cp "$CORE_DIR/target/release/liblumen_core.so" "$BUNDLE_DIR/lib/"
-
-echo ""
-echo "=== Step 4: Package bundle into tarball ==="
+echo "=== Step 4: Package bundle into zip ==="
 mkdir -p "$DIST_DIR"
 
-TAR_NAME="Lumen-linux-v${VERSION}.tar.gz"
-cd "$BUNDLE_DIR/.."
-tar czf "$DIST_DIR/$TAR_NAME" bundle
+BUNDLE_DIR="$UI_DIR/build/windows/runner/release"
+ZIP_NAME="Lumen-windows-v${VERSION}.zip"
+cd "$BUNDLE_DIR"
+zip -r "$DIST_DIR/$ZIP_NAME" .
 
 echo ""
 echo "=== DONE ==="
 echo "Bundle: $BUNDLE_DIR"
-echo "Archive: $DIST_DIR/$TAR_NAME"
+echo "Archive: $DIST_DIR/$ZIP_NAME"
