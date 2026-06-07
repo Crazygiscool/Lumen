@@ -17,6 +17,7 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
             timestamp       TEXT NOT NULL,
             plugin_origin   TEXT,
             feedback        TEXT,
+            metadata        TEXT NOT NULL DEFAULT '{}',
             priority        TEXT,
             status          TEXT DEFAULT 'todo',
             due_date        TEXT,
@@ -24,6 +25,18 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
             history         TEXT NOT NULL DEFAULT '[]',
             created_at      TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS entry_assets (
+            id              TEXT PRIMARY KEY,
+            entry_id        TEXT NOT NULL,
+            file_name       TEXT NOT NULL,
+            mime_type       TEXT NOT NULL,
+            encrypted_size  INTEGER NOT NULL,
+            nonce           BLOB NOT NULL,
+            salt            BLOB NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY(entry_id) REFERENCES entries(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS folders (

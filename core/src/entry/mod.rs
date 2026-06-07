@@ -10,6 +10,24 @@ pub struct Provenance {
     pub plugin_origin: Option<String>,
     pub author: String,
     pub feedback: Option<String>,
+    #[serde(default = "default_metadata")]
+    pub metadata: serde_json::Value,
+}
+
+fn default_metadata() -> serde_json::Value {
+    serde_json::json!({})
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntryAsset {
+    pub id: String,
+    pub entry_id: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub encrypted_size: u64,
+    pub nonce: Vec<u8>,
+    pub salt: Vec<u8>,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +125,9 @@ pub struct JournalEntry {
 
     #[serde(default)]
     pub history: Vec<EditRecord>,
+
+    #[serde(default)]
+    pub assets: Vec<EntryAsset>,
 }
 
 impl JournalEntry {
@@ -127,6 +148,7 @@ impl JournalEntry {
             plugin_origin,
             author,
             feedback: None,
+            metadata: serde_json::json!({}),
         };
 
         let salt: [u8; 16] = rand::random();
@@ -149,6 +171,7 @@ impl JournalEntry {
             due_date: None,
             parent_project_id: None,
             history: Vec::new(),
+            assets: Vec::new(),
         }
     }
 

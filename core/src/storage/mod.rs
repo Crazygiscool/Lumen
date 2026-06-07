@@ -4,11 +4,12 @@ use crate::entry::{EditRecord, EntryKind, JournalEntry, Provenance};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub struct Storage {
     conn: Mutex<Connection>,
+    base_path: PathBuf,
 }
 
 impl Storage {
@@ -17,16 +18,28 @@ impl Storage {
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             .map_err(|e| e.to_string())?;
         schema::initialize(&conn)?;
-        Ok(Storage { conn: Mutex::new(conn) })
+
+        let base_path = path.parent().unwrap_or(Path::new(".")).to_path_buf();
+        let media_path = base_path.join("media");
+        let _ = std::fs::create_dir_all(&media_path);
+
+        Ok(Storage {
+            conn: Mutex::new(conn),
+            base_path,
+        })
+    }
+
+    pub fn media_path(&self) -> PathBuf {
+        self.base_path.join("media")
     }
 
     pub fn add_entry(&self, entry: &JournalEntry) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.execute(
             "INSERT INTO entries (id, encrypted, nonce, salt, kind, tags, display_title,
-             pinned, mood, author, timestamp, plugin_origin, feedback, priority,
+             pinned, mood, author, timestamp, plugin_origin, feedback, metadata, priority,
              status, due_date, parent_project_id, history)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
             params![
                 entry.id,
                 entry.encrypted,
@@ -41,6 +54,7 @@ impl Storage {
                 entry.provenance.timestamp.to_rfc3339(),
                 entry.provenance.plugin_origin,
                 entry.provenance.feedback,
+                serde_json::to_string(&entry.provenance.metadata).unwrap_or_else(|_| "{}".to_string()),
                 entry.priority,
                 entry.status,
                 entry.due_date,
@@ -57,8 +71,8 @@ impl Storage {
         conn.execute(
             "UPDATE entries SET encrypted=?2, nonce=?3, salt=?4, kind=?5, tags=?6,
              display_title=?7, pinned=?8, mood=?9, author=?10, timestamp=?11,
-             plugin_origin=?12, feedback=?13, priority=?14, status=?15,
-             due_date=?16, parent_project_id=?17, history=?18,
+             plugin_origin=?12, feedback=?13, metadata=?14, priority=?15, status=?16,
+             due_date=?17, parent_project_id=?18, history=?19,
              updated_at=datetime('now')
              WHERE id=?1",
             params![
@@ -75,6 +89,7 @@ impl Storage {
                 entry.provenance.timestamp.to_rfc3339(),
                 entry.provenance.plugin_origin,
                 entry.provenance.feedback,
+                serde_json::to_string(&entry.provenance.metadata).unwrap_or_else(|_| "{}".to_string()),
                 entry.priority,
                 entry.status,
                 entry.due_date,
@@ -118,7 +133,7 @@ impl Storage {
         let mut stmt = conn
             .prepare(
                 "SELECT id, encrypted, nonce, salt, kind, tags, display_title,
-                 pinned, mood, author, timestamp, plugin_origin, feedback,
+                 pinned, mood, author, timestamp, plugin_origin, feedback, metadata,
                  priority, status, due_date, parent_project_id, history
                  FROM entries WHERE id=?1",
             )
@@ -126,7 +141,11 @@ impl Storage {
 
         let mut rows = stmt.query(params![id]).map_err(|e| e.to_string())?;
         match rows.next().map_err(|e| e.to_string())? {
-            Some(row) => Ok(Some(row_to_entry(row).map_err(|e| e.to_string())?)),
+            Some(row) => {
+                let mut entry = row_to_entry(row).map_err(|e| e.to_string())?;
+                entry.assets = self.get_assets_for_entry(&entry.id)?;
+                Ok(Some(entry))
+            },
             None => Ok(None),
         }
     }
@@ -136,7 +155,7 @@ impl Storage {
         let mut stmt = conn
             .prepare(
                 "SELECT id, encrypted, nonce, salt, kind, tags, display_title,
-                 pinned, mood, author, timestamp, plugin_origin, feedback,
+                 pinned, mood, author, timestamp, plugin_origin, feedback, metadata,
                  priority, status, due_date, parent_project_id, history
                  FROM entries ORDER BY timestamp DESC",
             )
@@ -148,7 +167,11 @@ impl Storage {
 
         let mut entries = Vec::new();
         for row in rows {
-            entries.push(row.map_err(|e| e.to_string())?);
+            let mut entry = row.map_err(|e| e.to_string())?;
+            // Optimized: assets might be loaded on demand in the UI, but let's load them for now
+            // or maybe just the IDs? For simplicity, we'll skip bulk asset loading here
+            // unless requested.
+            entries.push(entry);
         }
         Ok(entries)
     }
@@ -159,7 +182,7 @@ impl Storage {
         let mut stmt = conn
             .prepare(
                 "SELECT id, encrypted, nonce, salt, kind, tags, display_title,
-                 pinned, mood, author, timestamp, plugin_origin, feedback,
+                 pinned, mood, author, timestamp, plugin_origin, feedback, metadata,
                  priority, status, due_date, parent_project_id, history
                  FROM entries
                  WHERE kind LIKE ?1
@@ -167,6 +190,7 @@ impl Storage {
                     OR display_title LIKE ?1
                     OR author LIKE ?1
                     OR id LIKE ?1
+                    OR metadata LIKE ?1
                  ORDER BY timestamp DESC",
             )
             .map_err(|e| e.to_string())?;
@@ -180,6 +204,93 @@ impl Storage {
             entries.push(row.map_err(|e| e.to_string())?);
         }
         Ok(entries)
+    }
+
+    pub fn add_asset(&self, asset: &crate::entry::EntryAsset) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO entry_assets (id, entry_id, file_name, mime_type, encrypted_size, nonce, salt)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                asset.id,
+                asset.entry_id,
+                asset.file_name,
+                asset.mime_type,
+                asset.encrypted_size as i64,
+                asset.nonce,
+                asset.salt,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn get_assets_for_entry(&self, entry_id: &str) -> Result<Vec<crate::entry::EntryAsset>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, created_at
+                 FROM entry_assets WHERE entry_id=?1",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map(params![entry_id], |row| {
+                let created_at_str: String = row.get(7)?;
+                let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now());
+
+                Ok(crate::entry::EntryAsset {
+                    id: row.get(0)?,
+                    entry_id: row.get(1)?,
+                    file_name: row.get(2)?,
+                    mime_type: row.get(3)?,
+                    encrypted_size: row.get::<_, i64>(4)? as u64,
+                    nonce: row.get(5)?,
+                    salt: row.get(6)?,
+                    created_at,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+
+        let mut assets = Vec::new();
+        for row in rows {
+            assets.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(assets)
+    }
+
+    pub fn get_asset(&self, id: &str) -> Result<Option<crate::entry::EntryAsset>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, created_at
+                 FROM entry_assets WHERE id=?1",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let mut rows = stmt.query(params![id]).map_err(|e| e.to_string())?;
+        match rows.next().map_err(|e| e.to_string())? {
+            Some(row) => {
+                let created_at_str: String = row.get(7)?;
+                let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now());
+
+                Ok(Some(crate::entry::EntryAsset {
+                    id: row.get(0)?,
+                    entry_id: row.get(1)?,
+                    file_name: row.get(2)?,
+                    mime_type: row.get(3)?,
+                    encrypted_size: row.get::<_, i64>(4)? as u64,
+                    nonce: row.get(5)?,
+                    salt: row.get(6)?,
+                    created_at,
+                }))
+            },
+            None => Ok(None),
+        }
     }
 
     pub fn get_streak(&self) -> Result<u32, String> {
@@ -310,8 +421,8 @@ impl Storage {
             let result = conn.execute(
                 "INSERT OR IGNORE INTO entries (id, encrypted, nonce, salt, kind, tags,
                  display_title, pinned, mood, author, timestamp, plugin_origin,
-                 feedback, priority, status, due_date, parent_project_id, history)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                 feedback, metadata, priority, status, due_date, parent_project_id, history)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
                 params![
                     entry.id,
                     entry.encrypted,
@@ -326,6 +437,7 @@ impl Storage {
                     entry.provenance.timestamp.to_rfc3339(),
                     entry.provenance.plugin_origin,
                     entry.provenance.feedback,
+                    serde_json::to_string(&entry.provenance.metadata).unwrap_or_else(|_| "{}".to_string()),
                     entry.priority,
                     entry.status,
                     entry.due_date,
@@ -401,7 +513,10 @@ pub(crate) fn row_to_entry(row: &rusqlite::Row) -> Result<JournalEntry, rusqlite
     let tags_str: String = row.get(5)?;
     let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
 
-    let history_str: String = row.get(17)?;
+    let metadata_str: String = row.get(13)?;
+    let metadata: serde_json::Value = serde_json::from_str(&metadata_str).unwrap_or_else(|_| serde_json::json!({}));
+
+    let history_str: String = row.get(18)?;
     let history: Vec<EditRecord> = serde_json::from_str(&history_str).unwrap_or_default();
 
     Ok(JournalEntry {
@@ -419,11 +534,13 @@ pub(crate) fn row_to_entry(row: &rusqlite::Row) -> Result<JournalEntry, rusqlite
             author: row.get(9)?,
             plugin_origin: row.get(11)?,
             feedback: row.get(12)?,
+            metadata,
         },
-        priority: row.get(13)?,
-        status: row.get(14)?,
-        due_date: row.get(15)?,
-        parent_project_id: row.get(16)?,
+        priority: row.get(14)?,
+        status: row.get(15)?,
+        due_date: row.get(16)?,
+        parent_project_id: row.get(17)?,
         history,
+        assets: Vec::new(),
     })
 }
