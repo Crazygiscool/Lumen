@@ -67,6 +67,11 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
         "ALTER TABLE entry_assets ADD COLUMN encrypted_data BLOB NOT NULL DEFAULT x'';",
     );
 
+    // Migration: add metadata column to entries for existing DBs
+    let _ = conn.execute_batch(
+        "ALTER TABLE entries ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';",
+    );
+
     // Sync conflicts table (for sync DB)
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sync_conflicts (
