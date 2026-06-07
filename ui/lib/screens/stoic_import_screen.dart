@@ -18,10 +18,20 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
 
   Future<void> _pickDirectory() async {
     final dir = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Select Stoic Export Directory',
+      dialogTitle: 'Select Stoic Export Directory or .zip file',
     );
     if (dir != null) {
       setState(() => _selectedDir = dir);
+      return;
+    }
+    // Fall back to file picker for .zip
+    final file = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+      dialogTitle: 'Select Stoic Export .zip file',
+    );
+    if (file != null && file.files.isNotEmpty) {
+      setState(() => _selectedDir = file.files.single.path);
     }
   }
 
@@ -85,9 +95,9 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
             Card(
               child: ListTile(
                 leading: Icon(Icons.folder_open, color: cs.primary),
-                title: Text(_selectedDir != null
-                    ? _selectedDir!.split('/').last
-                    : 'Select Stoic Export Directory'),
+              title: Text(_selectedDir != null
+                  ? _selectedDir!.split('/').last
+                  : 'Select Stoic Export (dir or .zip)'),
                 subtitle: Text(_selectedDir ?? 'Tap to choose'),
                 trailing: Icon(Icons.chevron_right, color: cs.primary),
                 onTap: _loading ? null : _pickDirectory,

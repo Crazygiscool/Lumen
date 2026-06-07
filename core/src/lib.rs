@@ -156,4 +156,32 @@ use std::path::Path;
 
         assert!(storage.get_streak().unwrap() >= 2);
     }
+
+    #[test]
+    fn test_stoic_import() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let stoic_dir = format!("{}/../stoic", manifest_dir);
+        let stoic_path = std::path::Path::new(&stoic_dir);
+        if !stoic_path.join("journal-entries.json").exists() {
+            eprintln!("Skipping stoic import test — test data not found at {stoic_dir}");
+            return;
+        }
+
+        let storage = crate::storage::Storage::new(std::path::Path::new(":memory:")).unwrap();
+        let count = crate::import_stoic::import_stoic(&stoic_dir, "testpassword", &storage);
+        assert!(count > 0, "Expected at least 1 imported entry, got {count}");
+
+        let entries = storage.list_entries().unwrap();
+        assert!(entries.len() as i32 >= count);
+
+        // Verify entries have stoic tags and provenance
+        let stoic_entries: Vec<_> = entries.iter().filter(|e| e.tags.contains(&"stoic-imported".to_string())).collect();
+        assert!(stoic_entries.len() as i32 >= count);
+
+        // Verify at least one entry can be decrypted
+        let entry = &entries[0];
+        let decrypted = entry.decrypt_text("testpassword");
+        assert!(!decrypted.is_empty(), "Decrypted text should not be empty");
+        assert!(decrypted.contains("Stoic"), "Decrypted text should contain 'Stoic'");
+    }
 }

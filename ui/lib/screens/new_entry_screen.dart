@@ -7,7 +7,8 @@ import '../core/providers.dart';
 import '../utils/journal_prompts.dart';
 
 class NewEntryScreen extends ConsumerStatefulWidget {
-  const NewEntryScreen({super.key});
+  final String initialKind;
+  const NewEntryScreen({super.key, this.initialKind = 'journal'});
 
   @override
   ConsumerState<NewEntryScreen> createState() => _NewEntryScreenState();
@@ -20,13 +21,19 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
   final _passwordController = TextEditingController();
   final _tagsController = TextEditingController();
 
-  String _kind = 'journal';
+  late String _kind;
   String _priority = 'medium';
   String? _mood;
   bool _encryptTitle = false;
   final _kinds = ['journal', 'note', 'task', 'project'];
   final _priorities = ['low', 'medium', 'high'];
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _kind = widget.initialKind;
+  }
 
   static const _moods = [
     ('😊', 'happy'),

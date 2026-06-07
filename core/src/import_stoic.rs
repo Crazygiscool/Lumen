@@ -7,6 +7,7 @@ use crate::entry::{EntryKind, JournalEntry};
 use crate::storage::Storage;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawEntry {
     uuid: String,
     timestamp: f64,
@@ -26,6 +27,8 @@ struct RawEntry {
     is_completed: Option<bool>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    attributed_text: Option<serde_json::Value>,
 }
 
 #[derive(serde::Deserialize)]
@@ -39,6 +42,7 @@ struct RawAnswer {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawRoutine {
     uuid: String,
     #[serde(default)]
@@ -46,6 +50,7 @@ struct RawRoutine {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawAsset {
     uuid: String,
     #[serde(default)]
@@ -57,6 +62,7 @@ struct RawAsset {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawLocation {
     uuid: String,
     #[serde(default)]
@@ -73,13 +79,10 @@ struct RawTag {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawEmotionCheckin {
     uuid: String,
     timestamp: f64,
-    #[serde(default)]
-    mood: String,
-    #[serde(default)]
-    energy: Option<i64>,
     #[serde(default)]
     emotions: Vec<String>,
     #[serde(default)]
@@ -87,6 +90,7 @@ struct RawEmotionCheckin {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawBreathing {
     uuid: String,
     #[serde(default)]
@@ -139,9 +143,52 @@ fn tag_name(tag: &RawTag) -> String {
 pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 {
     let dir = Path::new(export_dir);
     if !dir.is_dir() {
+        // Check if it's a zip file
+        if export_dir.ends_with(".zip") && dir.is_file() {
+            match extract_zip(dir) {
+                Some(tmp_dir) => {
+                    let result = import_stoic_from_dir(&tmp_dir, password, storage);
+                    let _ = std::fs::remove_dir_all(&tmp_dir);
+                    return result;
+                }
+                None => {
+                    eprintln!("[lumen] Failed to extract Stoic zip: {export_dir}");
+                    return 0;
+                }
+            }
+        }
         eprintln!("[lumen] Stoic export directory not found: {export_dir}");
         return 0;
     }
+    import_stoic_from_dir(dir, password, storage)
+}
+
+fn extract_zip(zip_path: &Path) -> Option<std::path::PathBuf> {
+    let file = std::fs::File::open(zip_path).ok()?;
+    let mut archive = zip::ZipArchive::new(file).ok()?;
+    let mut tmp_dir = std::env::temp_dir();
+    tmp_dir.push(format!("lumen_stoic_import_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+    std::fs::create_dir_all(&tmp_dir).ok()?;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).ok()?;
+        let out_path = tmp_dir.join(entry.name());
+        if entry.is_dir() {
+            let _ = std::fs::create_dir_all(&out_path);
+        } else {
+            if let Some(parent) = out_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let mut outfile = std::fs::File::create(&out_path).ok()?;
+            let _ = std::io::copy(&mut entry, &mut outfile);
+        }
+    }
+
+    Some(tmp_dir)
+}
+
+fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
 
     // Build lookup maps
     let answers: HashMap<String, RawAnswer> = read_json::<RawAnswer>(dir, "answers.json")
@@ -158,6 +205,10 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
 
     let mut imported_count: i32 = 0;
 
+    // Derive one key for all asset encryption (salt stored per asset, but Argon2 is expensive)
+    let asset_key_salt: [u8; 16] = rand::random();
+    let asset_key = crate::entry::encryption::derive_key(password, &asset_key_salt);
+
     for entry in &entries {
         let ts = parse_stoic_timestamp(entry.timestamp);
         let cal_date = entry.calendar_date.replace('\\', "");
@@ -168,6 +219,20 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
                 text.clone()
             } else {
                 format!("# Stoic Entry — {}\n\n", cal_date)
+            }
+        } else if let Some(ref attr) = entry.attributed_text {
+            // Extract text from attributedText.runs[].text
+            let runs = attr.get("runs").and_then(|v| v.as_array());
+            let text = runs.map(|runs| {
+                runs.iter()
+                    .filter_map(|r| r.get("text").and_then(|t| t.as_str()))
+                    .collect::<Vec<_>>()
+                    .join("")
+            }).unwrap_or_default();
+            if text.trim().is_empty() {
+                format!("# Stoic Entry — {}\n\n", cal_date)
+            } else {
+                text
             }
         } else {
             // Template entry — resolve answers
@@ -300,9 +365,7 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
                 }
             };
 
-            // Encrypt asset data
-            let asset_salt: [u8; 16] = rand::random();
-            let asset_key = crate::entry::encryption::derive_key(password, &asset_salt);
+            // Encrypt asset data with shared key
             let (asset_encrypted, asset_nonce) = crate::entry::encryption::encrypt(&file_data, &asset_key);
 
             let mime = match raw_asset.r#type.as_str() {
@@ -332,7 +395,7 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
                 mime_type: mime,
                 encrypted_size: asset_encrypted.len() as u64,
                 nonce: asset_nonce,
-                salt: asset_salt.to_vec(),
+                salt: asset_key_salt.to_vec(),
                 encrypted_data: asset_encrypted,
                 created_at: Utc::now(),
             };
@@ -350,11 +413,9 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
     for em in &emotions {
         let ts = parse_stoic_timestamp(em.timestamp);
         let body = format!(
-            "# Emotion Check-in — {}\n\n**Mood:** {}\n**Energy:** {}\n**Emotions:** {}",
+            "# Emotion Check-in — {}\n\n**Emotions:** {}",
             em.calendar_date.replace('\\', ""),
-            em.mood,
-            em.energy.map(|e| e.to_string()).unwrap_or_else(|| "—".to_string()),
-            em.emotions.join(", "),
+            if em.emotions.is_empty() { "—".to_string() } else { em.emotions.join(", ") },
         );
 
         let salt: [u8; 16] = rand::random();
@@ -364,10 +425,10 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
         let metadata = serde_json::json!({
             "stoic_type": "emotion_checkin",
             "stoic_uuid": em.uuid,
-            "mood": em.mood,
-            "energy": em.energy,
             "emotions": em.emotions,
         });
+
+        let mood = em.emotions.first().cloned();
 
         let entry = JournalEntry {
             id: generate_id(),
@@ -386,7 +447,7 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
             tags: vec!["stoic-imported".to_string(), "emotion".to_string()],
             display_title: format!("Emotion Check-in — {}", em.calendar_date.replace('\\', "")),
             pinned: false,
-            mood: Some(em.mood.clone()),
+            mood,
             priority: None,
             status: None,
             due_date: None,

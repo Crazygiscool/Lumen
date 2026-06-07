@@ -15,13 +15,14 @@ class JournalListScreen extends ConsumerStatefulWidget {
 }
 
 class _JournalListScreenState extends ConsumerState<JournalListScreen> {
-  final _kinds = ['all', 'journal', 'note', 'task', 'project'];
-  String _filterKind = 'all';
+  String? _filterTag;
 
-  void _openNewEntry() async {
+  void _openNewEntry(String kind) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const NewEntryScreen()),
+      MaterialPageRoute(
+        builder: (_) => NewEntryScreen(initialKind: kind),
+      ),
     );
     ref.read(entriesProvider.notifier).refresh();
   }
@@ -50,48 +51,59 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
   @override
   Widget build(BuildContext context) {
     final allEntries = ref.watch(entriesProvider);
-    final entries = _filterKind == 'all'
-        ? allEntries
-        : allEntries.where((e) => e.kind == _filterKind).toList();
+    final journalEntries =
+        allEntries.where((e) => e.kind == 'journal').toList();
+    final tags = <String>{};
+    for (final e in journalEntries) {
+      tags.addAll(e.tags);
+    }
+    final sortedTags = tags.toList()..sort();
+    final entries = _filterTag == null
+        ? journalEntries
+        : journalEntries
+            .where((e) => e.tags.contains(_filterTag))
+            .toList();
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lumen'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const _PlaceholderScreen(title: 'Settings')),
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: _kinds.map((kind) {
-                final selected = kind == _filterKind;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(kind),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _filterKind = kind),
+          if (sortedTags.isNotEmpty)
+            SizedBox(
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: const Text('all'),
+                      selected: _filterTag == null,
+                      onSelected: (_) => setState(() => _filterTag = null),
+                    ),
                   ),
-                );
-              }).toList(),
+                  ...sortedTags.map((tag) {
+                    final selected = tag == _filterTag;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(tag),
+                        selected: selected,
+                        onSelected: (_) =>
+                            setState(() => _filterTag = selected ? null : tag),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-          ),
           Expanded(
             child: entries.isEmpty
-                ? const EmptyState(message: "No entries yet")
+                ? const EmptyState(message: "No journal entries yet")
                 : ListView.builder(
                     itemCount: entries.length,
                     itemBuilder: (context, index) {
@@ -135,19 +147,24 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _openNewEntry,
+        onPressed: () => _showKindMenu(context),
         child: const Icon(Icons.add),
       ),
     );
   }
-}
 
-class _PlaceholderScreen extends StatelessWidget {
-  final String title;
-  const _PlaceholderScreen({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: Text(title)));
+  void _showKindMenu(BuildContext context) {
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(1, 1, 1, 1),
+      items: const [
+        PopupMenuItem(value: 'journal', child: Text('Journal')),
+        PopupMenuItem(value: 'note', child: Text('Note')),
+        PopupMenuItem(value: 'task', child: Text('Task')),
+        PopupMenuItem(value: 'project', child: Text('Project')),
+      ],
+    ).then((kind) {
+      if (kind != null) _openNewEntry(kind);
+    });
   }
 }

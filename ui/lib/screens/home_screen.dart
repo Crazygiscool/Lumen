@@ -47,6 +47,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   LumenSection _section = LumenSection.journal;
+  bool _sidebarHover = false;
 
   @override
   Widget build(BuildContext context) {
@@ -129,12 +130,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildWideLayout(ColorScheme cs) {
-    return Row(
-      children: [
-        _buildSidebar(cs),
-        SizedBox(width: 1, child: Container(color: cs.outlineVariant)),
-        Expanded(child: _buildPage()),
-      ],
+    final focusMode = ref.watch(focusModeProvider);
+
+    return MouseRegion(
+      onHover: (event) {
+        if (focusMode) {
+          setState(() => _sidebarHover = event.localPosition.dx < 60);
+        }
+      },
+      onExit: (_) {
+        if (focusMode) {
+          setState(() => _sidebarHover = false);
+        }
+      },
+      child: Stack(
+        children: [
+          Row(
+            children: [
+              if (!focusMode)
+                _buildSidebar(cs),
+              if (!focusMode)
+                SizedBox(width: 1, child: Container(color: cs.outlineVariant)),
+              Expanded(child: _buildPage()),
+            ],
+          ),
+          if (focusMode)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              left: _sidebarHover ? 0 : -240,
+              top: 0,
+              bottom: 0,
+              width: 240,
+              child: _buildSidebar(cs),
+            ),
+        ],
+      ),
     );
   }
 
@@ -188,8 +218,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    children: [
-                      ...LumenSection.values.map((s) {
+                      children: [
+                        ...LumenSection.values.map((s) {
                       final active = _section == s;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 2),
