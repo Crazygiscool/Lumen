@@ -167,10 +167,7 @@ impl Storage {
 
         let mut entries = Vec::new();
         for row in rows {
-            let mut entry = row.map_err(|e| e.to_string())?;
-            // Optimized: assets might be loaded on demand in the UI, but let's load them for now
-            // or maybe just the IDs? For simplicity, we'll skip bulk asset loading here
-            // unless requested.
+            let entry = row.map_err(|e| e.to_string())?;
             entries.push(entry);
         }
         Ok(entries)
@@ -209,8 +206,8 @@ impl Storage {
     pub fn add_asset(&self, asset: &crate::entry::EntryAsset) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.execute(
-            "INSERT INTO entry_assets (id, entry_id, file_name, mime_type, encrypted_size, nonce, salt)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO entry_assets (id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, encrypted_data)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 asset.id,
                 asset.entry_id,
@@ -219,6 +216,7 @@ impl Storage {
                 asset.encrypted_size as i64,
                 asset.nonce,
                 asset.salt,
+                asset.encrypted_data,
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -229,14 +227,14 @@ impl Storage {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare(
-                "SELECT id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, created_at
+                "SELECT id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, encrypted_data, created_at
                  FROM entry_assets WHERE entry_id=?1",
             )
             .map_err(|e| e.to_string())?;
 
         let rows = stmt
             .query_map(params![entry_id], |row| {
-                let created_at_str: String = row.get(7)?;
+                let created_at_str: String = row.get(8)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                     .map(|dt| dt.with_timezone(&Utc))
                     .unwrap_or_else(|_| Utc::now());
@@ -249,6 +247,7 @@ impl Storage {
                     encrypted_size: row.get::<_, i64>(4)? as u64,
                     nonce: row.get(5)?,
                     salt: row.get(6)?,
+                    encrypted_data: row.get(7)?,
                     created_at,
                 })
             })
@@ -265,7 +264,7 @@ impl Storage {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare(
-                "SELECT id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, created_at
+                "SELECT id, entry_id, file_name, mime_type, encrypted_size, nonce, salt, encrypted_data, created_at
                  FROM entry_assets WHERE id=?1",
             )
             .map_err(|e| e.to_string())?;
@@ -273,19 +272,20 @@ impl Storage {
         let mut rows = stmt.query(params![id]).map_err(|e| e.to_string())?;
         match rows.next().map_err(|e| e.to_string())? {
             Some(row) => {
-                let created_at_str: String = row.get(7)?;
+                let created_at_str: String = row.get(8).map_err(|e| e.to_string())?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                     .map(|dt| dt.with_timezone(&Utc))
                     .unwrap_or_else(|_| Utc::now());
 
                 Ok(Some(crate::entry::EntryAsset {
-                    id: row.get(0)?,
-                    entry_id: row.get(1)?,
-                    file_name: row.get(2)?,
-                    mime_type: row.get(3)?,
-                    encrypted_size: row.get::<_, i64>(4)? as u64,
-                    nonce: row.get(5)?,
-                    salt: row.get(6)?,
+                    id: row.get(0).map_err(|e| e.to_string())?,
+                    entry_id: row.get(1).map_err(|e| e.to_string())?,
+                    file_name: row.get(2).map_err(|e| e.to_string())?,
+                    mime_type: row.get(3).map_err(|e| e.to_string())?,
+                    encrypted_size: row.get::<_, i64>(4).map_err(|e| e.to_string())? as u64,
+                    nonce: row.get(5).map_err(|e| e.to_string())?,
+                    salt: row.get(6).map_err(|e| e.to_string())?,
+                    encrypted_data: row.get(7).map_err(|e| e.to_string())?,
                     created_at,
                 }))
             },

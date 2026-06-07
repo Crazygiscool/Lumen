@@ -70,12 +70,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   }
 
   void _unlock() {
-    // For now, use a fixed salt. In production, this would be stored per vault.
-    const salt = 'lumen_session_salt';
-    final ok = ref.read(authProvider.notifier).unlock(
-          _passwordCtrl.text,
-          salt,
-        );
+    final ok = ref.read(authProvider.notifier).unlock(_passwordCtrl.text);
     if (!ok) {
       setState(() => _error = true);
     }

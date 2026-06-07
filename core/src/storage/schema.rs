@@ -35,6 +35,7 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
             encrypted_size  INTEGER NOT NULL,
             nonce           BLOB NOT NULL,
             salt            BLOB NOT NULL,
+            encrypted_data  BLOB NOT NULL DEFAULT x'',
             created_at      TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY(entry_id) REFERENCES entries(id) ON DELETE CASCADE
         );
@@ -59,5 +60,27 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
         );
         ",
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    // Migration: add encrypted_data column to entry_assets for existing DBs
+    let _ = conn.execute_batch(
+        "ALTER TABLE entry_assets ADD COLUMN encrypted_data BLOB NOT NULL DEFAULT x'';",
+    );
+
+    // Sync conflicts table (for sync DB)
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sync_conflicts (
+            id              TEXT PRIMARY KEY,
+            entry_id        TEXT NOT NULL,
+            local_timestamp TEXT NOT NULL,
+            remote_timestamp TEXT NOT NULL,
+            local_entry_json TEXT NOT NULL,
+            remote_entry_json TEXT NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            resolved        INTEGER NOT NULL DEFAULT 0
+        );",
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
 }

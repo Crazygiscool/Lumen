@@ -110,8 +110,8 @@ typedef LumenExportAll = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef LumenImportNative = Int32 Function(Pointer<Utf8>);
 typedef LumenImport = int Function(Pointer<Utf8>);
 
-typedef LumenUnlockNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>);
-typedef LumenUnlock = int Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef LumenUnlockNative = Int32 Function(Pointer<Utf8>);
+typedef LumenUnlock = int Function(Pointer<Utf8>);
 
 typedef LumenLockNative = Int32 Function();
 typedef LumenLock = int Function();
@@ -128,14 +128,35 @@ typedef LumenSetPassword = int Function(Pointer<Utf8>);
 typedef LumenListVaultsNative = Pointer<Utf8> Function();
 typedef LumenListVaults = Pointer<Utf8> Function();
 
+typedef LumenOpenVaultNative = Int32 Function(Pointer<Utf8>);
+typedef LumenOpenVault = int Function(Pointer<Utf8>);
+
 typedef LumenSyncPushNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>);
 typedef LumenSyncPush = int Function(Pointer<Utf8>, Pointer<Utf8>);
 
 typedef LumenSyncPullNative = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef LumenSyncPull = Pointer<Utf8> Function(Pointer<Utf8>);
 
+typedef LumenSyncListConflictsNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef LumenSyncListConflicts = Pointer<Utf8> Function(Pointer<Utf8>);
+
+typedef LumenSyncAcceptConflictNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef LumenSyncAcceptConflict = int Function(Pointer<Utf8>, Pointer<Utf8>, int);
+
 typedef LumenFreeStringNative = Void Function(Pointer<Utf8>);
 typedef LumenFreeString = void Function(Pointer<Utf8>);
+
+typedef LumenAddAssetNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
+typedef LumenAddAsset = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
+
+typedef LumenGetAssetsNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef LumenGetAssets = Pointer<Utf8> Function(Pointer<Utf8>);
+
+typedef LumenGetAssetDataNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef LumenGetAssetData = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
+
+typedef LumenImportStoicNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef LumenImportStoic = int Function(Pointer<Utf8>, Pointer<Utf8>);
 
 class LumenCore {
   late final DynamicLibrary _lib;
@@ -164,8 +185,15 @@ class LumenCore {
   late final LumenHasPassword _hasPassword;
   late final LumenSetPassword _setPassword;
   late final LumenListVaults _listVaults;
+  late final LumenOpenVault _openVault;
   late final LumenSyncPush _syncPush;
   late final LumenSyncPull _syncPull;
+  late final LumenSyncListConflicts _syncListConflicts;
+  late final LumenSyncAcceptConflict _syncAcceptConflict;
+  late final LumenAddAsset _addAsset;
+  late final LumenGetAssets _getAssets;
+  late final LumenGetAssetData _getAssetData;
+  late final LumenImportStoic _importStoic;
   late final LumenFreeString _freeString;
 
   LumenCore() {
@@ -215,10 +243,17 @@ class LumenCore {
     _hasPassword = _lib.lookupFunction<LumenHasPasswordNative, LumenHasPassword>('lumen_has_password');
     _setPassword = _lib.lookupFunction<LumenSetPasswordNative, LumenSetPassword>('lumen_set_password');
     _listVaults = _lib.lookupFunction<LumenListVaultsNative, LumenListVaults>('lumen_list_vaults');
+    _openVault = _lib.lookupFunction<LumenOpenVaultNative, LumenOpenVault>('lumen_open_vault');
     _syncPush =
         _lib.lookupFunction<LumenSyncPushNative, LumenSyncPush>('lumen_sync_push');
     _syncPull =
         _lib.lookupFunction<LumenSyncPullNative, LumenSyncPull>('lumen_sync_pull');
+    _syncListConflicts = _lib.lookupFunction<LumenSyncListConflictsNative, LumenSyncListConflicts>('lumen_sync_list_conflicts');
+    _syncAcceptConflict = _lib.lookupFunction<LumenSyncAcceptConflictNative, LumenSyncAcceptConflict>('lumen_sync_accept_conflict');
+    _addAsset = _lib.lookupFunction<LumenAddAssetNative, LumenAddAsset>('lumen_add_asset');
+    _getAssets = _lib.lookupFunction<LumenGetAssetsNative, LumenGetAssets>('lumen_get_assets');
+    _getAssetData = _lib.lookupFunction<LumenGetAssetDataNative, LumenGetAssetData>('lumen_get_asset_data');
+    _importStoic = _lib.lookupFunction<LumenImportStoicNative, LumenImportStoic>('lumen_import_stoic');
     _freeString = _lib.lookupFunction<LumenFreeStringNative, LumenFreeString>(
         'lumen_free_string');
   }
@@ -435,12 +470,10 @@ class LumenCore {
     return result;
   }
 
-  bool unlock(String password, String salt) {
+  bool unlock(String password) {
     final pwPtr = password.toNativeUtf8();
-    final saltPtr = salt.toNativeUtf8();
-    final result = _unlock(pwPtr, saltPtr);
+    final result = _unlock(pwPtr);
     malloc.free(pwPtr);
-    malloc.free(saltPtr);
     return result != 0;
   }
 
@@ -471,6 +504,13 @@ class LumenCore {
     return decoded.cast<String>();
   }
 
+  bool openVault(String name) {
+    final namePtr = name.toNativeUtf8();
+    final result = _openVault(namePtr);
+    malloc.free(namePtr);
+    return result != 0;
+  }
+
   int syncPush(String syncDbPath, List<String> entryIds) {
     final pathPtr = syncDbPath.toNativeUtf8();
     final idsJson = jsonEncode(entryIds);
@@ -488,6 +528,73 @@ class LumenCore {
     if (resultPtr == nullptr) return '[]';
     final result = resultPtr.toDartString();
     _free(resultPtr);
+    return result;
+  }
+
+  String syncListConflicts(String syncDbPath) {
+    final pathPtr = syncDbPath.toNativeUtf8();
+    final resultPtr = _syncListConflicts(pathPtr);
+    malloc.free(pathPtr);
+    if (resultPtr == nullptr) return '[]';
+    final result = resultPtr.toDartString();
+    _free(resultPtr);
+    return result;
+  }
+
+  bool syncAcceptConflict(String syncDbPath, String conflictId, bool keepLocal) {
+    final pathPtr = syncDbPath.toNativeUtf8();
+    final cidPtr = conflictId.toNativeUtf8();
+    final result = _syncAcceptConflict(pathPtr, cidPtr, keepLocal ? 1 : 0);
+    malloc.free(pathPtr);
+    malloc.free(cidPtr);
+    return result != 0;
+  }
+
+  String addAsset(String entryId, String fileName, String mimeType, String base64Data, String password) {
+    final entryIdPtr = entryId.toNativeUtf8();
+    final fileNamePtr = fileName.toNativeUtf8();
+    final mimeTypePtr = mimeType.toNativeUtf8();
+    final dataPtr = base64Data.toNativeUtf8();
+    final pwPtr = password.toNativeUtf8();
+    final resultPtr = _addAsset(entryIdPtr, fileNamePtr, mimeTypePtr, dataPtr, pwPtr);
+    final result = resultPtr.toDartString();
+    _free(resultPtr);
+    malloc.free(entryIdPtr);
+    malloc.free(fileNamePtr);
+    malloc.free(mimeTypePtr);
+    malloc.free(dataPtr);
+    malloc.free(pwPtr);
+    return result;
+  }
+
+  String getAssets(String entryId) {
+    final entryIdPtr = entryId.toNativeUtf8();
+    final resultPtr = _getAssets(entryIdPtr);
+    malloc.free(entryIdPtr);
+    if (resultPtr == nullptr) return '[]';
+    final result = resultPtr.toDartString();
+    _free(resultPtr);
+    return result;
+  }
+
+  String getAssetData(String assetId, String password) {
+    final assetIdPtr = assetId.toNativeUtf8();
+    final pwPtr = password.toNativeUtf8();
+    final resultPtr = _getAssetData(assetIdPtr, pwPtr);
+    malloc.free(assetIdPtr);
+    malloc.free(pwPtr);
+    if (resultPtr == nullptr) return '{"error":"null"}';
+    final result = resultPtr.toDartString();
+    _free(resultPtr);
+    return result;
+  }
+
+  int importStoic(String exportDir, String password) {
+    final dirPtr = exportDir.toNativeUtf8();
+    final pwPtr = password.toNativeUtf8();
+    final result = _importStoic(dirPtr, pwPtr);
+    malloc.free(dirPtr);
+    malloc.free(pwPtr);
     return result;
   }
 }

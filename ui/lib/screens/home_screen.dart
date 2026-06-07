@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers.dart';
 import '../utils/responsive.dart';
 import '../widgets/streak_widget.dart';
+import '../widgets/vault_switcher.dart';
 import 'journal_list_screen.dart';
 import 'note_list_screen.dart';
 import 'task_list_screen.dart';
@@ -180,6 +181,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                 ),
+                // Vault switcher
+                VaultSwitcher(onChanged: () => setState(() {})),
+                const SizedBox(height: 8),
                 // Sections
                 Expanded(
                   child: ListView(

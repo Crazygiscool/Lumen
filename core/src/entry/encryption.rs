@@ -14,29 +14,25 @@ pub fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
     key
 }
 
-pub fn encrypt(text: &str, key: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
+pub fn encrypt(data: &[u8], key: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
 
-    // Generate a random 96-bit nonce (AES-GCM standard)
     let nonce: [u8; 12] = rand::random();
     let nonce_obj = Nonce::from_slice(&nonce);
 
     let ciphertext = cipher
-        .encrypt(nonce_obj, text.as_bytes())
+        .encrypt(nonce_obj, data)
         .expect("Encryption failed");
 
     (ciphertext, nonce.to_vec())
 }
 
-pub fn decrypt(ciphertext: &[u8], nonce: &[u8], key: &[u8; 32]) -> Result<String, String> {
+pub fn decrypt(ciphertext: &[u8], nonce: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce_obj = Nonce::from_slice(nonce);
 
     match cipher.decrypt(nonce_obj, ciphertext) {
-        Ok(plaintext) => match String::from_utf8(plaintext) {
-            Ok(s) => Ok(s),
-            Err(_) => Err("Invalid UTF-8 in decrypted payload".into()),
-        },
+        Ok(plaintext) => Ok(plaintext),
         Err(_) => Err("Decryption failed".into()),
     }
 }

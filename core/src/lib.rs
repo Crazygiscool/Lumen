@@ -5,6 +5,7 @@ pub mod plugins;
 pub mod feedback;
 pub mod sync;
 pub mod ffi;
+pub mod import_stoic;
 
 pub use ffi::{
     lumen_add_entry,
@@ -33,8 +34,15 @@ pub use ffi::{
     lumen_lock,
     lumen_is_unlocked,
     lumen_list_vaults,
+    lumen_open_vault,
     lumen_sync_push,
     lumen_sync_pull,
+    lumen_sync_list_conflicts,
+    lumen_sync_accept_conflict,
+    lumen_add_asset,
+    lumen_get_assets,
+    lumen_get_asset_data,
+    lumen_import_stoic,
 };
 
 #[cfg(test)]

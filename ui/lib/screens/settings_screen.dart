@@ -1,14 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/providers.dart';
 import 'export_import_screen.dart';
+import 'stoic_import_screen.dart';
 import 'sync_settings_screen.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _lockOnStart = true;
+
+  Future<void> _setPassword() async {
+    final controller = TextEditingController();
+    final pw = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Set Password'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'New password',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (pw == null || pw.isEmpty) return;
+
+    final ok = ref.read(authProvider.notifier).setPassword(pw);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? 'Password set' : 'Failed to set password')),
+    );
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -16,6 +61,35 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _SectionHeader(title: 'Security'),
+          if (!ref.read(authProvider.notifier).hasPassword())
+            _SettingsTile(
+              title: 'Set Password',
+              subtitle: 'Create a password to lock your journal',
+              icon: Icons.lock_outline,
+              colorScheme: cs,
+              onTap: _setPassword,
+            )
+          else ...[
+            _SettingsTile(
+              title: 'Change Password',
+              subtitle: 'Update your existing password',
+              icon: Icons.lock_reset,
+              colorScheme: cs,
+              onTap: _setPassword,
+            ),
+            Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: SwitchListTile(
+                secondary: Icon(Icons.lock_open, color: cs.primary),
+                title: const Text('Lock on Start'),
+                subtitle: const Text('Require password on app launch'),
+                value: _lockOnStart,
+                onChanged: (v) => setState(() => _lockOnStart = v),
+              ),
+            ),
+          ],
+          const SizedBox(height: 32),
           _SectionHeader(title: 'General'),
           _SettingsTile(
             title: 'Theme',
@@ -56,6 +130,18 @@ class SettingsScreen extends ConsumerWidget {
               context,
               MaterialPageRoute(
                 builder: (_) => const ExportImportScreen(),
+              ),
+            ),
+          ),
+          _SettingsTile(
+            title: 'Import from Stoic',
+            subtitle: 'Import entries from a Stoic iOS export',
+            icon: Icons.auto_stories,
+            colorScheme: cs,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const StoicImportScreen(),
               ),
             ),
           ),

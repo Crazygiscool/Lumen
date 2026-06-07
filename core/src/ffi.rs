@@ -179,7 +179,7 @@ pub unsafe extern "C" fn lumen_update_entry(
     let old_entry = with_storage(|s| s.get_entry(&id).ok().flatten());
     let entry = if let Some(old) = old_entry {
         let key = crate::entry::encryption::derive_key(&password, &old.salt);
-        let (encrypted, nonce) = crate::entry::encryption::encrypt(&text, &key);
+        let (encrypted, nonce) = crate::entry::encryption::encrypt(text.as_bytes(), &key);
         let mut updated = JournalEntry {
             encrypted,
             nonce,
@@ -331,6 +331,111 @@ pub unsafe extern "C" fn lumen_get_streak() -> u32 {
     ensure_loaded();
     with_storage(|s| s.get_streak().unwrap_or(0))
 }
+
+// ------------------------------------------------------------
+// ASSET MANAGEMENT
+// ------------------------------------------------------------
+#[no_mangle]
+pub unsafe extern "C" fn lumen_add_asset(
+    entry_id: *const c_char,
+    file_name: *const c_char,
+    mime_type: *const c_char,
+    base64_data: *const c_char,
+    password: *const c_char,
+) -> *mut c_char { unsafe {
+    ensure_loaded();
+    let entry_id = c_str_to_owned(entry_id);
+    let file_name = c_str_to_owned(file_name);
+    let mime_type = c_str_to_owned(mime_type);
+    let b64 = c_str_to_owned(base64_data);
+    let password = c_str_to_owned(password);
+
+    use base64::Engine;
+    let plaintext = match base64::engine::general_purpose::STANDARD.decode(&b64) {
+        Ok(d) => d,
+        Err(e) => return to_json(&serde_json::json!({"error": format!("base64 decode: {e}")})),
+    };
+
+    let salt: [u8; 16] = rand::random();
+    let key = crate::entry::encryption::derive_key(&password, &salt);
+    let (encrypted_data, nonce) = crate::entry::encryption::encrypt(&plaintext, &key);
+
+    let ts = chrono::Utc::now().timestamp();
+    let rand_part: u32 = rand::random();
+    let asset_id = format!("{}_{:08x}", ts, rand_part);
+
+    let asset = crate::entry::EntryAsset {
+        id: asset_id.clone(),
+        entry_id,
+        file_name,
+        mime_type,
+        encrypted_size: encrypted_data.len() as u64,
+        nonce,
+        salt: salt.to_vec(),
+        encrypted_data,
+        created_at: chrono::Utc::now(),
+    };
+
+    if let Err(e) = with_storage(|s| s.add_asset(&asset)) {
+        return to_json(&serde_json::json!({"error": e}));
+    }
+
+    to_json(&serde_json::json!({"id": asset_id}))
+}}
+
+#[no_mangle]
+pub unsafe extern "C" fn lumen_get_assets(entry_id: *const c_char) -> *mut c_char {
+    ensure_loaded();
+    let entry_id = unsafe { c_str_to_owned(entry_id) };
+    let assets = with_storage(|s| s.get_assets_for_entry(&entry_id).unwrap_or_default());
+    // Return metadata only (exclude encrypted payload)
+    let list: Vec<serde_json::Value> = assets.iter().map(|a| {
+        serde_json::json!({
+            "id": a.id,
+            "file_name": a.file_name,
+            "mime_type": a.mime_type,
+            "encrypted_size": a.encrypted_size,
+            "created_at": a.created_at.to_rfc3339(),
+        })
+    }).collect();
+    to_json(&list)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lumen_get_asset_data(asset_id: *const c_char, password: *const c_char) -> *mut c_char { unsafe {
+    ensure_loaded();
+    let asset_id = c_str_to_owned(asset_id);
+    let password = c_str_to_owned(password);
+
+    let asset = match with_storage(|s| s.get_asset(&asset_id).ok().flatten()) {
+        Some(a) => a,
+        None => return to_json(&serde_json::json!({"error": "Asset not found"})),
+    };
+
+    let key = crate::entry::encryption::derive_key(&password, &asset.salt);
+    let plaintext = match crate::entry::encryption::decrypt(&asset.encrypted_data, &asset.nonce, &key) {
+        Ok(d) => d,
+        Err(e) => return to_json(&serde_json::json!({"error": e})),
+    };
+
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&plaintext);
+    to_json(&serde_json::json!({"data": b64, "mime_type": asset.mime_type, "file_name": asset.file_name}))
+}}
+
+// ------------------------------------------------------------
+// STOIC IMPORT
+// ------------------------------------------------------------
+#[no_mangle]
+pub unsafe extern "C" fn lumen_import_stoic(
+    export_dir: *const c_char,
+    password: *const c_char,
+) -> i32 { unsafe {
+    ensure_loaded();
+    let export_dir = c_str_to_owned(export_dir);
+    let password = c_str_to_owned(password);
+    with_storage(|s| crate::import_stoic::import_stoic(&export_dir, &password, s))
+}}
 
 // ------------------------------------------------------------
 // DECRYPT ENTRY
@@ -571,7 +676,7 @@ pub unsafe extern "C" fn lumen_is_unlocked() -> i32 {
 // ------------------------------------------------------------
 #[no_mangle]
 pub unsafe extern "C" fn lumen_list_vaults() -> *mut c_char {
-    let mut vaults = Vec::new();
+    let mut vaults: Vec<String> = Vec::new();
     if let Some(data_dir) = dirs::data_dir() {
         let lumen_dir = data_dir.join("lumen");
         if let Ok(entries) = std::fs::read_dir(&lumen_dir) {
@@ -586,6 +691,36 @@ pub unsafe extern "C" fn lumen_list_vaults() -> *mut c_char {
         }
     }
     to_json(&vaults)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lumen_open_vault(name: *const c_char) -> i32 {
+    let name = unsafe { c_str_to_owned(name) };
+    let data_dir = match dirs::data_dir() {
+        Some(d) => d,
+        None => {
+            eprintln!("[lumen] Cannot find data directory");
+            return 0;
+        }
+    };
+    let vault_dir = data_dir.join("lumen").join(&name);
+    if let Err(e) = std::fs::create_dir_all(&vault_dir) {
+        eprintln!("[lumen] Cannot create vault directory: {e}");
+        return 0;
+    }
+    let db_path = vault_dir.join("lumen.db");
+    match Storage::new(&db_path) {
+        Ok(storage) => {
+            if let Ok(mut guard) = STORAGE.lock() {
+                *guard = Some(storage);
+            }
+            1
+        }
+        Err(e) => {
+            eprintln!("[lumen] Failed to open vault '{name}': {e}");
+            0
+        }
+    }
 }
 
 // ------------------------------------------------------------
@@ -655,6 +790,55 @@ pub unsafe extern "C" fn lumen_sync_pull(sync_db_path: *const c_char) -> *mut c_
         }
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn lumen_sync_list_conflicts(sync_db_path: *const c_char) -> *mut c_char {
+    let path = unsafe { c_str_to_owned(sync_db_path) };
+
+    let sync = match crate::sync::local_sqlite::LocalSqliteSync::open(&std::path::Path::new(&path))
+    {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[lumen] Failed to open sync DB: {e}");
+            return to_json(&serde_json::json!([]));
+        }
+    };
+
+    match sync.list_conflicts() {
+        Ok(conflicts) => to_json(&conflicts),
+        Err(e) => {
+            eprintln!("[lumen] Failed to list conflicts: {e}");
+            to_json(&serde_json::json!([]))
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lumen_sync_accept_conflict(
+    sync_db_path: *const c_char,
+    conflict_id: *const c_char,
+    keep_local: i32,
+) -> i32 { unsafe {
+    let path = c_str_to_owned(sync_db_path);
+    let cid = c_str_to_owned(conflict_id);
+
+    let sync = match crate::sync::local_sqlite::LocalSqliteSync::open(&std::path::Path::new(&path))
+    {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[lumen] Failed to open sync DB: {e}");
+            return -1;
+        }
+    };
+
+    match sync.accept_conflict(&cid, keep_local != 0) {
+        Ok(()) => 1,
+        Err(e) => {
+            eprintln!("[lumen] Failed to accept conflict: {e}");
+            0
+        }
+    }
+}}
 
 // ------------------------------------------------------------
 // FREE STRING

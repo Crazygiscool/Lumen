@@ -27,6 +27,7 @@ pub struct EntryAsset {
     pub encrypted_size: u64,
     pub nonce: Vec<u8>,
     pub salt: Vec<u8>,
+    pub encrypted_data: Vec<u8>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -153,7 +154,7 @@ impl JournalEntry {
 
         let salt: [u8; 16] = rand::random();
         let key = encryption::derive_key(password, &salt[..]);
-        let (encrypted, nonce) = encryption::encrypt(&text, &key);
+        let (encrypted, nonce) = encryption::encrypt(text.as_bytes(), &key);
 
         JournalEntry {
             id,
@@ -178,7 +179,7 @@ impl JournalEntry {
     pub fn decrypt_text(&self, password: &str) -> String {
         let key = encryption::derive_key(password, &self.salt);
         match encryption::decrypt(&self.encrypted, &self.nonce, &key) {
-            Ok(s) => s,
+            Ok(bytes) => String::from_utf8(bytes).unwrap_or_else(|_| "ERROR: Invalid UTF-8".to_string()),
             Err(e) => format!("ERROR: {}", e),
         }
     }

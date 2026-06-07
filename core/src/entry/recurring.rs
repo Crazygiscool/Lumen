@@ -37,14 +37,16 @@ pub fn process_recurring(storage: &Storage) -> Result<u32, String> {
 
         let entry = JournalEntry {
             id: id.clone(),
-            encrypted: Vec::new(), // placeholder — body is encryption of title
+            encrypted: Vec::new(),
             nonce: Vec::new(),
             salt: Vec::new(),
+            assets: Vec::new(),
             provenance: crate::entry::Provenance {
                 timestamp: Utc::now(),
                 plugin_origin: Some("recurring".to_string()),
                 author: "system".to_string(),
                 feedback: None,
+                metadata: serde_json::json!({}),
             },
             kind: EntryKind::Task,
             tags,

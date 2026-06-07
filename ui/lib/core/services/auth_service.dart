@@ -11,8 +11,8 @@ class AuthNotifier extends Notifier<bool> {
     return _lumen.isUnlocked();
   }
 
-  bool unlock(String password, String salt) {
-    final ok = _lumen.unlock(password, salt);
+  bool unlock(String password) {
+    final ok = _lumen.unlock(password);
     if (ok) state = true;
     return ok;
   }
