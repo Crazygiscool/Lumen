@@ -38,13 +38,14 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
   Future<void> _import() async {
     if (_selectedDir == null) return;
 
-    final password = await _promptPassword(context);
-    if (password == null || password.isEmpty) return;
+    final isUnlocked = ref.read(authProvider);
+    final password = isUnlocked ? '' : (await _promptPassword(context));
+    if (!isUnlocked && (password == null || password.isEmpty)) return;
 
     setState(() => _loading = true);
 
     final lumen = ref.read(lumenCoreProvider);
-    final count = await Future(() => lumen.importStoic(_selectedDir!, password));
+    final count = await Future(() => lumen.importStoic(_selectedDir!, password ?? ''));
 
     if (count > 0) {
       ref.read(entriesProvider.notifier).refresh();

@@ -91,6 +91,16 @@ fn to_json<T: serde::Serialize>(val: &T) -> *mut c_char {
     CString::new(json).unwrap_or_default().into_raw()
 }
 
+/// Resolve a password string to a 32-byte key.
+/// Empty password → use SESSION_KEY. Non-empty → derive from password + salt.
+fn resolve_key(password: &str, salt: &[u8]) -> Option<[u8; 32]> {
+    if password.is_empty() {
+        crate::auth::session_key()
+    } else {
+        Some(crate::entry::encryption::derive_key(password, salt))
+    }
+}
+
 // ------------------------------------------------------------
 // ADD ENTRY
 // ------------------------------------------------------------
@@ -126,10 +136,23 @@ pub unsafe extern "C" fn lumen_add_entry(
     } else {
         serde_json::from_str(&tags_str).unwrap_or_default()
     };
-    let entry = JournalEntry::new(id, text, author, None, &password, kind, tags, display_title_raw);
+
+    let (key, salt) = if password.is_empty() {
+        match crate::auth::session_key() {
+            Some(k) => (k, Vec::new()),
+            None => { eprintln!("[lumen] Not unlocked"); return; }
+        }
+    } else {
+        let s: [u8; 16] = rand::random();
+        (crate::entry::encryption::derive_key(&password, &s), s.to_vec())
+    };
+
+    let body_text = text.clone();
+    let entry = JournalEntry::new(id, text, author, None, &key, salt, kind, tags, display_title_raw);
     if let Err(e) = with_storage(|s| s.add_entry(&entry)) {
         eprintln!("[lumen] Failed to add entry: {e}");
     }
+    let _ = with_storage(|s| s.index_entry_fts(&entry.id, &body_text, &entry.display_title, &entry.tags, &entry.provenance.author));
 }}
 
 // ------------------------------------------------------------
@@ -178,7 +201,20 @@ pub unsafe extern "C" fn lumen_update_entry(
     // Fetch existing entry to preserve creation timestamp + history
     let old_entry = with_storage(|s| s.get_entry(&id).ok().flatten());
     let entry = if let Some(old) = old_entry {
-        let key = crate::entry::encryption::derive_key(&password, &old.salt);
+        let key = if password.is_empty() {
+            match crate::auth::session_key() {
+                Some(k) => k,
+                None => { eprintln!("[lumen] Not unlocked"); return; }
+            }
+        } else if old.salt.is_empty() {
+            // Entry was created with session key; re-encrypt with session key
+            match crate::auth::session_key() {
+                Some(k) => k,
+                None => { eprintln!("[lumen] Not unlocked"); return; }
+            }
+        } else {
+            crate::entry::encryption::derive_key(&password, &old.salt)
+        };
         let (encrypted, nonce) = crate::entry::encryption::encrypt(text.as_bytes(), &key);
         let mut updated = JournalEntry {
             encrypted,
@@ -205,12 +241,14 @@ pub unsafe extern "C" fn lumen_update_entry(
         return;
     };
 
+    let body_text = text.clone();
     // If mood/priority/status etc. are passed as additional params, they'd go here
     // For now, preserve existing values
 
     if let Err(e) = with_storage(|s| s.update_entry(&entry)) {
         eprintln!("[lumen] Failed to update entry: {e}");
     }
+    let _ = with_storage(|s| s.index_entry_fts(&entry.id, &body_text, &entry.display_title, &entry.tags, &entry.provenance.author));
 }}
 
 // ------------------------------------------------------------
@@ -323,6 +361,14 @@ pub unsafe extern "C" fn lumen_search_entries(query: *const c_char) -> *mut c_ch
     to_json(&entries)
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn lumen_search_entries_fts(query: *const c_char) -> *mut c_char {
+    ensure_loaded();
+    let query = unsafe { c_str_to_owned(query) };
+    let entries = with_storage(|s| s.search_entries_fts(&query).unwrap_or_default());
+    to_json(&entries)
+}
+
 // ------------------------------------------------------------
 // GET STREAK
 // ------------------------------------------------------------
@@ -412,7 +458,11 @@ pub unsafe extern "C" fn lumen_get_asset_data(asset_id: *const c_char, password:
         None => return to_json(&serde_json::json!({"error": "Asset not found"})),
     };
 
-    let key = crate::entry::encryption::derive_key(&password, &asset.salt);
+    let asset_salt: &[u8] = if password.is_empty() || asset.salt.is_empty() { &[] } else { &asset.salt };
+    let key = match resolve_key(&password, asset_salt) {
+        Some(k) => k,
+        None => return to_json(&serde_json::json!({"error": "Not unlocked"})),
+    };
     let plaintext = match crate::entry::encryption::decrypt(&asset.encrypted_data, &asset.nonce, &key) {
         Ok(d) => d,
         Err(e) => return to_json(&serde_json::json!({"error": e})),
@@ -434,7 +484,19 @@ pub unsafe extern "C" fn lumen_import_stoic(
     ensure_loaded();
     let export_dir = c_str_to_owned(export_dir);
     let password = c_str_to_owned(password);
-    with_storage(|s| crate::import_stoic::import_stoic(&export_dir, &password, s))
+
+    // If no password provided but session key is available, use session key
+    let effective_password = if password.is_empty() {
+        if crate::auth::is_unlocked() {
+            "" // signal to import_stoic to use session key
+        } else {
+            eprintln!("[lumen] Cannot import — not unlocked and no password provided");
+            return 0;
+        }
+    } else {
+        &password
+    };
+    with_storage(|s| crate::import_stoic::import_stoic(&export_dir, effective_password, s))
 }}
 
 // ------------------------------------------------------------
@@ -451,7 +513,16 @@ pub unsafe extern "C" fn lumen_decrypt_entry(
 
     let entry = with_storage(|s| s.get_entry(&id).ok().flatten());
     let decrypted = match entry {
-        Some(e) => e.decrypt_text(&password),
+        Some(e) => {
+            let salt: &[u8] = if password.is_empty() || e.salt.is_empty() { &[] } else { &e.salt };
+            match resolve_key(&password, salt) {
+                Some(key) => match e.decrypt(&key) {
+                    Ok(bytes) => String::from_utf8(bytes).unwrap_or_else(|_| "ERROR: Invalid UTF-8".to_string()),
+                    Err(msg) => format!("ERROR: {}", msg),
+                },
+                None => "ERROR: Not unlocked".to_string(),
+            }
+        }
         None => "ERROR: Entry not found".to_string(),
     };
     CString::new(decrypted).unwrap_or_else(|_| CString::new("ERROR: invalid decrypted string").unwrap()).into_raw()
@@ -483,7 +554,14 @@ pub unsafe extern "C" fn lumen_export_project(
     let mut md = format!("# {}\n\n", project_title);
 
     for entry in &child_entries {
-        let body = entry.decrypt_text(&password);
+        let key = resolve_key(&password, &entry.salt);
+        let body = match key {
+            Some(k) => match entry.decrypt(&k) {
+                Ok(bytes) => String::from_utf8(bytes).unwrap_or_else(|_| "ERROR: Invalid UTF-8".to_string()),
+                Err(msg) => format!("ERROR: {}", msg),
+            },
+            None => "ERROR: Not unlocked".to_string(),
+        };
         let title = if entry.display_title.is_empty() {
             &entry.id
         } else {
@@ -588,7 +666,14 @@ pub unsafe extern "C" fn lumen_export_all(password: *const c_char) -> *mut c_cha
     let exported: Vec<serde_json::Value> = entries
         .iter()
         .map(|e| {
-            let body = e.decrypt_text(&password);
+            let key = resolve_key(&password, &e.salt);
+            let body = match key {
+                Some(k) => match e.decrypt(&k) {
+                    Ok(bytes) => String::from_utf8(bytes).unwrap_or_else(|_| "ERROR: Invalid UTF-8".to_string()),
+                    Err(msg) => format!("ERROR: {}", msg),
+                },
+                None => "ERROR: Not unlocked".to_string(),
+            };
             serde_json::json!({
                 "id": e.id,
                 "kind": e.kind.as_str(),

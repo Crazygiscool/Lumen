@@ -14,6 +14,7 @@ import 'task_list_screen.dart';
 import 'board_screen.dart';
 import 'mind_screen.dart';
 import 'settings_screen.dart';
+import 'search_results_screen.dart';
 
 final focusModeProvider = NotifierProvider<FocusModeNotifier, bool>(
     FocusModeNotifier.new);
@@ -79,6 +80,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ref.read(focusModeProvider.notifier).toggle();
               return KeyEventResult.handled;
             }
+            if (ctrl && event.logicalKey == LogicalKeyboardKey.keyF) {
+              _openSearch(context);
+              return KeyEventResult.handled;
+            }
           }
           return KeyEventResult.ignored;
         },
@@ -92,12 +97,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Widget> _buildActions() {
     return [
       IconButton(
+        icon: const Icon(Icons.search),
+        tooltip: 'Search (Ctrl+F)',
+        onPressed: () => _openSearch(context),
+      ),
+      IconButton(
         icon: const Icon(Icons.visibility_outlined),
         tooltip: 'Focus mode (Ctrl+.)',
         onPressed: () =>
             ref.read(focusModeProvider.notifier).toggle(),
       ),
     ];
+  }
+
+  void _openSearch(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SearchResultsScreen()),
+    );
   }
 
   Widget _buildDrawer(ColorScheme cs) {

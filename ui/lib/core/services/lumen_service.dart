@@ -54,6 +54,10 @@ class EntriesNotifier extends Notifier<List<JournalEntry>> {
     return _lumen.searchEntries(query);
   }
 
+  List<JournalEntry> searchFts(String query) {
+    return _lumen.searchEntriesFts(query);
+  }
+
   int getStreak() {
     return _lumen.getStreak();
   }

@@ -137,7 +137,8 @@ impl JournalEntry {
         text: String,
         author: String,
         plugin_origin: Option<String>,
-        password: &str,
+        key: &[u8; 32],
+        salt: Vec<u8>,
         kind: EntryKind,
         tags: Vec<String>,
         display_title: String,
@@ -152,15 +153,13 @@ impl JournalEntry {
             metadata: serde_json::json!({}),
         };
 
-        let salt: [u8; 16] = rand::random();
-        let key = encryption::derive_key(password, &salt[..]);
-        let (encrypted, nonce) = encryption::encrypt(text.as_bytes(), &key);
+        let (encrypted, nonce) = encryption::encrypt(text.as_bytes(), key);
 
         JournalEntry {
             id,
             encrypted,
             nonce,
-            salt: salt.to_vec(),
+            salt,
             provenance,
             kind,
             tags,
@@ -176,11 +175,7 @@ impl JournalEntry {
         }
     }
 
-    pub fn decrypt_text(&self, password: &str) -> String {
-        let key = encryption::derive_key(password, &self.salt);
-        match encryption::decrypt(&self.encrypted, &self.nonce, &key) {
-            Ok(bytes) => String::from_utf8(bytes).unwrap_or_else(|_| "ERROR: Invalid UTF-8".to_string()),
-            Err(e) => format!("ERROR: {}", e),
-        }
+    pub fn decrypt(&self, key: &[u8; 32]) -> Result<Vec<u8>, String> {
+        encryption::decrypt(&self.encrypted, &self.nonce, key)
     }
 }

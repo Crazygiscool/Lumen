@@ -27,6 +27,15 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
             updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
+            entry_id UNINDEXED,
+            body,
+            display_title,
+            tags,
+            author,
+            content=''
+        );
+
         CREATE TABLE IF NOT EXISTS entry_assets (
             id              TEXT PRIMARY KEY,
             entry_id        TEXT NOT NULL,
