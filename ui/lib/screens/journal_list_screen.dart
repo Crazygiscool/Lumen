@@ -16,6 +16,7 @@ class JournalListScreen extends ConsumerStatefulWidget {
 
 class _JournalListScreenState extends ConsumerState<JournalListScreen> {
   String? _filterTag;
+  final _fabKey = GlobalKey();
 
   void _openNewEntry(String kind) async {
     await Navigator.push(
@@ -147,6 +148,7 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        key: _fabKey,
         onPressed: () => _showKindMenu(context),
         child: const Icon(Icons.add),
       ),
@@ -154,9 +156,17 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
   }
 
   void _showKindMenu(BuildContext context) {
+    final renderBox = _fabKey.currentContext?.findRenderObject() as RenderBox?;
+    final offset = renderBox?.localToGlobal(Offset.zero);
+    if (offset == null) return;
     showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(1, 1, 1, 1),
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy,
+        offset.dx + renderBox!.size.width,
+        offset.dy + renderBox.size.height,
+      ),
       items: const [
         PopupMenuItem(value: 'journal', child: Text('Journal')),
         PopupMenuItem(value: 'note', child: Text('Note')),
