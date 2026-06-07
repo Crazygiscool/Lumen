@@ -231,6 +231,31 @@ fn extract_zip(zip_path: &Path) -> Option<std::path::PathBuf> {
 
 fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
 
+    // Resolve encryption mode
+    let use_session_key = password.is_empty();
+    let entry_encryption_key: [u8; 32] = if use_session_key {
+        match crate::auth::session_key() {
+            Some(k) => k,
+            None => {
+                eprintln!("[lumen] Stoic import: no password provided and not unlocked");
+                return 0;
+            }
+        }
+    } else {
+        // Placeholder, derived per-entry below
+        [0u8; 32]
+    };
+
+    // Asset key: if using session key, reuse it directly (no Argon2 needed).
+    // If using password, share one Argon2 derivation across all assets.
+    let use_shared_asset_key = !use_session_key;
+    let (asset_encryption_key, asset_key_salt_stored): ([u8; 32], Vec<u8>) = if use_shared_asset_key {
+        let asset_key_salt: [u8; 16] = rand::random();
+        (crate::entry::encryption::derive_key(password, &asset_key_salt), asset_key_salt.to_vec())
+    } else {
+        (entry_encryption_key, Vec::new()) // empty salt = session key mode
+    };
+
     // Build lookup maps
     let answers: HashMap<String, RawAnswer> = read_json::<RawAnswer>(dir, "answers.json")
         .into_iter().map(|a| (a.uuid.clone(), a)).collect();
@@ -245,10 +270,6 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
     let raw_assets: Vec<RawAsset> = read_json(dir, "assets.json");
 
     let mut imported_count: i32 = 0;
-
-    // Derive one key for all asset encryption (salt stored per asset, but Argon2 is expensive)
-    let asset_key_salt: [u8; 16] = rand::random();
-    let asset_key = crate::entry::encryption::derive_key(password, &asset_key_salt);
 
     for entry in &entries {
         let ts = parse_stoic_timestamp(entry.timestamp);
@@ -372,19 +393,26 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
         };
 
         // Re-encrypt the body with Lumen's encryption
-        let salt: [u8; 16] = rand::random();
-        let key = crate::entry::encryption::derive_key(password, &salt);
+        let (salt_vec, key) = if use_session_key {
+            (Vec::new(), entry_encryption_key)
+        } else {
+            let s: [u8; 16] = rand::random();
+            (s.to_vec(), crate::entry::encryption::derive_key(password, &s))
+        };
         let (encrypted, nonce) = crate::entry::encryption::encrypt(body.as_bytes(), &key);
 
         let mut final_entry = lumen_entry;
         final_entry.encrypted = encrypted;
         final_entry.nonce = nonce;
-        final_entry.salt = salt.to_vec();
+        final_entry.salt = salt_vec;
 
         if let Err(e) = storage.add_entry(&final_entry) {
             eprintln!("[lumen] Failed to import Stoic entry {}: {e}", entry.uuid);
             continue;
         }
+        let _ = storage.index_entry_fts(
+            &final_entry.id, &body, &final_entry.display_title, &final_entry.tags, &final_entry.provenance.author,
+        );
 
         // Import associated assets
         let entry_asset_uuids: Vec<&str> = entry.assets.iter().map(|s| s.as_str()).collect();
@@ -407,7 +435,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             };
 
             // Encrypt asset data with shared key
-            let (asset_encrypted, asset_nonce) = crate::entry::encryption::encrypt(&file_data, &asset_key);
+            let (asset_encrypted, asset_nonce) = crate::entry::encryption::encrypt(&file_data, &asset_encryption_key);
 
             let mime = match raw_asset.r#type.as_str() {
                 "image" => {
@@ -436,7 +464,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
                 mime_type: mime,
                 encrypted_size: asset_encrypted.len() as u64,
                 nonce: asset_nonce,
-                salt: asset_key_salt.to_vec(),
+                salt: asset_key_salt_stored.clone(),
                 encrypted_data: asset_encrypted,
                 created_at: Utc::now(),
             };
@@ -459,8 +487,12 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             if em.emotions.is_empty() { "—".to_string() } else { em.emotions.join(", ") },
         );
 
-        let salt: [u8; 16] = rand::random();
-        let key = crate::entry::encryption::derive_key(password, &salt);
+        let (salt_vec, key) = if use_session_key {
+            (Vec::new(), entry_encryption_key)
+        } else {
+            let s: [u8; 16] = rand::random();
+            (s.to_vec(), crate::entry::encryption::derive_key(password, &s))
+        };
         let (encrypted, nonce) = crate::entry::encryption::encrypt(body.as_bytes(), &key);
 
         let metadata = serde_json::json!({
@@ -475,7 +507,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             id: generate_id(),
             encrypted,
             nonce,
-            salt: salt.to_vec(),
+            salt: salt_vec,
             assets: Vec::new(),
             provenance: crate::entry::Provenance {
                 timestamp: ts,
@@ -499,6 +531,9 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
         if let Err(e) = storage.add_entry(&entry) {
             eprintln!("[lumen] Failed to import emotion check-in: {e}");
         } else {
+            let _ = storage.index_entry_fts(
+                &entry.id, &body, &entry.display_title, &entry.tags, &entry.provenance.author,
+            );
             imported_count += 1;
         }
     }
@@ -514,8 +549,12 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             br.duration,
         );
 
-        let salt: [u8; 16] = rand::random();
-        let key = crate::entry::encryption::derive_key(password, &salt);
+        let (salt_vec, key) = if use_session_key {
+            (Vec::new(), entry_encryption_key)
+        } else {
+            let s: [u8; 16] = rand::random();
+            (s.to_vec(), crate::entry::encryption::derive_key(password, &s))
+        };
         let (encrypted, nonce) = crate::entry::encryption::encrypt(body.as_bytes(), &key);
 
         let metadata = serde_json::json!({
@@ -529,7 +568,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             id: generate_id(),
             encrypted,
             nonce,
-            salt: salt.to_vec(),
+            salt: salt_vec,
             assets: Vec::new(),
             provenance: crate::entry::Provenance {
                 timestamp: ts,
@@ -553,6 +592,9 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
         if let Err(e) = storage.add_entry(&entry) {
             eprintln!("[lumen] Failed to import breathing session: {e}");
         } else {
+            let _ = storage.index_entry_fts(
+                &entry.id, &body, &entry.display_title, &entry.tags, &entry.provenance.author,
+            );
             imported_count += 1;
         }
     }

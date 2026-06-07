@@ -65,7 +65,10 @@ typedef LumenListEntries = Pointer<Utf8> Function();
 typedef LumenSearchEntriesNative = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef LumenSearchEntries = Pointer<Utf8> Function(Pointer<Utf8>);
 
-typedef LumenGetStreakNative = Uint32 Function();
+typedef LumenSearchFtsNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef LumenSearchFts = Pointer<Utf8> Function(Pointer<Utf8>);
+
+typedef LumenGetStreakNative = Int32 Function();
 typedef LumenGetStreak = int Function();
 
 typedef LumenDecryptEntryNative = Pointer<Utf8> Function(
@@ -168,6 +171,7 @@ class LumenCore {
   late final LumenGetEntry _getEntry;
   late final LumenListEntries _listEntries;
   late final LumenSearchEntries _searchEntries;
+  late final LumenSearchFts _searchFts;
   late final LumenGetStreak _getStreak;
   late final LumenDecryptEntry _decryptEntry;
   late final LumenParseTask _parseTask;
@@ -215,6 +219,8 @@ class LumenCore {
         LumenListEntries>('lumen_list_entries');
     _searchEntries = _lib.lookupFunction<LumenSearchEntriesNative,
         LumenSearchEntries>('lumen_search_entries');
+    _searchFts = _lib.lookupFunction<LumenSearchFtsNative,
+        LumenSearchFts>('lumen_search_entries_fts');
     _getStreak = _lib
         .lookupFunction<LumenGetStreakNative, LumenGetStreak>('lumen_get_streak');
     _decryptEntry = _lib.lookupFunction<LumenDecryptEntryNative,
@@ -365,6 +371,20 @@ class LumenCore {
   List<JournalEntry> searchEntries(String query) {
     final queryPtr = query.toNativeUtf8();
     final ptr = _searchEntries(queryPtr);
+    malloc.free(queryPtr);
+
+    final jsonStr = ptr.toDartString();
+    _free(ptr);
+
+    final decoded = jsonDecode(jsonStr) as List<dynamic>;
+    return decoded
+        .map((e) => JournalEntry.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  List<JournalEntry> searchEntriesFts(String query) {
+    final queryPtr = query.toNativeUtf8();
+    final ptr = _searchFts(queryPtr);
     malloc.free(queryPtr);
 
     final jsonStr = ptr.toDartString();

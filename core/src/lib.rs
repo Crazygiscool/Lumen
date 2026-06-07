@@ -15,6 +15,7 @@ pub use ffi::{
     lumen_update_entry,
     lumen_delete_entry,
     lumen_search_entries,
+    lumen_search_entries_fts,
     lumen_get_streak,
     lumen_free_string,
     lumen_set_entry_status,
@@ -53,6 +54,8 @@ use crate::plugins::{Plugin, PluginManager};
 use crate::feedback::GeorgeFeedback;
 use std::path::Path;
 
+    use crate::entry::encryption;
+
     struct TestPlugin;
     impl Plugin for TestPlugin {
         fn on_entry(&self, entry: &JournalEntry) -> Option<String> {
@@ -70,12 +73,15 @@ use std::path::Path;
     #[test]
     fn test_add_entry_with_encryption_and_plugin() {
         let password = "testpassword";
+        let salt: [u8; 16] = rand::random();
+        let key = encryption::derive_key(password, &salt);
         let entry = JournalEntry::new(
             "1".to_string(),
             "My first journal entry.".to_string(),
             "crazygiscool".to_string(),
             None,
-            password,
+            &key,
+            salt.to_vec(),
             EntryKind::Journal,
             vec![],
             String::new(),
@@ -98,12 +104,15 @@ use std::path::Path;
     #[test]
     fn test_sqlite_crud() {
         let storage = test_storage();
+        let salt: [u8; 16] = rand::random();
+        let key = encryption::derive_key("password", &salt);
         let entry = JournalEntry::new(
             "test-1".to_string(),
             "Hello world".to_string(),
             "test".to_string(),
             None,
-            "password",
+            &key,
+            salt.to_vec(),
             EntryKind::Note,
             vec!["tag1".to_string()],
             "Test Entry".to_string(),
@@ -137,17 +146,21 @@ use std::path::Path;
         // Add entries for today and yesterday
         let today = Utc::now().date_naive();
 
+        let salt1: [u8; 16] = rand::random();
+        let key1 = encryption::derive_key("pw", &salt1);
         let mut e1 = JournalEntry::new(
             "s1".to_string(), "".to_string(), "u".to_string(),
-            None, "pw", EntryKind::Journal, vec![], "".to_string(),
+            None, &key1, salt1.to_vec(), EntryKind::Journal, vec![], "".to_string(),
         );
         e1.provenance.timestamp = today.and_hms_opt(12, 0, 0).unwrap()
             .and_local_timezone(Utc).unwrap();
         storage.add_entry(&e1).unwrap();
 
+        let salt2: [u8; 16] = rand::random();
+        let key2 = encryption::derive_key("pw", &salt2);
         let mut e2 = JournalEntry::new(
             "s2".to_string(), "".to_string(), "u".to_string(),
-            None, "pw", EntryKind::Journal, vec![], "".to_string(),
+            None, &key2, salt2.to_vec(), EntryKind::Journal, vec![], "".to_string(),
         );
         e2.provenance.timestamp = today.pred_opt().unwrap()
             .and_hms_opt(12, 0, 0).unwrap()
@@ -180,7 +193,8 @@ use std::path::Path;
 
         // Verify at least one entry can be decrypted
         let entry = &entries[0];
-        let decrypted = entry.decrypt_text("testpassword");
+        let key = encryption::derive_key("testpassword", &entry.salt);
+        let decrypted = entry.decrypt(&key).ok().and_then(|b| String::from_utf8(b).ok()).unwrap_or_default();
         assert!(!decrypted.is_empty(), "Decrypted text should not be empty");
         assert!(decrypted.contains("Stoic"), "Decrypted text should contain 'Stoic'");
     }

@@ -105,6 +105,7 @@ impl Storage {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM entries WHERE id=?1", params![id])
             .map_err(|e| e.to_string())?;
+        let _ = conn.execute("DELETE FROM entries_fts WHERE entry_id=?1", params![id]);
         Ok(())
     }
 
@@ -291,6 +292,61 @@ impl Storage {
             },
             None => Ok(None),
         }
+    }
+
+    // FTS5 full-text search support
+    pub fn index_entry_fts(
+        &self, id: &str, body: &str, title: &str, tags: &[String], author: &str,
+    ) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO entries_fts (entry_id, body, display_title, tags, author)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                id,
+                body,
+                title,
+                &tags.join(" "),
+                author,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn remove_entry_fts(&self, id: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM entries_fts WHERE entry_id=?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn search_entries_fts(&self, query: &str) -> Result<Vec<JournalEntry>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT e.id, e.encrypted, e.nonce, e.salt, e.kind, e.tags, e.display_title,
+                 e.pinned, e.mood, e.author, e.timestamp, e.plugin_origin, e.feedback, e.metadata,
+                 e.priority, e.status, e.due_date, e.parent_project_id, e.history
+                 FROM entries e
+                 INNER JOIN entries_fts fts ON e.id = fts.entry_id
+                 WHERE entries_fts MATCH ?1
+                 ORDER BY rank",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map(params![query], |row| row_to_entry(row))
+            .map_err(|e| e.to_string())?;
+
+        let mut entries = Vec::new();
+        for row in rows {
+            entries.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(entries)
     }
 
     pub fn get_streak(&self) -> Result<u32, String> {

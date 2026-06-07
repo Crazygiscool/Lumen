@@ -62,6 +62,11 @@ pub fn process_recurring(storage: &Storage) -> Result<u32, String> {
 
         storage.add_entry(&entry)?;
 
+        // Index in FTS (no body text for recurring tasks)
+        let _ = storage.index_entry_fts(
+            &entry.id, "", &entry.display_title, &entry.tags, &entry.provenance.author,
+        );
+
         // Compute next due date
         let new_next_due = compute_next_due(&next_due, &task);
         storage.update_recurring_task_next_due(task_id, &new_next_due.to_string())?;
