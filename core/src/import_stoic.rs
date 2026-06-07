@@ -140,6 +140,47 @@ fn tag_name(tag: &RawTag) -> String {
     else { tag.uuid.clone() }
 }
 
+fn format_context(context: &str) -> String {
+    match context {
+        "routine-evening" => "Evening Routine".to_string(),
+        "routine-morning" => "Morning Routine".to_string(),
+        "postlude-evening" => "Evening Reflection".to_string(),
+        "postlude-morning" => "Morning Reflection".to_string(),
+        "launch" => "Getting Started".to_string(),
+        "emotions-check-in" => "Emotions Check-in".to_string(),
+        "dream-journal" => "Dream Journal".to_string(),
+        "widget-intent" => "Quick Entry".to_string(),
+        "phq-9" => "PHQ-9 Assessment".to_string(),
+        "gad-7" => "GAD-7 Assessment".to_string(),
+        "movie-review" => "Movie Review".to_string(),
+        "on-lessons-learned" => "Lessons Learned".to_string(),
+        "last-year-highlights" => "Year Highlights".to_string(),
+        "back-to-school" => "Back to School".to_string(),
+        "thanksgiving" => "Thanksgiving Reflection".to_string(),
+        "morning-preparation" => "Morning Preparation".to_string(),
+        "henri-bergson-on-intuition" => "Reading: Bergson on Intuition".to_string(),
+        "safe-space-visualization" => "Safe Space Visualization".to_string(),
+        "intro-to-stoicism-prompt-0" => "Stoic Prompt".to_string(),
+        _ => {
+            // Fallback: convert kebab-case to Title Case
+            let mut result = String::new();
+            let mut cap_next = true;
+            for ch in context.chars() {
+                if ch == '-' || ch == '_' {
+                    cap_next = true;
+                    result.push(' ');
+                } else if cap_next {
+                    result.push(ch.to_ascii_uppercase());
+                    cap_next = false;
+                } else {
+                    result.push(ch);
+                }
+            }
+            result
+        }
+    }
+}
+
 pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 {
     let dir = Path::new(export_dir);
     if !dir.is_dir() {
@@ -263,7 +304,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
                 if let Some(answer) = answers.get(ans_uuid) {
                     let mut parts = Vec::new();
                     if !answer.context.is_empty() {
-                        parts.push(answer.context.clone());
+                        parts.push(format_context(&answer.context));
                     }
                     if let Some(ref r_uuid) = answer.routine {
                         if let Some(r) = routines_map.get(r_uuid) {

@@ -46,6 +46,10 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
     final lumen = ref.read(lumenCoreProvider);
     final count = await Future(() => lumen.importStoic(_selectedDir!, password));
 
+    if (count > 0) {
+      ref.read(entriesProvider.notifier).refresh();
+    }
+
     if (!mounted) return;
     setState(() {
       _loading = false;
