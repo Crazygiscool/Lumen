@@ -6,6 +6,7 @@ import 'core_provider.dart';
 
 class EntriesNotifier extends Notifier<List<JournalEntry>> {
   late final LumenCore _lumen;
+  final Map<String, String> _decryptedCache = {};
 
   @override
   List<JournalEntry> build() {
@@ -17,6 +18,8 @@ class EntriesNotifier extends Notifier<List<JournalEntry>> {
     state = _lumen.listEntries();
   }
 
+  String? getCachedDecryptedText(String id) => _decryptedCache[id];
+
   // Background decryption helper
   static String _decryptInBackground(Map<String, String> args) {
     final core = LumenCore();
@@ -24,10 +27,12 @@ class EntriesNotifier extends Notifier<List<JournalEntry>> {
   }
 
   Future<String> decryptEntryAsync(String id, String password) async {
-    return compute(_decryptInBackground, {
+    final text = await compute(_decryptInBackground, {
       'id': id,
       'password': password,
     });
+    _decryptedCache[id] = text;
+    return text;
   }
 
   static void _addEntryInBackground(Map<String, dynamic> args) {
@@ -101,6 +106,7 @@ class EntriesNotifier extends Notifier<List<JournalEntry>> {
 
   void deleteEntry(String id) {
     _lumen.deleteEntry(id);
+    _decryptedCache.remove(id);
     refresh();
   }
 

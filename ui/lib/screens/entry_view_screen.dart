@@ -29,6 +29,13 @@ class _EntryViewScreenState extends ConsumerState<EntryViewScreen> {
   void initState() {
     super.initState();
     _currentEntry = widget.entry;
+    
+    // Check if we already have this entry decrypted in cache
+    final cached = ref.read(entriesProvider.notifier).getCachedDecryptedText(_currentEntry.id);
+    if (cached != null) {
+      _decryptedText = cached;
+      _parsed = parseFrontmatter(cached);
+    }
   }
 
   void _attemptDecrypt() async {
@@ -40,12 +47,15 @@ class _EntryViewScreenState extends ConsumerState<EntryViewScreen> {
           .read(entriesProvider.notifier)
           .decryptEntryAsync(_currentEntry.id, _passwordController.text.trim());
 
+      if (!mounted) return;
+
       setState(() {
         _decryptedText = text;
         _parsed = parseFrontmatter(text);
         _decrypting = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _decrypting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to decrypt: $e")),
