@@ -172,6 +172,12 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdit ? "Edit Entry" : "New Entry"),
+        bottom: _saving
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
         actions: [
           TextButton(
             onPressed: _saving ? null : _saveEntry,

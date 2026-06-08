@@ -41,12 +41,24 @@ struct RawAnswer {
     routine: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RawRoutine {
     uuid: String,
     #[serde(default)]
     name: String,
+    #[serde(default)]
+    timestamp: f64,
+    #[serde(default)]
+    date: String,
+    #[serde(default)]
+    answers: Vec<String>,
+    #[serde(default, rename = "type")]
+    routine_type: String,
+    #[serde(default)]
+    location: Option<String>,
+    #[serde(default)]
+    is_completed: Option<bool>,
 }
 
 #[derive(serde::Deserialize)]
@@ -259,8 +271,9 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
     // Build lookup maps
     let answers: HashMap<String, RawAnswer> = read_json::<RawAnswer>(dir, "answers.json")
         .into_iter().map(|a| (a.uuid.clone(), a)).collect();
-    let routines_map: HashMap<String, RawRoutine> = read_json::<RawRoutine>(dir, "routines.json")
-        .into_iter().map(|r| (r.uuid.clone(), r)).collect();
+    let routines: Vec<RawRoutine> = read_json(dir, "routines.json");
+    let routines_map: HashMap<String, RawRoutine> = routines.iter().cloned()
+        .map(|r| (r.uuid.clone(), r)).collect();
     let locations_map: HashMap<String, RawLocation> = read_json::<RawLocation>(dir, "locations.json")
         .into_iter().map(|l| (l.uuid.clone(), l)).collect();
     let tags_map: HashMap<String, RawTag> = read_json::<RawTag>(dir, "tags.json")
@@ -268,6 +281,9 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
 
     let entries: Vec<RawEntry> = read_json(dir, "journal-entries.json");
     let raw_assets: Vec<RawAsset> = read_json(dir, "assets.json");
+
+    let total_tasks = entries.len() + routines.len();
+    crate::progress::set_total(total_tasks);
 
     let mut imported_count: i32 = 0;
 
@@ -475,6 +491,163 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
         }
 
         imported_count += 1;
+        crate::progress::increment();
+    }
+
+    // Import routines from routines.json
+    for routine in &routines {
+        if routine.answers.is_empty() {
+            continue;
+        }
+
+        let ts = parse_stoic_timestamp(routine.timestamp);
+        let cal_date = routine.date.replace('\\', "");
+
+        let mut lines = Vec::new();
+        let routine_name = match routine.routine_type.as_str() {
+            "morning" => "Stoic Morning Routine",
+            "evening" => "Stoic Evening Routine",
+            _ => "Stoic Daily Routine",
+        };
+        lines.push(format!("# {} — {}", routine_name, cal_date));
+
+        // Add location if available
+        if let Some(ref loc_uuid) = routine.location {
+            if let Some(loc) = locations_map.get(loc_uuid) {
+                if !loc.name.is_empty() {
+                    lines.push(format!("\n**Location:** {}", loc.name));
+                }
+            }
+        }
+
+        // Resolve and format answers
+        for ans_uuid in &routine.answers {
+            if let Some(answer) = answers.get(ans_uuid) {
+                let mut parts = Vec::new();
+                if !answer.context.is_empty() {
+                    parts.push(format_context(&answer.context));
+                }
+                let label = if parts.is_empty() {
+                    "Answer".to_string()
+                } else {
+                    parts.join(" / ")
+                };
+                lines.push(format!("\n- **{}:** {}", label, answer.text));
+            }
+        }
+
+        let body = lines.join("");
+        let display_title = format!("{} — {}", routine_name, cal_date);
+
+        let mut tags = vec!["stoic-imported".to_string(), "routine".to_string()];
+        if !routine.routine_type.is_empty() {
+            tags.push(format!("{}-routine", routine.routine_type));
+        }
+
+        // Create provenance metadata
+        let metadata = serde_json::json!({
+            "stoic_uuid": routine.uuid,
+            "stoic_date": cal_date,
+            "stoic_type": routine.routine_type,
+            "stoic_location": routine.location,
+            "stoic_is_completed": routine.is_completed,
+        });
+
+        // Re-encrypt the body with Lumen's encryption
+        let (salt_vec, key) = if use_session_key {
+            (Vec::new(), entry_encryption_key)
+        } else {
+            let s: [u8; 16] = rand::random();
+            (s.to_vec(), crate::entry::encryption::derive_key(password, &s))
+        };
+        let (encrypted, nonce) = crate::entry::encryption::encrypt(body.as_bytes(), &key);
+
+        let final_entry = JournalEntry {
+            id: generate_id(),
+            encrypted,
+            nonce,
+            salt: salt_vec,
+            assets: Vec::new(),
+            provenance: crate::entry::Provenance {
+                timestamp: ts,
+                plugin_origin: Some("stoic-import".to_string()),
+                author: "stoic-import".to_string(),
+                feedback: None,
+                metadata,
+            },
+            kind: EntryKind::Journal,
+            tags,
+            display_title: display_title.clone(),
+            pinned: false,
+            mood: None,
+            priority: None,
+            status: None,
+            due_date: None,
+            parent_project_id: None,
+            history: Vec::new(),
+        };
+
+        if let Err(e) = storage.add_entry(&final_entry) {
+            eprintln!("[lumen] Failed to import Stoic routine {}: {e}", routine.uuid);
+            continue;
+        }
+        let _ = storage.index_entry_fts(
+            &final_entry.id, &body, &final_entry.display_title, &final_entry.tags, &final_entry.provenance.author,
+        );
+
+        // Import associated assets for routine answers
+        for raw_asset in &raw_assets {
+            // Check if this asset belongs to one of the routine's answers
+            let belongs = routine.answers.iter().any(|a| a == &raw_asset.answer);
+            if !belongs {
+                continue;
+            }
+
+            let asset_path = dir.join(&raw_asset.relative_path);
+            let file_data = match std::fs::read(&asset_path) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("[lumen] Cannot read asset file {}: {e}", asset_path.display());
+                    continue;
+                }
+            };
+
+            let (asset_encrypted, asset_nonce) = crate::entry::encryption::encrypt(&file_data, &asset_encryption_key);
+
+            let mime = match raw_asset.r#type.as_str() {
+                "image" => {
+                    let ext = asset_path.extension().and_then(|e| e.to_str()).unwrap_or("bin").to_lowercase();
+                    match ext.as_str() {
+                        "jpg" | "jpeg" => "image/jpeg".to_string(),
+                        "png" => "image/png".to_string(),
+                        "heic" => "image/heic".to_string(),
+                        _ => "image/octet-stream".to_string(),
+                    }
+                }
+                "video" => "video/mp4".to_string(),
+                "audio" => "audio/m4a".to_string(),
+                _ => "application/octet-stream".to_string(),
+            };
+
+            let asset = crate::entry::EntryAsset {
+                id: raw_asset.uuid.clone(),
+                entry_id: final_entry.id.clone(),
+                file_name: asset_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
+                mime_type: mime,
+                encrypted_size: asset_encrypted.len() as u64,
+                nonce: asset_nonce,
+                salt: asset_key_salt_stored.clone(),
+                encrypted_data: asset_encrypted,
+                created_at: Utc::now(),
+            };
+
+            if let Err(e) = storage.add_asset(&asset) {
+                eprintln!("[lumen] Failed to store routine asset {}: {e}", raw_asset.uuid);
+            }
+        }
+
+        imported_count += 1;
+        crate::progress::increment();
     }
 
     // Import emotion check-ins as custom entries

@@ -115,6 +115,10 @@ class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
+                if (_saving) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 16),
+                ],
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(

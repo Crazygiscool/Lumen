@@ -34,7 +34,15 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
     final entries = ref.watch(entriesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sync')),
+      appBar: AppBar(
+        title: const Text('Sync'),
+        bottom: _syncing
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

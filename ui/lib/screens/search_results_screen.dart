@@ -45,6 +45,12 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        bottom: _loading
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
         title: TextField(
           controller: _controller,
           autofocus: true,

@@ -91,7 +91,15 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Import from Stoic')),
+      appBar: AppBar(
+        title: const Text('Import from Stoic'),
+        bottom: _loading
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

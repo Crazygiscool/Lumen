@@ -209,6 +209,12 @@ class _EntryViewScreenState extends ConsumerState<EntryViewScreen> {
     return Scaffold(
       appBar: focusMode ? null : AppBar(
         title: Text(title.isNotEmpty ? title : 'Entry View'),
+        bottom: _decrypting
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
         actions: [
           if (_decryptedText != null)
             IconButton(

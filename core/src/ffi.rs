@@ -756,6 +756,12 @@ pub unsafe extern "C" fn lumen_is_unlocked() -> i32 {
     if auth::is_unlocked() { 1 } else { 0 }
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn lumen_get_import_progress() -> f32 {
+    let (current, total) = crate::progress::get_progress();
+    if total == 0 { 0.0 } else { current as f32 / total as f32 }
+}
+
 // ------------------------------------------------------------
 // VAULTS
 // ------------------------------------------------------------
