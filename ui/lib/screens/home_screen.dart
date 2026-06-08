@@ -16,29 +16,6 @@ import 'mind_screen.dart';
 import 'settings_screen.dart';
 import 'search_results_screen.dart';
 
-final focusModeProvider = NotifierProvider<FocusModeNotifier, bool>(
-    FocusModeNotifier.new);
-
-class FocusModeNotifier extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  void toggle() => state = !state;
-}
-
-enum LumenSection {
-  journal(Icons.article, 'Journal'),
-  notes(Icons.note, 'Notes'),
-  tasks(Icons.checklist, 'Tasks'),
-  board(Icons.dashboard, 'Kanban'),
-  mind(Icons.bubble_chart, 'Mind Map'),
-  settings(Icons.settings, 'Settings');
-
-  final IconData icon;
-  final String label;
-  const LumenSection(this.icon, this.label);
-}
-
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -47,12 +24,12 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  LumenSection _section = LumenSection.journal;
   bool _sidebarHover = false;
 
   @override
   Widget build(BuildContext context) {
     final focusMode = ref.watch(focusModeProvider);
+    final section = ref.watch(sectionProvider);
     final narrow = isNarrow(context);
     final cs = Theme.of(context).colorScheme;
 
@@ -65,7 +42,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
-              title: Text(_section.label),
+              title: Text(section.label),
               actions: _buildActions(),
             )
           : null,
@@ -118,29 +95,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildDrawer(ColorScheme cs) {
+    final section = ref.watch(sectionProvider);
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
+      child: Column(
         children: [
           DrawerHeader(
             decoration: BoxDecoration(color: cs.primaryContainer),
-            child: Text(
-              'Lumen',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: cs.onPrimaryContainer,
+            margin: EdgeInsets.zero,
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.flare, color: cs.primary, size: 32),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Lumen',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: cs.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
+                ],
+              ),
             ),
           ),
-          for (final s in LumenSection.values)
-            ListTile(
-              leading: Icon(s.icon),
-              title: Text(s.label),
-              selected: _section == s,
-              onTap: () {
-                setState(() => _section = s);
-                Navigator.pop(context);
-              },
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                for (final s in LumenSection.values)
+                  ListTile(
+                    leading: Icon(s.icon),
+                    title: Text(s.label),
+                    selected: section == s,
+                    onTap: () {
+                      ref.read(sectionProvider.notifier).setSection(s);
+                      Navigator.pop(context);
+                    },
+                  ),
+              ],
             ),
+          ),
+          const Divider(),
+          const StreakWidget(),
+          ListTile(
+            leading: const Icon(Icons.lock_outline),
+            title: const Text('Lock'),
+            onTap: () {
+              Navigator.pop(context);
+              ref.read(authProvider.notifier).lock();
+            },
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -167,18 +173,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               if (!focusMode)
                 _buildSidebar(cs),
               if (!focusMode)
-                SizedBox(width: 1, child: Container(color: cs.outlineVariant)),
+                VerticalDivider(width: 1, thickness: 1, color: cs.outlineVariant),
               Expanded(child: _buildPage()),
             ],
           ),
           if (focusMode)
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 200),
-              left: _sidebarHover ? 0 : -240,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOutCubic,
+              left: _sidebarHover ? 0 : -260,
               top: 0,
               bottom: 0,
-              width: 240,
-              child: _buildSidebar(cs),
+              width: 260,
+              child: _buildSidebar(cs, forceShow: true),
             ),
         ],
       ),
@@ -189,151 +196,152 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return _buildPage();
   }
 
-  Widget _buildSidebar(ColorScheme cs) {
-    // Frosted glass sidebar on wide
+  Widget _buildSidebar(ColorScheme cs, {bool forceShow = false}) {
     final focusMode = ref.watch(focusModeProvider);
-    if (focusMode) return const SizedBox.shrink();
+    final section = ref.watch(sectionProvider);
 
-    return SizedBox(
+    if (focusMode && !forceShow) return const SizedBox.shrink();
+
+    return Container(
       width: 240,
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            color: cs.surface.withValues(alpha: 0.5),
-            child: Column(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        boxShadow: forceShow ? [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(5, 0),
+          )
+        ] : null,
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+            child: Row(
               children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.flare, color: cs.primary, size: 28),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Lumen',
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  color: cs.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                Icon(Icons.flare, color: cs.primary, size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Lumen',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
                       ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.visibility_outlined, size: 20),
-                        tooltip: 'Focus mode (Ctrl+.)',
-                        onPressed: () =>
-                            ref.read(focusModeProvider.notifier).toggle(),
-                      ),
-                    ],
-                  ),
-                ),
-                // Vault switcher
-                VaultSwitcher(onChanged: () => setState(() {})),
-                const SizedBox(height: 8),
-                // Sections
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                      children: [
-                        ...LumenSection.values.map((s) {
-                      final active = _section == s;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: Material(
-                          color: active
-                              ? cs.primaryContainer.withValues(alpha: 0.3)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: () => setState(() => _section = s),
-                            child: Container(
-                              decoration: active
-                                  ? BoxDecoration(
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: cs.primary,
-                                          width: 2,
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Icon(s.icon,
-                                      size: 20,
-                                      color: active
-                                          ? cs.primary
-                                          : cs.onSurfaceVariant),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    s.label,
-                                    style: TextStyle(
-                                      color: active
-                                          ? cs.primary
-                                          : cs.onSurfaceVariant,
-                                      fontWeight: active
-                                          ? FontWeight.w600
-                                          : FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                    ],
-                  ),
                 ),
                 const Spacer(),
-                // Streak
-                const StreakWidget(),
-                // Lock button
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  child: Material(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () => ref.read(authProvider.notifier).lock(),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        child: Row(
-                          children: [
-                            Icon(Icons.lock_outline,
-                                size: 20, color: cs.onSurfaceVariant),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Lock',
-                              style: TextStyle(
-                                color: cs.onSurfaceVariant,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                if (!forceShow)
+                  IconButton(
+                    icon: const Icon(Icons.visibility_outlined, size: 20),
+                    tooltip: 'Focus mode (Ctrl+.)',
+                    onPressed: () =>
+                        ref.read(focusModeProvider.notifier).toggle(),
                   ),
-                ),
               ],
             ),
           ),
-        ),
+          // Vault switcher
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: VaultSwitcher(onChanged: () => setState(() {})),
+          ),
+          const SizedBox(height: 16),
+          // Sections
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                ...LumenSection.values.map((s) {
+                  final active = section == s;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Material(
+                      color: active
+                          ? cs.primaryContainer.withValues(alpha: 0.5)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        ref.read(sectionProvider.notifier).setSection(s);
+                        if (forceShow) setState(() => _sidebarHover = false);
+                      },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          child: Row(
+                            children: [
+                              Icon(s.icon,
+                                  size: 20,
+                                  color: active
+                                      ? cs.primary
+                                      : cs.onSurfaceVariant),
+                              const SizedBox(width: 12),
+                              Text(
+                                s.label,
+                                style: TextStyle(
+                                  color: active
+                                      ? cs.onSurface
+                                      : cs.onSurfaceVariant,
+                                  fontWeight: active
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          // Streak
+          const StreakWidget(),
+          // Lock button
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => ref.read(authProvider.notifier).lock(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_outline,
+                          size: 20, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Lock App',
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
 
   Widget _buildPage() {
-    switch (_section) {
+    final LumenSection section = ref.watch(sectionProvider);
+    switch (section) {
       case LumenSection.journal:
         return const JournalListScreen();
       case LumenSection.notes:

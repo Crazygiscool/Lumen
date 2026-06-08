@@ -37,88 +37,118 @@ class EntryCard extends StatelessWidget {
     };
 
     return Card(
-      child: ListTile(
-        title: Row(
-          children: [
-            if (status != null) ...[
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: StatusBadge(status!),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cs.outlineVariant, width: 1),
+      ),
+      color: cs.surface,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (status != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: StatusBadge(status!),
+                    ),
+                  ],
+                  if (moodEmoji != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(moodEmoji, style: const TextStyle(fontSize: 16)),
+                    ),
+                  ],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _KindBadge(kind: kind, cs: cs),
+                ],
               ),
-            ],
-            if (moodEmoji != null) ...[
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Text(moodEmoji, style: const TextStyle(fontSize: 16)),
-              ),
-            ],
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainer,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: cs.outlineVariant, width: 1),
-              ),
-              child: Text(
-                kind,
-                style: TextStyle(
-                  fontSize: 11,
+              const SizedBox(height: 8),
+              Text(
+                preview,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
                   color: cs.onSurfaceVariant,
-                  fontFamily: 'Geist',
+                  height: 1.4,
                 ),
               ),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              preview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: cs.onSurfaceVariant),
-            ),
-            if (tags.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Wrap(
-                  spacing: 4,
+              if (tags.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: tags
                       .map((t) => Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 1),
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: cs.surfaceContainer,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                  color: cs.outlineVariant, width: 1),
+                              color: cs.secondaryContainer.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              t,
+                              '#$t',
                               style: TextStyle(
-                                fontSize: 10,
-                                color: cs.onSurfaceVariant,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: cs.onSecondaryContainer,
                                 fontFamily: 'Geist',
                               ),
                             ),
                           ))
                       .toList(),
                 ),
-              ),
-          ],
+              ],
+            ],
+          ),
         ),
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      ),
+    );
+  }
+}
+
+class _KindBadge extends StatelessWidget {
+  final String kind;
+  final ColorScheme cs;
+
+  const _KindBadge({required this.kind, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cs.outlineVariant, width: 0.5),
+      ),
+      child: Text(
+        kind.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: cs.onSurfaceVariant,
+          letterSpacing: 0.5,
+          fontFamily: 'Geist',
+        ),
       ),
     );
   }

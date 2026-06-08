@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../utils/responsive.dart';
 import 'entry_view_screen.dart';
 import 'new_entry_screen.dart';
 import '../widgets/entry_card.dart';
@@ -65,37 +66,47 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
             .where((e) => e.tags.contains(_filterTag))
             .toList();
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final narrow = isNarrow(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lumen'),
+      backgroundColor: Colors.transparent,
+      appBar: narrow ? null : AppBar(
+        title: const Text('Journal'),
+        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
       ),
       body: Column(
         children: [
           if (sortedTags.isNotEmpty)
-            SizedBox(
-              height: 48,
+            Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: const Text('all'),
+                    child: FilterChip(
+                      label: const Text('All Entries'),
                       selected: _filterTag == null,
                       onSelected: (_) => setState(() => _filterTag = null),
+                      backgroundColor: cs.surfaceContainerHigh,
+                      selectedColor: cs.primaryContainer,
                     ),
                   ),
                   ...sortedTags.map((tag) {
                     final selected = tag == _filterTag;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(tag),
+                      child: FilterChip(
+                        label: Text('#$tag'),
                         selected: selected,
                         onSelected: (_) =>
                             setState(() => _filterTag = selected ? null : tag),
+                        backgroundColor: cs.surfaceContainerHigh,
+                        selectedColor: cs.primaryContainer,
                       ),
                     );
                   }),
@@ -106,40 +117,47 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
             child: entries.isEmpty
                 ? const EmptyState(message: "No journal entries yet")
                 : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     itemCount: entries.length,
                     itemBuilder: (context, index) {
                       final entry = entries[index];
-                      return Dismissible(
-                        key: ValueKey(entry.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          color: theme.colorScheme.error,
-                          child: const Icon(Icons.delete, color: Colors.white),
-                        ),
-                        confirmDismiss: (_) async {
-                          await _deleteEntry(entry.id);
-                          return false;
-                        },
-                        child: EntryCard(
-                          title: entry.displayTitle.isNotEmpty
-                              ? entry.displayTitle
-                              : entry.id,
-                          preview: entry.author,
-                          kind: entry.kind,
-                          status: entry.status,
-                          mood: entry.mood,
-                          tags: entry.tags,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    EntryViewScreen(entry: entry),
-                              ),
-                            );
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Dismissible(
+                          key: ValueKey(entry.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.errorContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.delete_outline, color: theme.colorScheme.onErrorContainer),
+                          ),
+                          confirmDismiss: (_) async {
+                            await _deleteEntry(entry.id);
+                            return false;
                           },
+                          child: EntryCard(
+                            title: entry.displayTitle.isNotEmpty
+                                ? entry.displayTitle
+                                : entry.id,
+                            preview: entry.author,
+                            kind: entry.kind,
+                            status: entry.status,
+                            mood: entry.mood,
+                            tags: entry.tags,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      EntryViewScreen(entry: entry),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       );
                     },
@@ -147,10 +165,11 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         key: _fabKey,
         onPressed: () => _showKindMenu(context),
-        child: const Icon(Icons.add),
+        label: const Text('New Entry'),
+        icon: const Icon(Icons.add),
       ),
     );
   }

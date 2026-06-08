@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../lumen_core.dart';
 import '../models/journal_entry.dart';
@@ -16,22 +17,75 @@ class EntriesNotifier extends Notifier<List<JournalEntry>> {
     state = _lumen.listEntries();
   }
 
-  void addEntry(String text, String author, String password,
+  // Background decryption helper
+  static String _decryptInBackground(Map<String, String> args) {
+    final core = LumenCore();
+    return core.decryptEntry(args['id']!, args['password']!);
+  }
+
+  Future<String> decryptEntryAsync(String id, String password) async {
+    return compute(_decryptInBackground, {
+      'id': id,
+      'password': password,
+    });
+  }
+
+  static void _addEntryInBackground(Map<String, dynamic> args) {
+    final core = LumenCore();
+    core.addEntry(
+      args['text']!,
+      args['author']!,
+      args['password']!,
+      id: args['id']!,
+      kind: args['kind']!,
+      tags: args['tags']!,
+      displayTitle: args['displayTitle']!,
+    );
+  }
+
+  Future<void> addEntry(String text, String author, String password,
       {String id = '',
       String kind = 'journal',
       List<String> tags = const [],
-      String displayTitle = ''}) {
-    _lumen.addEntry(text, author, password,
-        id: id, kind: kind, tags: tags, displayTitle: displayTitle);
+      String displayTitle = ''}) async {
+    await compute(_addEntryInBackground, {
+      'text': text,
+      'author': author,
+      'password': password,
+      'id': id,
+      'kind': kind,
+      'tags': tags,
+      'displayTitle': displayTitle,
+    });
     refresh();
   }
 
-  void updateEntry(String id, String text, String author, String password,
+  static void _updateEntryInBackground(Map<String, dynamic> args) {
+    final core = LumenCore();
+    core.updateEntry(
+      args['id']!,
+      args['text']!,
+      args['author']!,
+      args['password']!,
+      kind: args['kind']!,
+      tags: args['tags']!,
+      displayTitle: args['displayTitle']!,
+    );
+  }
+
+  Future<void> updateEntry(String id, String text, String author, String password,
       {String kind = 'journal',
       List<String> tags = const [],
-      String displayTitle = ''}) {
-    _lumen.updateEntry(id, text, author, password,
-        kind: kind, tags: tags, displayTitle: displayTitle);
+      String displayTitle = ''}) async {
+    await compute(_updateEntryInBackground, {
+      'id': id,
+      'text': text,
+      'author': author,
+      'password': password,
+      'kind': kind,
+      'tags': tags,
+      'displayTitle': displayTitle,
+    });
     refresh();
   }
 

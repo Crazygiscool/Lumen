@@ -1,9 +1,8 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../utils/id_utils.dart';
 
 class QuickNoteScreen extends ConsumerStatefulWidget {
   const QuickNoteScreen({super.key});
@@ -13,22 +12,25 @@ class QuickNoteScreen extends ConsumerStatefulWidget {
 }
 
 class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
-  final _bodyController = TextEditingController();
-  final _authorController = TextEditingController(text: 'me');
-  final _passwordController = TextEditingController();
+  late final TextEditingController _bodyController;
+  late final TextEditingController _authorController;
+  late final TextEditingController _passwordController;
   bool _saving = false;
 
-  String _generateId() {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    final rand = Random().nextInt(0xFFFFFFFF);
-    return '${ts}_${rand.toRadixString(16).padLeft(8, '0')}';
+  @override
+  void initState() {
+    super.initState();
+    _bodyController = TextEditingController();
+    final masterUsername = ref.read(userProvider);
+    _authorController = TextEditingController(text: masterUsername);
+    _passwordController = TextEditingController();
   }
 
   void _save() async {
     setState(() => _saving = true);
     try {
-      final id = _generateId();
-      ref.read(entriesProvider.notifier).addEntry(
+      final id = generateLumenId();
+      await ref.read(entriesProvider.notifier).addEntry(
             _bodyController.text.trim(),
             _authorController.text.trim(),
             _passwordController.text.trim(),

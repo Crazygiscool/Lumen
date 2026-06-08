@@ -4,6 +4,7 @@ import 'package:voo_kanban/voo_kanban.dart';
 
 import '../core/models/journal_entry.dart';
 import '../core/providers.dart';
+import '../utils/responsive.dart';
 import 'entry_view_screen.dart';
 
 class BoardScreen extends ConsumerStatefulWidget {
@@ -24,7 +25,7 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
     const statusIcons = {
       'todo': Icons.radio_button_unchecked,
       'in_progress': Icons.pending_actions,
-      'done': Icons.check_circle,
+      'done': Icons.check_circle_outline,
     };
     final statusColors = {
       'todo': Colors.grey,
@@ -57,20 +58,37 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
   Widget build(BuildContext context) {
     final allEntries = ref.watch(entriesProvider);
     final tasks = allEntries.where((e) => e.kind == 'task').toList();
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final narrow = isNarrow(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Board')),
+      backgroundColor: Colors.transparent,
+      appBar: narrow ? null : AppBar(
+        title: const Text('Kanban Board'),
+        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+      ),
       body: tasks.isEmpty
           ? Center(
-              child: Text('Create tasks to populate the board',
-                  style: TextStyle(color: cs.onSurfaceVariant)))
-          : _buildBoard(tasks, allEntries, cs),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.dashboard_outlined, size: 64, color: cs.outlineVariant),
+                  const SizedBox(height: 16),
+                  Text('Create tasks to populate the board',
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 16)),
+                ],
+              ))
+          : Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: _buildBoard(tasks, allEntries, cs, theme),
+            ),
     );
   }
 
   Widget _buildBoard(
-      List<JournalEntry> tasks, List<JournalEntry> allEntries, ColorScheme cs) {
+      List<JournalEntry> tasks, List<JournalEntry> allEntries, ColorScheme cs, ThemeData theme) {
     final entryMap = {for (final e in allEntries) e.id: e};
     final lanes = _buildLanes(tasks);
 
@@ -85,7 +103,15 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
       cardBuilder: (context, card, isSelected) {
         final entry = entryMap[card.data];
         return Card(
-          color: isSelected ? cs.primaryContainer : null,
+          elevation: isSelected ? 4 : 0,
+          color: isSelected ? cs.primaryContainer : cs.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isSelected ? cs.primary : cs.outlineVariant,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -95,54 +121,62 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
                   entry?.displayTitle.isNotEmpty == true
                       ? entry!.displayTitle
                       : card.data,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13),
-                  maxLines: 2,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (entry != null && entry.priority != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                            color: entry.priority == 'high'
-                                ? cs.error
-                                : cs.outline),
-                        borderRadius: BorderRadius.circular(3),
+                if (entry != null && (entry.priority != null || entry.tags.isNotEmpty))
+                  const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (entry != null && entry.priority != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: (entry.priority == 'high' ? cs.error : cs.primary)
+                              .withValues(alpha: 0.1),
+                          border: Border.all(
+                              color: (entry.priority == 'high' ? cs.error : cs.primary)
+                                  .withValues(alpha: 0.5)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(entry.priority!,
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: entry.priority == 'high'
+                                    ? cs.error
+                                    : cs.primary)),
                       ),
-                      child: Text(entry.priority!,
-                          style: TextStyle(
-                              fontSize: 9,
-                              color: entry.priority == 'high'
-                                  ? cs.error
-                                  : cs.onSurfaceVariant)),
-                    ),
-                  ),
-                if (entry != null && entry.tags.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Wrap(
-                      spacing: 2,
-                      children: entry.tags
-                          .take(3)
-                          .map((t) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: cs.surfaceContainer,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: Text(t,
-                                    style: TextStyle(
-                                        fontSize: 8,
-                                        color: cs.onSurfaceVariant)),
-                              ))
-                          .toList(),
-                    ),
-                  ),
+                    const SizedBox(width: 4),
+                    if (entry != null && entry.tags.isNotEmpty)
+                      Expanded(
+                        child: Wrap(
+                          spacing: 2,
+                          children: entry.tags
+                              .take(2)
+                              .map((t) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: cs.surfaceContainerHigh,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text('#$t',
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            color: cs.onSurfaceVariant)),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),

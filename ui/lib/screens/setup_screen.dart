@@ -226,6 +226,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     // Set the password in the core
     final ok = ref.read(authProvider.notifier).setPassword(pw);
     if (ok) {
+      // Save the master username
+      ref.read(userProvider.notifier).setUsername(_authorCtrl.text.trim());
       // Setup complete! 
       // The authProvider state is now 'true', so main.dart will switch to HomeScreen.
     } else {

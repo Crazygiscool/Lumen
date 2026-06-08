@@ -4,6 +4,7 @@ import 'package:reactive_mind_map/reactive_mind_map.dart';
 
 import '../core/models/journal_entry.dart';
 import '../core/providers.dart';
+import '../utils/responsive.dart';
 import 'entry_view_screen.dart';
 
 class MindScreen extends ConsumerWidget {
@@ -39,14 +40,28 @@ class MindScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final allEntries = ref.watch(entriesProvider);
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final narrow = isNarrow(context);
 
     if (allEntries.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Mind Map')),
+        backgroundColor: Colors.transparent,
+        appBar: narrow ? null : AppBar(
+          title: const Text('Mind Map'),
+          backgroundColor: Colors.transparent,
+          scrolledUnderElevation: 0,
+        ),
         body: Center(
-          child: Text('Add entries to see the mind map',
-              style: TextStyle(color: cs.onSurfaceVariant)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.bubble_chart_outlined, size: 64, color: cs.outlineVariant),
+              const SizedBox(height: 16),
+              Text('Add entries to see the mind map',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 16)),
+            ],
+          ),
         ),
       );
     }
@@ -54,7 +69,12 @@ class MindScreen extends ConsumerWidget {
     final data = _buildTree(allEntries);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mind Map')),
+      backgroundColor: Colors.transparent,
+      appBar: narrow ? null : AppBar(
+        title: const Text('Mind Map'),
+        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+      ),
       body: MindMapWidget(
         data: data,
         style: MindMapStyle(
@@ -66,18 +86,23 @@ class MindScreen extends ConsumerWidget {
             cs.tertiary,
             cs.error,
           ],
-          levelSpacing: 100,
-          nodeMargin: 12,
-          textPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          levelSpacing: 120,
+          nodeMargin: 16,
+          textPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           nodeShape: NodeShape.roundedRectangle,
-          defaultTextStyle: TextStyle(
+          defaultTextStyle: theme.textTheme.bodyMedium?.copyWith(
             fontFamily: 'Geist',
             fontSize: 13,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ) ?? TextStyle(
+            fontFamily: 'Geist',
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             color: cs.onSurface,
           ),
           connectionColor: cs.outlineVariant,
-          connectionWidth: 1.5,
+          connectionWidth: 2.0,
         ),
         cameraFocus: CameraFocus.fitAll,
         isNodesCollapsed: false,

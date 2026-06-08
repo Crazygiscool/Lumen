@@ -52,15 +52,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setUsername() async {
+    final currentUsername = ref.read(userProvider);
+    final controller = TextEditingController(text: currentUsername);
+    final username = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Set Master Username'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Username',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (username == null || username.trim().isEmpty) return;
+
+    ref.read(userProvider.notifier).setUsername(username.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Master Username updated')),
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final username = ref.watch(userProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _SectionHeader(title: 'Account'),
+          _SettingsTile(
+            title: 'Master Username',
+            subtitle: 'Default author for new entries: $username',
+            icon: Icons.person_outline,
+            colorScheme: cs,
+            onTap: _setUsername,
+          ),
+          const SizedBox(height: 16),
           _SectionHeader(title: 'Security'),
           if (!ref.read(authProvider.notifier).hasPassword())
             _SettingsTile(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../utils/id_utils.dart';
 
 class QuickAddBar extends ConsumerStatefulWidget {
   final void Function()? onSaved;
@@ -17,12 +18,13 @@ class QuickAddBar extends ConsumerStatefulWidget {
 class _QuickAddBarState extends ConsumerState<QuickAddBar> {
   final _controller = TextEditingController();
   final _passwordController = TextEditingController(text: 'default');
-  final _authorController = TextEditingController(text: 'me');
+  late final TextEditingController _authorController;
 
-  String _generateId() {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    final rand = Random().nextInt(0xFFFFFFFF);
-    return '${ts}_${rand.toRadixString(16).padLeft(8, '0')}';
+  @override
+  void initState() {
+    super.initState();
+    final masterUsername = ref.read(userProvider);
+    _authorController = TextEditingController(text: masterUsername);
   }
 
   void _submit() async {
@@ -62,9 +64,23 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
     );
 
     if (confirmed == true) {
-      final id = _generateId();
-      ref.read(entriesProvider.notifier).addEntry(
-            text,
+      final id = generateLumenId();
+      
+      // Build body with frontmatter but empty content
+      final buf = StringBuffer();
+      buf.writeln('---');
+      buf.writeln('kind: task');
+      if (parsed['priority'] != null) {
+        buf.writeln('priority: ${parsed['priority']}');
+      }
+      if (parsed['due_date'] != null) {
+        buf.writeln('due_date: ${parsed['due_date']}');
+      }
+      buf.writeln('---');
+      buf.writeln('');
+
+      await ref.read(entriesProvider.notifier).addEntry(
+            buf.toString(), // Frontmatter only, empty body
             _authorController.text.trim(),
             _passwordController.text.trim(),
             id: id,
@@ -72,12 +88,6 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
             tags: (parsed['tags'] as List<dynamic>?)?.cast<String>() ?? [],
             displayTitle: (parsed['title'] as String?) ?? text,
           );
-
-      if (parsed['priority'] != null && parsed['priority'] is String) {
-        ref
-            .read(entriesProvider.notifier)
-            .setEntryStatus(id, parsed['priority'] as String);
-      }
 
       _controller.clear();
       widget.onSaved?.call();

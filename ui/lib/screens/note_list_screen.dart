@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../utils/responsive.dart';
+import '../widgets/entry_card.dart';
 import 'entry_view_screen.dart';
 import 'new_entry_screen.dart';
 import 'quick_note_screen.dart';
@@ -18,20 +20,24 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
 
   void _showNewFolderDialog() {
     final controller = TextEditingController();
+    final cs = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('New Folder'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: 'Folder name'),
+          decoration: InputDecoration(
+            labelText: 'Folder name',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
           autofocus: true,
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancel')),
-          TextButton(
+          FilledButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
                 ref
@@ -59,7 +65,7 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
               child: const Text('Cancel')),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+              child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error))),
         ],
       ),
     );
@@ -79,14 +85,19 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
     final filtered = _selectedFolderId == null
         ? notes
         : notes.where((e) => e.parentProjectId == _selectedFolderId).toList();
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final narrow = isNarrow(context);
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      appBar: narrow ? null : AppBar(
         title: const Text('Notes'),
+        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.bolt),
+            icon: const Icon(Icons.bolt_outlined),
             tooltip: 'Quick Note',
             onPressed: () async {
               await showDialog(
@@ -96,31 +107,23 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
               ref.read(entriesProvider.notifier).refresh();
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NewEntryScreen()),
-              );
-              ref.read(entriesProvider.notifier).refresh();
-            },
-          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
           // Folder bar
-          SizedBox(
-            height: 48,
+          Container(
+            height: 60,
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: const Text('All'),
+                  child: FilterChip(
+                    label: const Text('All Notes'),
                     selected: _selectedFolderId == null,
                     onSelected: (_) =>
                         setState(() => _selectedFolderId = null),
@@ -134,8 +137,9 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
                       onLongPress: () => _deleteFolder(id, name),
-                      child: ChoiceChip(
+                      child: FilterChip(
                         label: Text(name),
+                        avatar: Icon(Icons.folder_outlined, size: 16, color: selected ? cs.onPrimaryContainer : cs.primary),
                         selected: selected,
                         onSelected: (_) =>
                             setState(() => _selectedFolderId = id),
@@ -147,130 +151,52 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
                   padding: const EdgeInsets.only(right: 8),
                   child: ActionChip(
                     avatar: const Icon(Icons.add, size: 16),
-                    label: const Text('Folder'),
+                    label: const Text('New Folder'),
                     onPressed: _showNewFolderDialog,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, indent: 16, endIndent: 16),
           // Notes list
           Expanded(
             child: filtered.isEmpty
                 ? Center(
-                    child: Text(
-                      _selectedFolderId == null
-                          ? 'No notes yet'
-                          : 'No notes in this folder',
-                      style: TextStyle(color: cs.onSurfaceVariant),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.note_alt_outlined, size: 64, color: cs.outlineVariant),
+                        const SizedBox(height: 16),
+                        Text(
+                          _selectedFolderId == null
+                              ? 'No notes yet'
+                              : 'No notes in this folder',
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 16),
+                        ),
+                      ],
                     ),
                   )
                 : ListView.builder(
+                    padding: const EdgeInsets.all(12),
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final entry = filtered[index];
-                      final title = entry.displayTitle.isNotEmpty
-                          ? entry.displayTitle
-                          : entry.id;
-                      return Card(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onLongPress: () {
-                            ref
-                                .read(entriesProvider.notifier)
-                                .togglePin(entry.id);
-                          },
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: EntryCard(
+                          title: entry.displayTitle.isNotEmpty
+                              ? entry.displayTitle
+                              : entry.id,
+                          preview: entry.author,
+                          kind: entry.kind,
+                          tags: entry.tags,
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
                                 builder: (_) =>
                                     EntryViewScreen(entry: entry)),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    if (entry.pinned)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(right: 6),
-                                        child: Icon(Icons.push_pin,
-                                            size: 14,
-                                            color: cs.primary),
-                                      ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: cs.surfaceContainer,
-                                        borderRadius:
-                                            BorderRadius.circular(4),
-                                        border: Border.all(
-                                            color: cs.outlineVariant),
-                                      ),
-                                      child: Text('note',
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              color: cs.onSurfaceVariant)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      entry.provenance.author,
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: cs.onSurfaceVariant),
-                                    ),
-                                    const Spacer(),
-                                    Icon(Icons.more_horiz,
-                                        size: 18,
-                                        color: cs.onSurfaceVariant),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Text(title,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 18)),
-                                const SizedBox(height: 4),
-                                Text(
-                                  entry.provenance.timestamp,
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: cs.onSurfaceVariant),
-                                ),
-                                if (entry.tags.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: Wrap(
-                                      spacing: 4,
-                                      children: entry.tags
-                                          .map((t) => Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 1),
-                                                decoration: BoxDecoration(
-                                                  color: cs.surfaceContainer,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                  border: Border.all(
-                                                      color: cs.outlineVariant),
-                                                ),
-                                                child: Text(t,
-                                                    style: TextStyle(
-                                                        fontSize: 10,
-                                                        color: cs
-                                                            .onSurfaceVariant)),
-                                              ))
-                                          .toList(),
-                                    ),
-                                  ),
-                              ],
-                            ),
                           ),
                         ),
                       );
@@ -278,6 +204,16 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
                   ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NewEntryScreen()),
+          );
+          ref.read(entriesProvider.notifier).refresh();
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }
