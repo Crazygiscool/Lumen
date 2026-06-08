@@ -17,6 +17,57 @@ class TaskListScreen extends ConsumerStatefulWidget {
 class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   String _filter = 'all';
 
+  Future<void> _deleteEntry(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete task?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      ref.read(entriesProvider.notifier).deleteEntry(id);
+    }
+  }
+
+  void _showContextMenu(BuildContext context, TapDownDetails details, String id) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        details.globalPosition.dx,
+        details.globalPosition.dy,
+        overlay.size.width - details.globalPosition.dx,
+        overlay.size.height - details.globalPosition.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error, size: 20),
+              const SizedBox(width: 8),
+              const Text('Delete Task'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'delete') {
+        _deleteEntry(id);
+      }
+    });
+  }
+
   List<JournalEntry> _filterTasks(List<JournalEntry> tasks) {
     switch (_filter) {
       case 'today':
@@ -108,85 +159,96 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                             borderRadius: BorderRadius.circular(12),
                             side: BorderSide(color: cs.outlineVariant, width: 1),
                           ),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      EntryViewScreen(entry: entry)),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(title,
-                                            style: theme.textTheme.titleSmall?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                                letterSpacing: -0.2)),
-                                      ),
-                                      if (entry.priority != null)
-                                        _PriorityBadge(
-                                            priority: entry.priority!,
-                                            cs: cs),
-                                      if (entry.status != null)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(left: 8),
-                                          child: _StatusChip(
-                                              status: entry.status!, cs: cs),
+                          child: GestureDetector(
+                            onSecondaryTapDown: (details) =>
+                                _showContextMenu(context, details, entry.id),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        EntryViewScreen(entry: entry)),
+                              ),
+                              onLongPress: () => _showContextMenu(context,
+                                  TapDownDetails(globalPosition: Offset.zero),
+                                  entry.id),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(title,
+                                              style: theme.textTheme.titleSmall
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      letterSpacing: -0.2)),
                                         ),
-                                    ],
-                                  ),
-                                  if (entry.dueDate != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.calendar_today_outlined,
-                                              size: 14,
-                                              color: cs.primary),
-                                          const SizedBox(width: 6),
-                                          Text(entry.dueDate!,
-                                              style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: cs.onSurfaceVariant)),
-                                        ],
-                                      ),
+                                        if (entry.priority != null)
+                                          _PriorityBadge(
+                                              priority: entry.priority!,
+                                              cs: cs),
+                                        if (entry.status != null)
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.only(left: 8),
+                                            child: _StatusChip(
+                                                status: entry.status!, cs: cs),
+                                          ),
+                                      ],
                                     ),
-                                  if (entry.tags.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 12),
-                                      child: Wrap(
-                                        spacing: 6,
-                                        children: entry.tags
-                                            .map((t) => Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: cs.surfaceContainerHigh,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            6),
-                                                  ),
-                                                  child: Text('#$t',
-                                                      style: TextStyle(
-                                                          fontSize: 11,
-                                                          fontWeight: FontWeight.w500,
-                                                          color: cs
-                                                              .onSurfaceVariant)),
-                                                ))
-                                            .toList(),
+                                    if (entry.dueDate != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.calendar_today_outlined,
+                                                size: 14, color: cs.primary),
+                                            const SizedBox(width: 6),
+                                            Text(entry.dueDate!,
+                                                style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                    color:
+                                                        cs.onSurfaceVariant)),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                ],
+                                    if (entry.tags.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 12),
+                                        child: Wrap(
+                                          spacing: 6,
+                                          children: entry.tags
+                                              .map((t) => Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: cs
+                                                          .surfaceContainerHigh,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              6),
+                                                    ),
+                                                    child: Text('#$t',
+                                                        style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                            color: cs
+                                                                .onSurfaceVariant)),
+                                                  ))
+                                              .toList(),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

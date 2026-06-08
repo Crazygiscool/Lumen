@@ -15,6 +15,57 @@ class BoardScreen extends ConsumerStatefulWidget {
 }
 
 class _BoardScreenState extends ConsumerState<BoardScreen> {
+  Future<void> _deleteEntry(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete task?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      ref.read(entriesProvider.notifier).deleteEntry(id);
+    }
+  }
+
+  void _showContextMenu(BuildContext context, TapDownDetails details, String id) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        details.globalPosition.dx,
+        details.globalPosition.dy,
+        overlay.size.width - details.globalPosition.dx,
+        overlay.size.height - details.globalPosition.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error, size: 20),
+              const SizedBox(width: 8),
+              const Text('Delete Task'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'delete') {
+        _deleteEntry(id);
+      }
+    });
+  }
+
   List<KanbanLane<String>> _buildLanes(List<JournalEntry> tasks) {
     final statuses = ['todo', 'in_progress', 'done'];
     const statusLabels = {
@@ -102,82 +153,88 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
       ),
       cardBuilder: (context, card, isSelected) {
         final entry = entryMap[card.data];
-        return Card(
-          elevation: isSelected ? 4 : 0,
-          color: isSelected ? cs.primaryContainer : cs.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: isSelected ? cs.primary : cs.outlineVariant,
-              width: isSelected ? 1.5 : 1,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry?.displayTitle.isNotEmpty == true
-                      ? entry!.displayTitle
-                      : card.data,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+        return GestureDetector(
+          onSecondaryTapDown: (details) => _showContextMenu(context, details, card.data),
+          child: InkWell(
+            onLongPress: () => _showContextMenu(context, TapDownDetails(globalPosition: Offset.zero), card.data),
+            child: Card(
+              elevation: isSelected ? 4 : 0,
+              color: isSelected ? cs.primaryContainer : cs.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected ? cs.primary : cs.outlineVariant,
+                  width: isSelected ? 1.5 : 1,
                 ),
-                if (entry != null && (entry.priority != null || entry.tags.isNotEmpty))
-                  const SizedBox(height: 10),
-                Row(
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (entry != null && entry.priority != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: (entry.priority == 'high' ? cs.error : cs.primary)
-                              .withValues(alpha: 0.1),
-                          border: Border.all(
+                    Text(
+                      entry?.displayTitle.isNotEmpty == true
+                          ? entry!.displayTitle
+                          : card.data,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (entry != null && (entry.priority != null || entry.tags.isNotEmpty))
+                      const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        if (entry != null && entry.priority != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
                               color: (entry.priority == 'high' ? cs.error : cs.primary)
-                                  .withValues(alpha: 0.5)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(entry.priority!,
-                            style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: entry.priority == 'high'
-                                    ? cs.error
-                                    : cs.primary)),
-                      ),
-                    const SizedBox(width: 4),
-                    if (entry != null && entry.tags.isNotEmpty)
-                      Expanded(
-                        child: Wrap(
-                          spacing: 2,
-                          children: entry.tags
-                              .take(2)
-                              .map((t) => Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 4, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: cs.surfaceContainerHigh,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text('#$t',
-                                        style: TextStyle(
-                                            fontSize: 9,
-                                            color: cs.onSurfaceVariant)),
-                                  ))
-                              .toList(),
-                        ),
-                      ),
+                                  .withValues(alpha: 0.1),
+                              border: Border.all(
+                                  color: (entry.priority == 'high' ? cs.error : cs.primary)
+                                      .withValues(alpha: 0.5)),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(entry.priority!,
+                                style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: entry.priority == 'high'
+                                        ? cs.error
+                                        : cs.primary)),
+                          ),
+                        const SizedBox(width: 4),
+                        if (entry != null && entry.tags.isNotEmpty)
+                          Expanded(
+                            child: Wrap(
+                              spacing: 2,
+                              children: entry.tags
+                                  .take(2)
+                                  .map((t) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: cs.surfaceContainerHigh,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text('#$t',
+                                            style: TextStyle(
+                                                fontSize: 9,
+                                                color: cs.onSurfaceVariant)),
+                                      ))
+                                  .toList(),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         );

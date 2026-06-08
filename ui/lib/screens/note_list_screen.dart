@@ -77,6 +77,57 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
     }
   }
 
+  Future<void> _deleteEntry(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete entry?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      ref.read(entriesProvider.notifier).deleteEntry(id);
+    }
+  }
+
+  void _showContextMenu(BuildContext context, TapDownDetails details, String id) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        details.globalPosition.dx,
+        details.globalPosition.dy,
+        overlay.size.width - details.globalPosition.dx,
+        overlay.size.height - details.globalPosition.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error, size: 20),
+              const SizedBox(width: 8),
+              const Text('Delete Note'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'delete') {
+        _deleteEntry(id);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final allEntries = ref.watch(entriesProvider);
@@ -198,6 +249,7 @@ class _NoteListScreenState extends ConsumerState<NoteListScreen> {
                                 builder: (_) =>
                                     EntryViewScreen(entry: entry)),
                           ),
+                          onSecondaryTap: (details) => _showContextMenu(context, details, entry.id),
                         ),
                       );
                     },

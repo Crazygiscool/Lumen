@@ -157,6 +157,7 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
                                 ),
                               );
                             },
+                            onSecondaryTap: (details) => _showContextMenu(context, details, entry.id),
                           ),
                         ),
                       );
@@ -172,6 +173,36 @@ class _JournalListScreenState extends ConsumerState<JournalListScreen> {
         icon: const Icon(Icons.add),
       ),
     );
+  }
+
+  void _showContextMenu(BuildContext context, TapDownDetails details, String id) {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        details.globalPosition.dx,
+        details.globalPosition.dy,
+        overlay.size.width - details.globalPosition.dx,
+        overlay.size.height - details.globalPosition.dy,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error, size: 20),
+              const SizedBox(width: 8),
+              const Text('Delete Entry'),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'delete') {
+        _deleteEntry(id);
+      }
+    });
   }
 
   void _showKindMenu(BuildContext context) {
