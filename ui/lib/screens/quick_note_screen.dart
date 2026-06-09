@@ -21,8 +21,8 @@ class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
   void initState() {
     super.initState();
     _bodyController = TextEditingController();
-    final masterUsername = ref.read(userProvider);
-    _authorController = TextEditingController(text: masterUsername);
+    final userState = ref.read(userProvider);
+    _authorController = TextEditingController(text: userState.currentUser);
     _passwordController = TextEditingController();
   }
 
@@ -59,6 +59,7 @@ class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final userState = ref.watch(userProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -87,12 +88,20 @@ class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _authorController,
+                DropdownButtonFormField<String>(
+                  value: userState.allUsers.contains(_authorController.text) ? _authorController.text : null,
                   decoration: const InputDecoration(
                     labelText: 'Author',
                     isDense: true,
+                    prefixIcon: Icon(Icons.person_outline, size: 20),
                   ),
+                  items: userState.allUsers.map((u) => DropdownMenuItem(
+                    value: u,
+                    child: Text(u),
+                  )).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _authorController.text = v);
+                  },
                 ),
                 const SizedBox(height: 8),
                 TextField(

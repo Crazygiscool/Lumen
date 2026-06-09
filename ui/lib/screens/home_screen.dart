@@ -247,6 +247,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: VaultSwitcher(onChanged: () => setState(() {})),
           ),
+          const SizedBox(height: 8),
+          // User indicator
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundColor: cs.secondaryContainer,
+                  child: Text(
+                    ref.watch(userProvider).currentUser.isNotEmpty 
+                      ? ref.watch(userProvider).currentUser.substring(0, 1).toUpperCase()
+                      : '?',
+                    style: TextStyle(fontSize: 10, color: cs.onSecondaryContainer, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    ref.watch(userProvider).currentUser,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           // Sections
           Expanded(

@@ -182,7 +182,7 @@ use std::path::Path;
         }
 
         let storage = crate::storage::Storage::new(std::path::Path::new(":memory:")).unwrap();
-        let count = crate::import_stoic::import_stoic(&stoic_dir, "testpassword", &storage);
+        let count = crate::import_stoic::import_stoic(&stoic_dir, "testpassword", "test-user", &storage);
         assert!(count > 0, "Expected at least 1 imported entry, got {count}");
 
         let entries = storage.list_entries().unwrap();

@@ -158,8 +158,8 @@ typedef LumenGetAssets = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef LumenGetAssetDataNative = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
 typedef LumenGetAssetData = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>);
 
-typedef LumenImportStoicNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>);
-typedef LumenImportStoic = int Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef LumenImportStoicNative = Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
+typedef LumenImportStoic = int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
 
 class LumenCore {
   late final DynamicLibrary _lib;
@@ -609,12 +609,14 @@ class LumenCore {
     return result;
   }
 
-  int importStoic(String exportDir, String password) {
+  int importStoic(String exportDir, String password, String author) {
     final dirPtr = exportDir.toNativeUtf8();
     final pwPtr = password.toNativeUtf8();
-    final result = _importStoic(dirPtr, pwPtr);
+    final authorPtr = author.toNativeUtf8();
+    final result = _importStoic(dirPtr, pwPtr, authorPtr);
     malloc.free(dirPtr);
     malloc.free(pwPtr);
+    malloc.free(authorPtr);
     return result;
   }
 }

@@ -15,6 +15,13 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   bool _error = false;
   bool _obscure = true;
   bool _loading = false;
+  String? _selectedUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedUser = ref.read(userProvider).currentUser;
+  }
 
   @override
   void dispose() {
@@ -33,7 +40,12 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     await Future.delayed(const Duration(milliseconds: 10));
     
     final ok = ref.read(authProvider.notifier).unlock(_passwordCtrl.text);
-    if (!ok) {
+    if (ok) {
+      if (_selectedUser != null) {
+        await ref.read(userProvider.notifier).setUsername(_selectedUser!);
+      }
+      // authProvider state update will trigger navigation in LumenApp
+    } else {
       if (mounted) {
         setState(() {
           _loading = false;
@@ -48,6 +60,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final userState = ref.watch(userProvider);
 
     return Scaffold(
       body: Stack(
@@ -94,6 +107,42 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                         style: TextStyle(color: cs.onSurfaceVariant, fontSize: 16),
                       ),
                       const SizedBox(height: 48),
+                      DropdownButtonFormField<String>(
+                        value: _selectedUser,
+                        decoration: InputDecoration(
+                          labelText: 'Select User',
+                          prefixIcon: const Icon(Icons.person_outline),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          filled: true,
+                          fillColor: cs.surface,
+                        ),
+                        items: userState.allUsers.map((u) => DropdownMenuItem(
+                          value: u,
+                          child: Text(u),
+                        )).toList() + [
+                          const DropdownMenuItem(
+                            value: '_new_',
+                            child: Text('+ Add New User'),
+                          )
+                        ],
+                        onChanged: (val) async {
+                          if (val == '_new_') {
+                            final newUser = await _promptNewUser(context);
+                            if (newUser != null && newUser.isNotEmpty) {
+                              setState(() {
+                                _selectedUser = newUser;
+                              });
+                            } else {
+                              setState(() {
+                                _selectedUser = userState.currentUser;
+                              });
+                            }
+                          } else {
+                            setState(() => _selectedUser = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       TextField(
                         controller: _passwordCtrl,
                         obscureText: _obscure,
@@ -163,6 +212,34 @@ class _LockScreenState extends ConsumerState<LockScreen> {
               right: 0,
               child: LinearProgressIndicator(),
             ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _promptNewUser(BuildContext context) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add New User'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Username',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );

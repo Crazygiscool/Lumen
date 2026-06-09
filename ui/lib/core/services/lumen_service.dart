@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../lumen_core.dart';
 import '../models/journal_entry.dart';
 import 'core_provider.dart';
+import 'user_provider.dart';
 
 class EntriesNotifier extends Notifier<List<JournalEntry>> {
   late final LumenCore _lumen;
@@ -11,11 +12,28 @@ class EntriesNotifier extends Notifier<List<JournalEntry>> {
   @override
   List<JournalEntry> build() {
     _lumen = ref.read(lumenCoreProvider);
-    return _lumen.listEntries();
+    final entries = _lumen.listEntries();
+    
+    // Update available users list after build
+    Future.microtask(() {
+      final authors = entries.map((e) => e.provenance.author).toSet().toList();
+      if (authors.isNotEmpty) {
+        ref.read(userProvider.notifier).updateAvailableUsers(authors);
+      }
+    });
+    
+    return entries;
   }
 
   void refresh() {
-    state = _lumen.listEntries();
+    final entries = _lumen.listEntries();
+    state = entries;
+    
+    // Update available users list
+    final authors = entries.map((e) => e.provenance.author).toSet().toList();
+    if (authors.isNotEmpty) {
+      ref.read(userProvider.notifier).updateAvailableUsers(authors);
+    }
   }
 
   String? getCachedDecryptedText(String id) => _decryptedCache[id];

@@ -15,6 +15,13 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
   String? _selectedDir;
   bool _loading = false;
   int? _result;
+  String? _importUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _importUser = ref.read(userProvider).currentUser;
+  }
 
   Future<void> _pickDirectory() async {
     final dir = await FilePicker.platform.getDirectoryPath(
@@ -36,7 +43,7 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
   }
 
   Future<void> _import() async {
-    if (_selectedDir == null) return;
+    if (_selectedDir == null || _importUser == null) return;
 
     final isUnlocked = ref.read(authProvider);
     final password = isUnlocked ? '' : (await _promptPassword(context));
@@ -45,7 +52,7 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
     setState(() => _loading = true);
 
     final lumen = ref.read(lumenCoreProvider);
-    final count = await Future(() => lumen.importStoic(_selectedDir!, password ?? ''));
+    final count = await Future(() => lumen.importStoic(_selectedDir!, password ?? '', _importUser!));
 
     if (count > 0) {
       ref.read(entriesProvider.notifier).refresh();
@@ -89,6 +96,7 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final userState = ref.watch(userProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -105,6 +113,22 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Card(
+              child: DropdownButtonFormField<String>(
+                value: _importUser,
+                decoration: InputDecoration(
+                  labelText: 'Import as User',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                items: userState.allUsers.map((u) => DropdownMenuItem(
+                  value: u,
+                  child: Text(u),
+                )).toList(),
+                onChanged: (v) => setState(() => _importUser = v),
+              ),
+            ),
+            const SizedBox(height: 16),
             Card(
               child: ListTile(
                 leading: Icon(Icons.folder_open, color: cs.primary),

@@ -193,14 +193,14 @@ fn format_context(context: &str) -> String {
     }
 }
 
-pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 {
+pub fn import_stoic(export_dir: &str, password: &str, author: &str, storage: &Storage) -> i32 {
     let dir = Path::new(export_dir);
     if !dir.is_dir() {
         // Check if it's a zip file
         if export_dir.ends_with(".zip") && dir.is_file() {
             match extract_zip(dir) {
                 Some(tmp_dir) => {
-                    let result = import_stoic_from_dir(&tmp_dir, password, storage);
+                    let result = import_stoic_from_dir(&tmp_dir, password, author, storage);
                     let _ = std::fs::remove_dir_all(&tmp_dir);
                     return result;
                 }
@@ -213,7 +213,7 @@ pub fn import_stoic(export_dir: &str, password: &str, storage: &Storage) -> i32 
         eprintln!("[lumen] Stoic export directory not found: {export_dir}");
         return 0;
     }
-    import_stoic_from_dir(dir, password, storage)
+    import_stoic_from_dir(dir, password, author, storage)
 }
 
 fn extract_zip(zip_path: &Path) -> Option<std::path::PathBuf> {
@@ -241,7 +241,7 @@ fn extract_zip(zip_path: &Path) -> Option<std::path::PathBuf> {
     Some(tmp_dir)
 }
 
-fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
+fn import_stoic_from_dir(dir: &Path, password: &str, author: &str, storage: &Storage) -> i32 {
 
     // Resolve encryption mode
     let use_session_key = password.is_empty();
@@ -392,7 +392,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             provenance: crate::entry::Provenance {
                 timestamp: ts,
                 plugin_origin: Some("stoic-import".to_string()),
-                author: "stoic-import".to_string(),
+                author: author.to_string(),
                 feedback: None,
                 metadata,
             },
@@ -571,7 +571,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             provenance: crate::entry::Provenance {
                 timestamp: ts,
                 plugin_origin: Some("stoic-import".to_string()),
-                author: "stoic-import".to_string(),
+                author: author.to_string(),
                 feedback: None,
                 metadata,
             },
@@ -685,7 +685,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             provenance: crate::entry::Provenance {
                 timestamp: ts,
                 plugin_origin: Some("stoic-import".to_string()),
-                author: "stoic-import".to_string(),
+                author: author.to_string(),
                 feedback: None,
                 metadata,
             },
@@ -746,7 +746,7 @@ fn import_stoic_from_dir(dir: &Path, password: &str, storage: &Storage) -> i32 {
             provenance: crate::entry::Provenance {
                 timestamp: ts,
                 plugin_origin: Some("stoic-import".to_string()),
-                author: "stoic-import".to_string(),
+                author: author.to_string(),
                 feedback: None,
                 metadata,
             },

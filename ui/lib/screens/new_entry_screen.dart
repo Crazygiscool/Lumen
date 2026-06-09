@@ -46,10 +46,10 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     _titleController = TextEditingController(text: widget.entryToEdit?.displayTitle ?? '');
     _bodyController = TextEditingController(text: widget.initialText ?? '');
     
-    // Auto-fill author with master username if it's a new entry
-    final masterUsername = ref.read(userProvider);
+    // Auto-fill author with current user if it's a new entry
+    final userState = ref.read(userProvider);
     _authorController = TextEditingController(
-      text: widget.entryToEdit?.provenance.author ?? masterUsername,
+      text: widget.entryToEdit?.provenance.author ?? userState.currentUser,
     );
 
     _passwordController = TextEditingController();
@@ -168,6 +168,7 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isEdit = widget.entryToEdit != null;
+    final userState = ref.watch(userProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -325,13 +326,20 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _authorController,
+                    child: DropdownButtonFormField<String>(
+                      value: userState.allUsers.contains(_authorController.text) ? _authorController.text : null,
                       decoration: InputDecoration(
                         labelText: "Author",
                         prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
+                      items: userState.allUsers.map((u) => DropdownMenuItem(
+                        value: u,
+                        child: Text(u),
+                      )).toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _authorController.text = v);
+                      },
                     ),
                   ),
                   const SizedBox(width: 16),

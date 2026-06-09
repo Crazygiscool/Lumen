@@ -6,6 +6,12 @@
       <excludeFolder url="file://$MODULE_DIR$/ui/.dart_tool" />
       <excludeFolder url="file://$MODULE_DIR$/ui/.pub" />
       <excludeFolder url="file://$MODULE_DIR$/ui/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ui/linux/flutter/ephemeral/.plugin_symlinks/file_picker/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ui/linux/flutter/ephemeral/.plugin_symlinks/file_picker/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ui/linux/flutter/ephemeral/.plugin_symlinks/file_picker/build" />
+      <excludeFolder url="file://$MODULE_DIR$/ui/linux/flutter/ephemeral/.plugin_symlinks/file_picker/example/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/ui/linux/flutter/ephemeral/.plugin_symlinks/file_picker/example/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/ui/linux/flutter/ephemeral/.plugin_symlinks/file_picker/example/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

@@ -44,6 +44,7 @@ dependencies:
   voo_kanban: ^0.0.3
   reactive_mind_map: ^1.2.2
   file_picker: ^8.0.0
+  shared_preferences: ^2.5.2
 
 dev_dependencies:
   flutter_test:
