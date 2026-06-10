@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub(crate) mod encryption;
+pub mod encryption;
 pub(crate) mod recurring;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

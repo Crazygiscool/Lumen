@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
-use lumen::storage::Storage;
-use lumen::entry::EntryKind;
+use lumen_core::storage::Storage;
 use std::path::PathBuf;
-use chrono::DateTime;
 
 #[derive(Parser)]
 #[command(author, version, about = "Lumen Terminal Interface", long_about = None)]
@@ -127,7 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Error: Entry is encrypted. Please provide a password with --password.");
                             return Ok(());
                         }
-                        Some(lumen::entry::encryption::derive_key(&pw, &entry.salt))
+                        Some(lumen_core::entry::encryption::derive_key(&pw, &entry.salt))
                     } else {
                         // plaintext or session key needed
                         None
