@@ -191,7 +191,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final userState = ref.watch(userProvider);
-    final username = userState.currentUser;
+    final username = userState.currentUser ?? 'None';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),

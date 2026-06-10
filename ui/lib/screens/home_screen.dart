@@ -257,8 +257,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   radius: 12,
                   backgroundColor: cs.secondaryContainer,
                   child: Text(
-                    ref.watch(userProvider).currentUser.isNotEmpty 
-                      ? ref.watch(userProvider).currentUser.substring(0, 1).toUpperCase()
+                    (ref.watch(userProvider).currentUser?.isNotEmpty ?? false)
+                      ? ref.watch(userProvider).currentUser!.substring(0, 1).toUpperCase()
                       : '?',
                     style: TextStyle(fontSize: 10, color: cs.onSecondaryContainer, fontWeight: FontWeight.bold),
                   ),
@@ -266,7 +266,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    ref.watch(userProvider).currentUser,
+                    ref.watch(userProvider).currentUser ?? 'Guest',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
