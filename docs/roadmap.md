@@ -335,16 +335,19 @@ Expand `tui/lumen_tui.rs` from welcome-message stub to a read-only terminal clie
 - **AppImage** — wrap Flutter bundle + `.so` into AppImage via `appimagetool`.
 - **Flatpak** — `flatpak-builder` manifest.
 - **AUR** — already maintained. Update PKGBUILD to handle SQLite dependency (bundled in binary, no extra dep needed).
+- **TUI** — binary `lumen-cli` included in the distribution bundle.
 
 ### macOS
 
 - `scripts/build_macos.sh` — add `--locked` flag.
 - Notarize `.app` bundle with `xcrun notarytool` for distribution outside App Store.
+- **TUI** — binary `lumen-cli` included in the release zip.
 
 ### Windows
 
 - `scripts/build_windows.sh` — add `--locked` flag.
 - **MSI installer** — WiX or InnoSetup for proper installer.
+- **TUI** — binary `lumen-cli.exe` included in the release zip.
 
 ### CI/CD
 

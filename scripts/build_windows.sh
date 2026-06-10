@@ -36,13 +36,25 @@ mkdir -p "$UI_DIR/windows/lib"
 cp "$CORE_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
 
 echo ""
+echo "=== Step 2: Build Lumen TUI ==="
+TUI_DIR="$ROOT_DIR/tui"
+cargo build --release --locked --target "$TARGET" --manifest-path "$TUI_DIR/Cargo.toml"
+
+echo ""
 echo "=== Step 3: Build Flutter Windows release ==="
 cd "$UI_DIR"
 flutter build windows --release
 cd "$ROOT_DIR"
 
 echo ""
-echo "=== Step 4: Package bundle into zip ==="
+echo "=== Step 4: Copy binaries into Flutter bundle ==="
+BUNDLE_DIR="$UI_DIR/build/windows/runner/release"
+mkdir -p "$UI_DIR/windows/lib"
+cp "$CORE_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
+cp "$TUI_DIR/target/$TARGET/release/lumen.exe" "$BUNDLE_DIR/lumen-cli.exe"
+
+echo ""
+echo "=== Step 5: Package bundle into zip ==="
 mkdir -p "$DIST_DIR"
 
 BUNDLE_DIR="$UI_DIR/build/windows/runner/release"
