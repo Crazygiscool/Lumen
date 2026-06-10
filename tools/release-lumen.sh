@@ -36,7 +36,8 @@ fi
 read -p "Push to GitHub and trigger Production Release? (y/n): " DO_PUSH
 
 # 3. Bump Versions
-# ... (rest of the script)
+echo -e "\n${BLUE}Step 1: Bumping versions...${NC}"
+./tools/bump-version.sh "$NEW_VER"
 
 # 4. Local Validation (Act)
 if [[ "$RUN_ACT" == "y" ]]; then
@@ -45,18 +46,12 @@ if [[ "$RUN_ACT" == "y" ]]; then
         echo -e "${YELLOW}Warning: 'act' not found. Skipping local CI test.${NC}"
     else
         if [[ "$ACT_CHOICE" == "2" ]]; then
-            # Attempt to run all jobs.
-            # Note: This will likely fail for macos/windows unless the user has
-            # custom platforms configured in their .actrc
-            act -W .github/workflows/test.yml \
-                --container-architecture linux/amd64 \
-                -P ubuntu-latest=catthehacker/ubuntu:act-latest
+            # We map macos/windows to Linux because you cannot run native macos/windows containers on Linux.
+            # This is a 'smoke test' to verify script logic and cross-compilation.
+            act -W .github/workflows/test.yml --container-architecture linux/amd64 -P ubuntu-latest=catthehacker/ubuntu:act-latest -P macos-latest=catthehacker/ubuntu:act-latest -P windows-latest=catthehacker/ubuntu:act-latest
         else
             # Run only the linux build as a smoke test
-            act -j build-linux \
-                -W .github/workflows/test.yml \
-                --container-architecture linux/amd64 \
-                -P ubuntu-latest=catthehacker/ubuntu:act-latest
+            act -j build-linux -W .github/workflows/test.yml --container-architecture linux/amd64 -P ubuntu-latest=catthehacker/ubuntu:act-latest
         fi
     fi
 fi
