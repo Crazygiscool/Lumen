@@ -218,7 +218,7 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'Imported {count} entries'**
-  String importedEntries(Object count);
+  String importedEntries(int count);
 
   /// No description provided for @done.
   ///
@@ -327,6 +327,282 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This entry is encrypted. Enter password to decrypt.'**
   String get enterPasswordToDecrypt;
+
+  /// No description provided for @currentUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Current User'**
+  String get currentUser;
+
+  /// No description provided for @userManagement.
+  ///
+  /// In en, this message translates to:
+  /// **'User Management'**
+  String get userManagement;
+
+  /// No description provided for @switchUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch User'**
+  String get switchUser;
+
+  /// No description provided for @registerNewUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Register New User'**
+  String get registerNewUser;
+
+  /// No description provided for @admin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get admin;
+
+  /// No description provided for @member.
+  ///
+  /// In en, this message translates to:
+  /// **'Member'**
+  String get member;
+
+  /// No description provided for @vaultPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault Password'**
+  String get vaultPassword;
+
+  /// No description provided for @newUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'New Username'**
+  String get newUsername;
+
+  /// No description provided for @register.
+  ///
+  /// In en, this message translates to:
+  /// **'Register'**
+  String get register;
+
+  /// No description provided for @account.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get account;
+
+  /// No description provided for @security.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get security;
+
+  /// No description provided for @setPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Password'**
+  String get setPassword;
+
+  /// No description provided for @changePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Password'**
+  String get changePassword;
+
+  /// No description provided for @lockOnStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock on Start'**
+  String get lockOnStart;
+
+  /// No description provided for @general.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get general;
+
+  /// No description provided for @theme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get theme;
+
+  /// No description provided for @notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notifications;
+
+  /// No description provided for @sync.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync'**
+  String get sync;
+
+  /// No description provided for @syncSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync Settings'**
+  String get syncSettings;
+
+  /// No description provided for @data.
+  ///
+  /// In en, this message translates to:
+  /// **'Data'**
+  String get data;
+
+  /// No description provided for @exportImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export / Import'**
+  String get exportImport;
+
+  /// No description provided for @advanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get advanced;
+
+  /// No description provided for @developerMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer Mode'**
+  String get developerMode;
+
+  /// No description provided for @resetApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset App'**
+  String get resetApp;
+
+  /// No description provided for @welcomeToLumen.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to Lumen'**
+  String get welcomeToLumen;
+
+  /// No description provided for @lumenDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A digital sanctuary for your thoughts. Private, encrypted, and offline-first.'**
+  String get lumenDescription;
+
+  /// No description provided for @discoverFeatures.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover Features'**
+  String get discoverFeatures;
+
+  /// No description provided for @whyLumen.
+  ///
+  /// In en, this message translates to:
+  /// **'Why Lumen?'**
+  String get whyLumen;
+
+  /// No description provided for @aesEncryption.
+  ///
+  /// In en, this message translates to:
+  /// **'AES-256 Encryption'**
+  String get aesEncryption;
+
+  /// No description provided for @encryptionDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Your data is encrypted before it ever touches the disk.'**
+  String get encryptionDesc;
+
+  /// No description provided for @expressiveJournaling.
+  ///
+  /// In en, this message translates to:
+  /// **'Expressive Journaling'**
+  String get expressiveJournaling;
+
+  /// No description provided for @journalingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture moods, prompts, and rich text reflections.'**
+  String get journalingDesc;
+
+  /// No description provided for @deepProductivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Deep Productivity'**
+  String get deepProductivity;
+
+  /// No description provided for @productivityDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Integrated Kanban boards, Mind Maps, and Task tracking.'**
+  String get productivityDesc;
+
+  /// No description provided for @modularExtensible.
+  ///
+  /// In en, this message translates to:
+  /// **'Modular & Extensible'**
+  String get modularExtensible;
+
+  /// No description provided for @modularDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'A trait-based plugin system to build your own tools.'**
+  String get modularDesc;
+
+  /// No description provided for @back.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get back;
+
+  /// No description provided for @getStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Get Started'**
+  String get getStarted;
+
+  /// No description provided for @secureYourVault.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure Your Vault'**
+  String get secureYourVault;
+
+  /// No description provided for @setPasswordDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Set a master password. This cannot be recovered if lost.'**
+  String get setPasswordDesc;
+
+  /// No description provided for @preferredUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferred Username (Author)'**
+  String get preferredUsername;
+
+  /// No description provided for @confirmPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Password'**
+  String get confirmPassword;
+
+  /// No description provided for @createVault.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Vault'**
+  String get createVault;
+
+  /// No description provided for @passwordsDoNotMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords do not match'**
+  String get passwordsDoNotMatch;
+
+  /// No description provided for @passwordCannotBeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Password cannot be empty'**
+  String get passwordCannotBeEmpty;
+
+  /// No description provided for @failedToSetPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to set password'**
+  String get failedToSetPassword;
 }
 
 class _AppLocalizationsDelegate

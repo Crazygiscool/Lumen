@@ -23,7 +23,7 @@ echo "Timestamp:   $TIMESTAMP"
 echo ""
 echo "=== Step 1: Build Rust core ==="
 cd "$CORE_DIR"
-cargo build --release
+cargo build --release --locked
 
 echo ""
 echo "=== Step 2: Copy liblumen_core.dylib into macOS Runner ==="

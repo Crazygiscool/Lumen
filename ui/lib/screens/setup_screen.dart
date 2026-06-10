@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../l10n/app_localizations.dart';
 
 class SetupScreen extends ConsumerStatefulWidget {
   const SetupScreen({super.key});
@@ -27,6 +28,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: Center(
@@ -35,27 +37,27 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           padding: const EdgeInsets.all(32),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            child: _buildStep(cs),
+            child: _buildStep(cs, l10n),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStep(ColorScheme cs) {
+  Widget _buildStep(ColorScheme cs, AppLocalizations l10n) {
     switch (_step) {
       case 0:
-        return _buildIntro(cs);
+        return _buildIntro(cs, l10n);
       case 1:
-        return _buildFeatures(cs);
+        return _buildFeatures(cs, l10n);
       case 2:
-        return _buildAccount(cs);
+        return _buildAccount(cs, l10n);
       default:
         return const SizedBox.shrink();
     }
   }
 
-  Widget _buildIntro(ColorScheme cs) {
+  Widget _buildIntro(ColorScheme cs, AppLocalizations l10n) {
     return Column(
       key: const ValueKey(0),
       mainAxisSize: MainAxisSize.min,
@@ -63,7 +65,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         Icon(Icons.flare, color: cs.primary, size: 80),
         const SizedBox(height: 24),
         Text(
-          'Welcome to Lumen',
+          l10n.welcomeToLumen,
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: cs.onSurface,
@@ -71,7 +73,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          'A digital sanctuary for your thoughts. Private, encrypted, and offline-first.',
+          l10n.lumenDescription,
           textAlign: TextAlign.center,
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 16),
         ),
@@ -79,7 +81,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         FilledButton.icon(
           onPressed: () => setState(() => _step = 1),
           icon: const Icon(Icons.arrow_forward),
-          label: const Text('Discover Features'),
+          label: Text(l10n.discoverFeatures),
           style: FilledButton.styleFrom(
             minimumSize: const Size(200, 50),
           ),
@@ -88,14 +90,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildFeatures(ColorScheme cs) {
+  Widget _buildFeatures(ColorScheme cs, AppLocalizations l10n) {
     return Column(
       key: const ValueKey(1),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Why Lumen?',
+          l10n.whyLumen,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -103,26 +105,26 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         const SizedBox(height: 24),
         _FeatureItem(
           icon: Icons.lock_outline,
-          title: 'AES-256 Encryption',
-          description: 'Your data is encrypted before it ever touches the disk.',
+          title: l10n.aesEncryption,
+          description: l10n.encryptionDesc,
           color: cs.primary,
         ),
         _FeatureItem(
           icon: Icons.edit_note,
-          title: 'Expressive Journaling',
-          description: 'Capture moods, prompts, and rich text reflections.',
+          title: l10n.expressiveJournaling,
+          description: l10n.journalingDesc,
           color: cs.secondary,
         ),
         _FeatureItem(
           icon: Icons.task_alt,
-          title: 'Deep Productivity',
-          description: 'Integrated Kanban boards, Mind Maps, and Task tracking.',
+          title: l10n.deepProductivity,
+          description: l10n.productivityDesc,
           color: cs.tertiary,
         ),
         _FeatureItem(
           icon: Icons.extension_outlined,
-          title: 'Modular & Extensible',
-          description: 'A trait-based plugin system to build your own tools.',
+          title: l10n.modularExtensible,
+          description: l10n.modularDesc,
           color: cs.error,
         ),
         const SizedBox(height: 40),
@@ -131,12 +133,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           children: [
             TextButton(
               onPressed: () => setState(() => _step = 0),
-              child: const Text('Back'),
+              child: Text(l10n.back),
             ),
             const SizedBox(width: 16),
             FilledButton(
               onPressed: () => setState(() => _step = 2),
-              child: const Text('Get Started'),
+              child: Text(l10n.getStarted),
             ),
           ],
         ),
@@ -144,47 +146,47 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  Widget _buildAccount(ColorScheme cs) {
+  Widget _buildAccount(ColorScheme cs, AppLocalizations l10n) {
     return Column(
       key: const ValueKey(2),
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Secure Your Vault',
+          l10n.secureYourVault,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
         ),
         const SizedBox(height: 16),
         Text(
-          'Set a master password. This cannot be recovered if lost.',
+          l10n.setPasswordDesc,
           textAlign: TextAlign.center,
           style: TextStyle(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 24),
         TextField(
           controller: _authorCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Preferred Username (Author)',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.preferredUsername,
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _passwordCtrl,
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Master Password',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.password,
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _confirmPasswordCtrl,
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Confirm Password',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.confirmPassword,
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 32),
@@ -193,11 +195,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           children: [
             TextButton(
               onPressed: () => setState(() => _step = 1),
-              child: const Text('Back'),
+              child: Text(l10n.back),
             ),
             FilledButton(
-              onPressed: _completeSetup,
-              child: const Text('Create Vault'),
+              onPressed: () => _completeSetup(l10n),
+              child: Text(l10n.createVault),
             ),
           ],
         ),
@@ -205,20 +207,20 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     );
   }
 
-  void _completeSetup() {
+  void _completeSetup(AppLocalizations l10n) {
     final pw = _passwordCtrl.text;
     final confirm = _confirmPasswordCtrl.text;
 
     if (pw.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password cannot be empty')),
+        SnackBar(content: Text(l10n.passwordCannotBeEmpty)),
       );
       return;
     }
 
     if (pw != confirm) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
+        SnackBar(content: Text(l10n.passwordsDoNotMatch)),
       );
       return;
     }
@@ -232,7 +234,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       // The authProvider state is now 'true', so main.dart will switch to HomeScreen.
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to set password')),
+        SnackBar(content: Text(l10n.failedToSetPassword)),
       );
     }
   }

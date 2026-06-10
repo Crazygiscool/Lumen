@@ -16,7 +16,7 @@ echo "Version: $VERSION"
 
 echo ""
 echo "=== Step 1: Build Rust core ==="
-cargo build --release --manifest-path "$CORE_DIR/Cargo.toml"
+cargo build --release --locked --manifest-path "$CORE_DIR/Cargo.toml"
 
 echo ""
 echo "=== Step 2: Build Flutter Linux release ==="

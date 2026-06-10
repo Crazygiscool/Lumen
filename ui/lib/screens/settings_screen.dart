@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../l10n/app_localizations.dart';
 import 'export_import_screen.dart';
 import 'stoic_import_screen.dart';
 import 'sync_settings_screen.dart';
@@ -17,27 +18,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _lockOnStart = true;
 
   Future<void> _setPassword() async {
+    final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
     final pw = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Set Password'),
+        title: Text(l10n.setPassword),
         content: TextField(
           controller: controller,
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'New password',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.password,
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
+            child: Text(l10n.done),
           ),
         ],
       ),
@@ -57,11 +59,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String? selectedUser = userState.currentUser;
     final passwordController = TextEditingController();
     
+    final l10n = AppLocalizations.of(context)!;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Switch User'),
+          title: Text(l10n.switchUser),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -69,10 +72,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 24),
               DropdownButtonFormField<String>(
                 value: selectedUser,
-                decoration: const InputDecoration(
-                  labelText: 'User Profile',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
+                decoration: InputDecoration(
+                  labelText: l10n.currentUser,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.person_outline),
                 ),
                 items: userState.allUsers.map((u) => DropdownMenuItem(
                   value: u.username,
@@ -84,10 +87,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               TextField(
                 controller: passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Vault Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
+                decoration: InputDecoration(
+                  labelText: l10n.vaultPassword,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock_outline),
                 ),
               ),
             ],
@@ -95,11 +98,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Switch User'),
+              child: Text(l10n.switchUser),
             ),
           ],
         ),
@@ -127,10 +130,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final controller = TextEditingController();
     final passwordController = TextEditingController();
     
+    final l10n = AppLocalizations.of(context)!;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Register New User'),
+        title: Text(l10n.registerNewUser),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -139,20 +143,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             TextField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'New Username',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_add_outlined),
+              decoration: InputDecoration(
+                labelText: l10n.newUsername,
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.person_add_outlined),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Vault Password',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock_outline),
+              decoration: InputDecoration(
+                labelText: l10n.vaultPassword,
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.lock_outline),
               ),
             ),
           ],
@@ -160,11 +164,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Register'),
+            child: Text(l10n.register),
           ),
         ],
       ),
@@ -190,24 +194,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final userState = ref.watch(userProvider);
     final username = userState.currentUser ?? 'None';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(l10n.settings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionHeader(title: 'Account'),
+          _SectionHeader(title: l10n.account),
           _SettingsTile(
-            title: 'Current User',
+            title: l10n.currentUser,
             subtitle: 'Logged in as: $username',
             icon: Icons.person_outline,
             colorScheme: cs,
             onTap: _setUsername,
           ),
           _SettingsTile(
-            title: 'User Management',
+            title: l10n.userManagement,
             subtitle: userState.isAdmin ? 'Register or switch users' : 'Admin only',
             icon: Icons.group_outlined,
             colorScheme: cs,
@@ -215,10 +220,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: _addUser,
           ),
           const SizedBox(height: 16),
-          _SectionHeader(title: 'Security'),
+          _SectionHeader(title: l10n.security),
           if (!ref.read(authProvider.notifier).hasPassword())
             _SettingsTile(
-              title: 'Set Password',
+              title: l10n.setPassword,
               subtitle: 'Create a password to lock your journal',
               icon: Icons.lock_outline,
               colorScheme: cs,
@@ -226,7 +231,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             )
           else ...[
             _SettingsTile(
-              title: 'Change Password',
+              title: l10n.changePassword,
               subtitle: 'Update your existing password',
               icon: Icons.lock_reset,
               colorScheme: cs,
@@ -236,7 +241,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               margin: const EdgeInsets.only(bottom: 16),
               child: SwitchListTile(
                 secondary: Icon(Icons.lock_open, color: cs.primary),
-                title: const Text('Lock on Start'),
+                title: Text(l10n.lockOnStart),
                 subtitle: const Text('Require password on app launch'),
                 value: _lockOnStart,
                 onChanged: (v) => setState(() => _lockOnStart = v),
@@ -244,25 +249,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
           const SizedBox(height: 32),
-          _SectionHeader(title: 'General'),
+          _SectionHeader(title: l10n.general),
           _SettingsTile(
-            title: 'Theme',
+            title: l10n.theme,
             subtitle: 'Light / Dark (coming soon)',
             icon: Icons.brightness_6,
             disabled: true,
             colorScheme: cs,
           ),
           _SettingsTile(
-            title: 'Notifications',
+            title: l10n.notifications,
             subtitle: 'Enable reminders (coming soon)',
             icon: Icons.notifications,
             disabled: true,
             colorScheme: cs,
           ),
           const SizedBox(height: 32),
-          _SectionHeader(title: 'Sync'),
+          _SectionHeader(title: l10n.sync),
           _SettingsTile(
-            title: 'Sync Settings',
+            title: l10n.syncSettings,
             subtitle: 'Configure local sync directory',
             icon: Icons.sync,
             colorScheme: cs,
@@ -274,9 +279,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          _SectionHeader(title: 'Data'),
+          _SectionHeader(title: l10n.data),
           _SettingsTile(
-            title: 'Export / Import',
+            title: l10n.exportImport,
             subtitle: 'Backup or restore your entries',
             icon: Icons.transfer_within_a_station,
             colorScheme: cs,
@@ -288,7 +293,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           _SettingsTile(
-            title: 'Import from Stoic',
+            title: l10n.importStoic,
             subtitle: 'Import entries from a Stoic iOS export',
             icon: Icons.auto_stories,
             colorScheme: cs,
@@ -300,16 +305,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          _SectionHeader(title: 'Advanced'),
+          _SectionHeader(title: l10n.advanced),
           _SettingsTile(
-            title: 'Developer Mode',
+            title: l10n.developerMode,
             subtitle: 'Show debug tools',
             icon: Icons.developer_mode,
             disabled: true,
             colorScheme: cs,
           ),
           _SettingsTile(
-            title: 'Reset App',
+            title: l10n.resetApp,
             subtitle: 'Clear all data (coming soon)',
             icon: Icons.delete_forever,
             disabled: true,

@@ -40,7 +40,7 @@ From encrypted journaling engine to a full localized productivity platform — c
 
 ---
 
-## Phase 1b — SQLite Migration
+## Phase 1b — SQLite Migration ✅
 
 Replace bincode serialization with SQLite as the single storage backend. Combines persistent storage, search, and metadata filtering into one engine.
 
@@ -114,7 +114,7 @@ Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs,
 
 ---
 
-## Phase 2 — Feature Modules
+## Phase 2 — Feature Modules ✅
 
 ### 2a: Journaling refinements
 
@@ -182,7 +182,7 @@ Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs,
 
 ---
 
-## Phase 3 — State Management and UI Redesign
+## Phase 3 — State Management and UI Redesign ✅
 
 ### State layer
 
@@ -224,7 +224,7 @@ Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs,
 
 ---
 
-## Phase 4 — Plugin System Wiring
+## Phase 4 — Plugin System Wiring ✅
 
 ### Current state
 
@@ -254,7 +254,7 @@ Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs,
 
 ---
 
-## Phase 5 — Authentication and Multi-Entry Support
+## Phase 5 — Authentication and Multi-Entry Support (v2.2.3 partial) ✅
 
 ### Session management
 
@@ -265,6 +265,7 @@ Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs,
 - **Existing FFI signatures unchanged** — `lumen_add_entry` and `lumen_decrypt_entry` still accept a `password` param. If a session key is active, the password param is ignored and the session key is used instead. This maintains backward compatibility while enabling the auto-unlock flow.
 - **`ui/lib/screens/lock_screen.dart`** — full-screen password prompt on app launch. "Lock" button in sidebar to re-lock.
 - **`ui/lib/core/services/auth_service.dart`** — wraps unlock/lock, exposes `isUnlocked` state to Riverpod.
+- **User profiles** — Multi-author support with Admin/Member permissions and password-protected user switching.
 
 ### Multiple vaults
 
@@ -272,15 +273,16 @@ Unchanged:  chrono, serde, serde_json, rand, aes-gcm, argon2, lazy_static, dirs,
 - **Vault config** — `~/.lumen/<vault>/config.toml` stores settings (theme preference, last-active section).
 - **`ui/lib/widgets/vault_switcher.dart`** — dropdown at top of sidebar. "New Vault" button beside it.
 
-### Biometric unlock
+### Biometric unlock (Deferred)
 
 - **`ui/lib/core/services/biometric_service.dart`** — uses `local_auth` Flutter package for platform biometric prompt (Windows Hello, macOS Touch ID, Linux `libsecret`/`pam`).
 - On first unlock, store a keychain entry that returns the Argon2-derived key after biometric verification.
 - On subsequent launches, biometric prompt retrieves the session key from the keychain. If unavailable, fall back to password prompt.
+- **Status**: Postponed for future security hardening pass.
 
 ---
 
-## Phase 6 — Sync (Local SQLite)
+## Phase 6 — Sync (Local SQLite - Manual) ✅
 
 ### Architecture
 
@@ -298,13 +300,13 @@ Sync is fully local (no cloud). Data is copied between SQLite databases on remov
   - `push` — copies entries from primary DB to sync DB (INSERT OR REPLACE).
   - `pull` — copies entries from sync DB into primary DB.
   - `resolve` — last-writer-wins by `provenance.timestamp`. Stores conflicting versions in a `conflicts` table.
-- **Frequency** — on every entry create/edit (debounced 30s), or on manual "Sync Now". No background daemon.
+- **Frequency** — manual "Sync Now" implemented in UI. Auto-sync (debounced 30s) deferred.
 - **`ui/lib/screens/sync_settings_screen.dart`** — configure sync directory path, "Sync Now" button, conflict list UI.
 - **Conflict UI** — list of conflicted entries showing local vs remote. User can accept local, accept remote, or view both.
 
 ---
 
-## Phase 7 — Localization
+## Phase 7 — Localization ✅
 
 - **`ui/pubspec.yaml`** — add `flutter_localizations` (sdk).
 - **`ui/lib/l10n/`** — `app_en.arb`, `app_es.arb`, `app_fr.arb` with extracted strings.
@@ -313,7 +315,7 @@ Sync is fully local (no cloud). Data is copied between SQLite databases on remov
 
 ---
 
-## TUI
+## TUI ✅
 
 Expand `tui/lumen_tui.rs` from welcome-message stub to a read-only terminal client:
 
@@ -325,7 +327,7 @@ Expand `tui/lumen_tui.rs` from welcome-message stub to a read-only terminal clie
 
 ---
 
-## Build and Distribution
+## Build and Distribution (v2.2.3) ✅
 
 ### Linux
 
@@ -352,7 +354,7 @@ Expand `tui/lumen_tui.rs` from welcome-message stub to a read-only terminal clie
 
 ---
 
-## Testing Strategy
+## Testing Strategy ✅
 
 ### Rust core
 

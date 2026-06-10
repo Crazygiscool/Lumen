@@ -28,7 +28,7 @@ fi
 
 echo ""
 echo "=== Step 1: Build Rust core ==="
-cargo build --release --target "$TARGET" --manifest-path "$CORE_DIR/Cargo.toml"
+cargo build --release --locked --target "$TARGET" --manifest-path "$CORE_DIR/Cargo.toml"
 
 echo ""
 echo "=== Step 2: Copy lumen_core.dll into Flutter windows/lib ==="

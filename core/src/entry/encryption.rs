@@ -36,3 +36,38 @@ pub fn decrypt(ciphertext: &[u8], nonce: &[u8], key: &[u8; 32]) -> Result<Vec<u8
         Err(_) => Err("Decryption failed".into()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_encryption_roundtrip(s in "\\PC*") {
+            let password = "test_password";
+            let salt: [u8; 16] = [0u8; 16];
+            let key = derive_key(password, &salt);
+
+            let data = s.as_bytes();
+            let (encrypted, nonce) = encrypt(data, &key);
+            let decrypted = decrypt(&encrypted, &nonce, &key).unwrap();
+
+            prop_assert_eq!(data, &decrypted[..]);
+        }
+
+        #[test]
+        fn test_encryption_fails_with_wrong_password(s in "\\PC*", pw1 in "\\PC*", pw2 in "\\PC*") {
+            prop_assume!(pw1 != pw2);
+            let salt: [u8; 16] = [0u8; 16];
+            let key1 = derive_key(&pw1, &salt);
+            let key2 = derive_key(&pw2, &salt);
+
+            let data = s.as_bytes();
+            let (encrypted, nonce) = encrypt(data, &key1);
+            let decrypted = decrypt(&encrypted, &nonce, &key2);
+
+            prop_assert!(decrypted.is_err());
+        }
+    }
+}
