@@ -15,29 +15,24 @@ echo "Dist:    $DIST_DIR"
 echo "Version: $VERSION"
 
 echo ""
-echo "=== Step 1: Build Rust core ==="
-cargo build --release --locked --manifest-path "$CORE_DIR/Cargo.toml"
+echo "=== Step 1: Build Rust Workspace (Core + TUI) ==="
+cargo build --release --locked
 
 echo ""
-echo "=== Step 2: Build Lumen TUI ==="
-TUI_DIR="$ROOT_DIR/tui"
-cargo build --release --locked --manifest-path "$TUI_DIR/Cargo.toml"
-
-echo ""
-echo "=== Step 3: Build Flutter Linux release ==="
+echo "=== Step 2: Build Flutter Linux release ==="
 cd "$UI_DIR"
 flutter build linux --release
 cd "$ROOT_DIR"
 
 echo ""
-echo "=== Step 4: Copy binaries into Flutter bundle ==="
+echo "=== Step 3: Copy binaries into Flutter bundle ==="
 BUNDLE_DIR="$UI_DIR/build/linux/x64/release/bundle"
 mkdir -p "$BUNDLE_DIR/lib"
-cp "$CORE_DIR/target/release/liblumen_core.so" "$BUNDLE_DIR/lib/"
-cp "$TUI_DIR/target/release/lumen" "$BUNDLE_DIR/lumen-cli"
+cp "$ROOT_DIR/target/release/liblumen_core.so" "$BUNDLE_DIR/lib/"
+cp "$ROOT_DIR/target/release/lumen" "$BUNDLE_DIR/lumen-cli"
 
 echo ""
-echo "=== Step 5: Package bundle into tarball ==="
+echo "=== Step 4: Package bundle into tarball ==="
 mkdir -p "$DIST_DIR"
 
 TAR_NAME="Lumen-linux-v${VERSION}.tar.gz"

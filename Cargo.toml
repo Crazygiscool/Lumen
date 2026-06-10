@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "core",
+    "tui",
+]
+
+[workspace.package]
+version = "2.2.3"
+authors = ["crazygiscool"]
+edition = "2021"
+license = "custom"

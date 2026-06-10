@@ -27,34 +27,24 @@ if [ ! -d "$UI_DIR/windows" ]; then
 fi
 
 echo ""
-echo "=== Step 1: Build Rust core ==="
-cargo build --release --locked --target "$TARGET" --manifest-path "$CORE_DIR/Cargo.toml"
+echo "=== Step 1: Build Rust Workspace (Core + TUI) ==="
+cargo build --release --locked --target "$TARGET"
 
 echo ""
-echo "=== Step 2: Copy lumen_core.dll into Flutter windows/lib ==="
-mkdir -p "$UI_DIR/windows/lib"
-cp "$CORE_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
-
-echo ""
-echo "=== Step 2: Build Lumen TUI ==="
-TUI_DIR="$ROOT_DIR/tui"
-cargo build --release --locked --target "$TARGET" --manifest-path "$TUI_DIR/Cargo.toml"
-
-echo ""
-echo "=== Step 3: Build Flutter Windows release ==="
+echo "=== Step 2: Build Flutter Windows release ==="
 cd "$UI_DIR"
 flutter build windows --release
 cd "$ROOT_DIR"
 
 echo ""
-echo "=== Step 4: Copy binaries into Flutter bundle ==="
+echo "=== Step 3: Copy binaries into Flutter bundle ==="
 BUNDLE_DIR="$UI_DIR/build/windows/runner/release"
 mkdir -p "$UI_DIR/windows/lib"
-cp "$CORE_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
-cp "$TUI_DIR/target/$TARGET/release/lumen.exe" "$BUNDLE_DIR/lumen-cli.exe"
+cp "$ROOT_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
+cp "$ROOT_DIR/target/$TARGET/release/lumen.exe" "$BUNDLE_DIR/lumen-cli.exe"
 
 echo ""
-echo "=== Step 5: Package bundle into zip ==="
+echo "=== Step 4: Package bundle into zip ==="
 mkdir -p "$DIST_DIR"
 
 BUNDLE_DIR="$UI_DIR/build/windows/runner/release"
