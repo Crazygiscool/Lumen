@@ -30,4 +30,8 @@ else
     echo "Warning: 'makepkg' not found, .SRCINFO not updated."
 fi
 
+# 5. Update Cargo.lock
+echo "Updating Cargo.lock..."
+cargo update --workspace
+
 echo "Version bumped to $NEW_VER"
