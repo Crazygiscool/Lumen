@@ -53,75 +53,138 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _setUsername() async {
-    final currentUsername = ref.read(userProvider).currentUser;
-    final controller = TextEditingController(text: currentUsername);
-    final username = await showDialog<String>(
+    final userState = ref.read(userProvider);
+    String? selectedUser = userState.currentUser;
+    final passwordController = TextEditingController();
+    
+    final result = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Change Current User'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'New Username',
-            border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Switch User'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Select a registered user profile and enter vault password to switch.'),
+              const SizedBox(height: 24),
+              DropdownButtonFormField<String>(
+                value: selectedUser,
+                decoration: const InputDecoration(
+                  labelText: 'User Profile',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+                items: userState.allUsers.map((u) => DropdownMenuItem(
+                  value: u,
+                  child: Text(u),
+                )).toList(),
+                onChanged: (v) => setDialogState(() => selectedUser = v),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Vault Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Switch User'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Change'),
-          ),
-        ],
       ),
     );
-    if (username == null || username.trim().isEmpty) return;
 
-    ref.read(userProvider.notifier).setUsername(username.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Current User updated')),
-    );
-    setState(() {});
+    if (result == true && selectedUser != null) {
+      final ok = ref.read(authProvider.notifier).unlock(passwordController.text.trim());
+      if (ok) {
+        await ref.read(userProvider.notifier).setUsername(selectedUser!);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Switched to user: $selectedUser')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid password. Switch failed.')),
+        );
+      }
+    }
   }
 
   Future<void> _addUser() async {
     final controller = TextEditingController();
-    final username = await showDialog<String>(
+    final passwordController = TextEditingController();
+    
+    final result = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add New User'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Username',
-            border: OutlineInputBorder(),
-          ),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Register New User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Add a new author profile to this vault. Requires vault password.'),
+            const SizedBox(height: 24),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'New Username',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person_add_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Vault Password',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Add'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Register'),
           ),
         ],
       ),
     );
-    if (username == null || username.trim().isEmpty) return;
 
-    await ref.read(userProvider.notifier).addUser(username.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('New user registered')),
-    );
-    setState(() {});
+    if (result == true && controller.text.trim().isNotEmpty) {
+      final ok = ref.read(authProvider.notifier).unlock(passwordController.text.trim());
+      if (ok) {
+        await ref.read(userProvider.notifier).addUser(controller.text.trim());
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('New user registered')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid password. Registration failed.')),
+        );
+      }
+    }
   }
 
   @override
