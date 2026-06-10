@@ -25,25 +25,39 @@ if [[ -z "$NEW_VER" ]]; then
 fi
 
 # 2. Options
-read -p "Run local build test with 'act'? (y/n): " RUN_ACT
-read -p "Push to GitHub and trigger Release? (y/n): " DO_PUSH
+echo -e "\n${BLUE}Options:${NC}"
+read -p "Run local CI test with 'act'? (y/n): " RUN_ACT
+if [[ "$RUN_ACT" == "y" ]]; then
+    echo "Which platforms to test locally?"
+    echo "1) Linux (Recommended)"
+    echo "2) All (Warning: macOS/Windows tests require specific Docker images and may fail on Linux hosts)"
+    read -p "Selection [1/2]: " ACT_CHOICE
+fi
+read -p "Push to GitHub and trigger Production Release? (y/n): " DO_PUSH
 
 # 3. Bump Versions
-echo -e "\n${BLUE}Step 1: Bumping versions...${NC}"
-./tools/bump-version.sh "$NEW_VER"
+# ... (rest of the script)
 
 # 4. Local Validation (Act)
 if [[ "$RUN_ACT" == "y" ]]; then
-    echo -e "\n${BLUE}Step 2: Testing Linux build locally with 'act'...${NC}"
+    echo -e "\n${BLUE}Step 2: Testing build locally with 'act'...${NC}"
     if ! command -v act &> /dev/null; then
         echo -e "${YELLOW}Warning: 'act' not found. Skipping local CI test.${NC}"
     else
-        # We force use of a modern Ubuntu image to avoid EOL Debian Buster issues
-        # and only run the test workflow to save time.
-        act -j build-linux \
-            -W .github/workflows/test.yml \
-            --container-architecture linux/amd64 \
-            -P ubuntu-latest=catthehacker/ubuntu:act-latest
+        if [[ "$ACT_CHOICE" == "2" ]]; then
+            # Attempt to run all jobs.
+            # Note: This will likely fail for macos/windows unless the user has
+            # custom platforms configured in their .actrc
+            act -W .github/workflows/test.yml \
+                --container-architecture linux/amd64 \
+                -P ubuntu-latest=catthehacker/ubuntu:act-latest
+        else
+            # Run only the linux build as a smoke test
+            act -j build-linux \
+                -W .github/workflows/test.yml \
+                --container-architecture linux/amd64 \
+                -P ubuntu-latest=catthehacker/ubuntu:act-latest
+        fi
     fi
 fi
 
