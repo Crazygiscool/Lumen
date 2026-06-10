@@ -11,15 +11,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Install Linux Dependencies
+        run: |
+          if command -v sudo >/dev/null; then
+            SUDO="sudo"
+          else
+            SUDO=""
+          fi
+          $SUDO apt-get update
+          $SUDO apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsecret-1-dev
+
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
+          
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
       - name: Build
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_linux.sh
+          
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -33,6 +50,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Build
@@ -52,11 +70,14 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
       - name: Build
+        shell: bash
         run: |
-          # No chmod needed for Windows but doesn't hurt if using Git Bash
           ./scripts/build_windows.sh
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -83,3 +104,20 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-aur:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Publish AUR package
+        uses: KSXPC/aur-deploy@v3
+        with:
+          pkgname: lumen-journal
+          pkgbuild: ./lumen-journal/PKGBUILD
+          commit_username: ${{ github.actor }}
+          commit_email: ${{ github.actor }}@users.noreply.github.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to v${{ github.ref_name }}"

@@ -6,7 +6,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.2.3"
+version = "2.3.1"
 authors = ["crazygiscool"]
 edition = "2021"
 license = "custom"
