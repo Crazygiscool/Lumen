@@ -13,7 +13,7 @@ class SetupScreen extends ConsumerStatefulWidget {
 class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
-  final _authorCtrl = TextEditingController(text: 'me');
+  final _authorCtrl = TextEditingController(text: 'Admin');
   int _step = 0;
 
   @override

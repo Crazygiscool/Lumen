@@ -49,7 +49,7 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     // Auto-fill author with current user if it's a new entry
     final userState = ref.read(userProvider);
     _authorController = TextEditingController(
-      text: widget.entryToEdit?.provenance.author ?? userState.currentUser,
+      text: widget.entryToEdit?.provenance.author ?? userState.currentUser ?? '',
     );
 
     _passwordController = TextEditingController();
@@ -327,15 +327,15 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: userState.allUsers.contains(_authorController.text) ? _authorController.text : null,
+                      value: userState.allUsers.any((u) => u.username == _authorController.text) ? _authorController.text : null,
                       decoration: InputDecoration(
                         labelText: "Author",
                         prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       items: userState.allUsers.map((u) => DropdownMenuItem(
-                        value: u,
-                        child: Text(u),
+                        value: u.username,
+                        child: Text(u.username),
                       )).toList(),
                       onChanged: (v) {
                         if (v != null) setState(() => _authorController.text = v);

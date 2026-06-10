@@ -22,7 +22,7 @@ class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
     super.initState();
     _bodyController = TextEditingController();
     final userState = ref.read(userProvider);
-    _authorController = TextEditingController(text: userState.currentUser);
+    _authorController = TextEditingController(text: userState.currentUser ?? '');
     _passwordController = TextEditingController();
   }
 
@@ -89,15 +89,15 @@ class _QuickNoteScreenState extends ConsumerState<QuickNoteScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: userState.allUsers.contains(_authorController.text) ? _authorController.text : null,
+                  value: userState.allUsers.any((u) => u.username == _authorController.text) ? _authorController.text : null,
                   decoration: const InputDecoration(
                     labelText: 'Author',
                     isDense: true,
                     prefixIcon: Icon(Icons.person_outline, size: 20),
                   ),
                   items: userState.allUsers.map((u) => DropdownMenuItem(
-                    value: u,
-                    child: Text(u),
+                    value: u.username,
+                    child: Text(u.username),
                   )).toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _authorController.text = v);

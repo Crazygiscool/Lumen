@@ -108,9 +108,9 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                       ),
                       const SizedBox(height: 48),
                       DropdownButtonFormField<String>(
-                        value: userState.allUsers.contains(_selectedUser) 
+                        value: userState.allUsers.any((u) => u.username == _selectedUser) 
                             ? _selectedUser 
-                            : (userState.allUsers.isNotEmpty ? userState.allUsers.first : null),
+                            : (userState.allUsers.isNotEmpty ? userState.allUsers.first.username : null),
                         decoration: InputDecoration(
                           labelText: 'Select User',
                           prefixIcon: const Icon(Icons.person_outline),
@@ -119,8 +119,16 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                           fillColor: cs.surface,
                         ),
                         items: userState.allUsers.map((u) => DropdownMenuItem(
-                          value: u,
-                          child: Text(u),
+                          value: u.username,
+                          child: Row(
+                            children: [
+                              Text(u.username),
+                              if (u.role == UserRole.admin) ...[
+                                const SizedBox(width: 8),
+                                Icon(Icons.verified_user, size: 14, color: cs.primary),
+                              ],
+                            ],
+                          ),
                         )).toList(),
                         onChanged: (val) {
                           setState(() => _selectedUser = val);

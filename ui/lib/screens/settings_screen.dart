@@ -75,8 +75,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   prefixIcon: Icon(Icons.person_outline),
                 ),
                 items: userState.allUsers.map((u) => DropdownMenuItem(
-                  value: u,
-                  child: Text(u),
+                  value: u.username,
+                  child: Text(u.username),
                 )).toList(),
                 onChanged: (v) => setDialogState(() => selectedUser = v),
               ),
@@ -208,9 +208,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _SettingsTile(
             title: 'User Management',
-            subtitle: 'Register or switch users',
+            subtitle: userState.isAdmin ? 'Register or switch users' : 'Admin only',
             icon: Icons.group_outlined,
             colorScheme: cs,
+            disabled: !userState.isAdmin,
             onTap: _addUser,
           ),
           const SizedBox(height: 16),
