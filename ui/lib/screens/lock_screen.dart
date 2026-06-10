@@ -108,7 +108,9 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                       ),
                       const SizedBox(height: 48),
                       DropdownButtonFormField<String>(
-                        value: _selectedUser,
+                        value: userState.allUsers.contains(_selectedUser) 
+                            ? _selectedUser 
+                            : (userState.allUsers.isNotEmpty ? userState.allUsers.first : null),
                         decoration: InputDecoration(
                           labelText: 'Select User',
                           prefixIcon: const Icon(Icons.person_outline),
@@ -119,27 +121,9 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                         items: userState.allUsers.map((u) => DropdownMenuItem(
                           value: u,
                           child: Text(u),
-                        )).toList() + [
-                          const DropdownMenuItem(
-                            value: '_new_',
-                            child: Text('+ Add New User'),
-                          )
-                        ],
-                        onChanged: (val) async {
-                          if (val == '_new_') {
-                            final newUser = await _promptNewUser(context);
-                            if (newUser != null && newUser.isNotEmpty) {
-                              setState(() {
-                                _selectedUser = newUser;
-                              });
-                            } else {
-                              setState(() {
-                                _selectedUser = userState.currentUser;
-                              });
-                            }
-                          } else {
-                            setState(() => _selectedUser = val);
-                          }
+                        )).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedUser = val);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -212,34 +196,6 @@ class _LockScreenState extends ConsumerState<LockScreen> {
               right: 0,
               child: LinearProgressIndicator(),
             ),
-        ],
-      ),
-    );
-  }
-
-  Future<String?> _promptNewUser(BuildContext context) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add New User'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Username',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Add'),
-          ),
         ],
       ),
     );

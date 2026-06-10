@@ -115,7 +115,7 @@ class _StoicImportScreenState extends ConsumerState<StoicImportScreen> {
           children: [
             Card(
               child: DropdownButtonFormField<String>(
-                value: _importUser,
+                value: userState.allUsers.contains(_importUser) ? _importUser : null,
                 decoration: InputDecoration(
                   labelText: 'Import as User',
                   prefixIcon: const Icon(Icons.person_outline),

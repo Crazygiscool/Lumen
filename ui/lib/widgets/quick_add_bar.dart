@@ -23,8 +23,8 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
   @override
   void initState() {
     super.initState();
-    final masterUsername = ref.read(userProvider);
-    _authorController = TextEditingController(text: masterUsername);
+    final userState = ref.read(userProvider);
+    _authorController = TextEditingController(text: userState.currentUser);
   }
 
   void _submit() async {

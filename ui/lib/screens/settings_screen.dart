@@ -53,14 +53,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _setUsername() async {
-    final currentUsername = ref.read(userProvider);
+    final currentUsername = ref.read(userProvider).currentUser;
     final controller = TextEditingController(text: currentUsername);
     final username = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Set Master Username'),
+        title: const Text('Change Current User'),
         content: TextField(
           controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'New Username',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Change'),
+          ),
+        ],
+      ),
+    );
+    if (username == null || username.trim().isEmpty) return;
+
+    ref.read(userProvider.notifier).setUsername(username.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Current User updated')),
+    );
+    setState(() {});
+  }
+
+  Future<void> _addUser() async {
+    final controller = TextEditingController();
+    final username = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add New User'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
           decoration: const InputDecoration(
             labelText: 'Username',
             border: OutlineInputBorder(),
@@ -73,17 +109,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
+            child: const Text('Add'),
           ),
         ],
       ),
     );
     if (username == null || username.trim().isEmpty) return;
 
-    ref.read(userProvider.notifier).setUsername(username.trim());
+    await ref.read(userProvider.notifier).addUser(username.trim());
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Master Username updated')),
+      const SnackBar(content: Text('New user registered')),
     );
     setState(() {});
   }
@@ -91,7 +127,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final username = ref.watch(userProvider);
+    final userState = ref.watch(userProvider);
+    final username = userState.currentUser;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -100,11 +137,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           _SectionHeader(title: 'Account'),
           _SettingsTile(
-            title: 'Master Username',
-            subtitle: 'Default author for new entries: $username',
+            title: 'Current User',
+            subtitle: 'Logged in as: $username',
             icon: Icons.person_outline,
             colorScheme: cs,
             onTap: _setUsername,
+          ),
+          _SettingsTile(
+            title: 'User Management',
+            subtitle: 'Register or switch users',
+            icon: Icons.group_outlined,
+            colorScheme: cs,
+            onTap: _addUser,
           ),
           const SizedBox(height: 16),
           _SectionHeader(title: 'Security'),

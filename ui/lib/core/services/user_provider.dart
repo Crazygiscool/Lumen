@@ -49,6 +49,16 @@ class UserNotifier extends Notifier<UserState> {
     
     state = state.copyWith(currentUser: username, allUsers: updatedAll);
   }
+
+  Future<void> addUser(String username) async {
+    List<String> updatedAll = List.from(state.allUsers);
+    if (!updatedAll.contains(username)) {
+      updatedAll.add(username);
+      state = state.copyWith(allUsers: updatedAll);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('all_users', updatedAll);
+    }
+  }
   
   void updateAvailableUsers(List<String> users) {
     List<String> updatedAll = List.from(state.allUsers);
