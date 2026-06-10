@@ -32,6 +32,7 @@ cp "$ROOT_DIR/target/release/liblumen_core.dylib" "$MACOS_RUNNER_DIR/"
 echo ""
 echo "=== Step 3: Build Flutter macOS release ==="
 cd "$UI_DIR"
+flutter config --enable-macos-desktop
 flutter build macos --release
 
 echo ""

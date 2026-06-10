@@ -33,6 +33,7 @@ cargo build --release --locked --target "$TARGET"
 echo ""
 echo "=== Step 2: Build Flutter Windows release ==="
 cd "$UI_DIR"
+flutter config --enable-windows-desktop
 flutter build windows --release
 cd "$ROOT_DIR"
 

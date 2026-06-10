@@ -21,6 +21,7 @@ cargo build --release --locked
 echo ""
 echo "=== Step 2: Build Flutter Linux release ==="
 cd "$UI_DIR"
+flutter config --enable-linux-desktop
 flutter build linux --release
 cd "$ROOT_DIR"
 
