@@ -3,6 +3,5 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/lumen-journal" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/lumen-journal/src/lumen-journal" vcs="Git" />
   </component>
 </project>
