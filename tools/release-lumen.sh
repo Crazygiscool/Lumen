@@ -48,10 +48,10 @@ if [[ "$RUN_ACT" == "y" ]]; then
         if [[ "$ACT_CHOICE" == "2" ]]; then
             # We map macos/windows to Linux because you cannot run native macos/windows containers on Linux.
             # This is a 'smoke test' to verify script logic and cross-compilation.
-            act -W .github/workflows/test.yml --container-architecture linux/amd64 -P ubuntu-latest=catthehacker/ubuntu:act-latest -P macos-latest=catthehacker/ubuntu:act-latest -P windows-latest=catthehacker/ubuntu:act-latest
+            act -W .github/workflows/test.yml --no-gitignore --container-architecture linux/amd64 -P ubuntu-latest=catthehacker/ubuntu:act-latest -P macos-latest=catthehacker/ubuntu:act-latest -P windows-latest=catthehacker/ubuntu:act-latest
         else
             # Run only the linux build as a smoke test
-            act -j build-linux -W .github/workflows/test.yml --container-architecture linux/amd64 -P ubuntu-latest=catthehacker/ubuntu:act-latest
+            act -j build-linux -W .github/workflows/test.yml --no-gitignore --container-architecture linux/amd64 -P ubuntu-latest=catthehacker/ubuntu:act-latest
         fi
     fi
 fi

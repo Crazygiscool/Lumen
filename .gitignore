@@ -8,14 +8,10 @@ target
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
-pubspec.lock
 build/
 ios/
 android/
 web/
-macos/
-windows/
-test/
 coverage/
 # VS Code settings
 .vscode/
