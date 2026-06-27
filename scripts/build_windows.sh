@@ -16,7 +16,7 @@ echo "=== Step 1: Rust Check/Build ==="
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo "Notice: Running on Linux. Testing Rust code compatibility for Windows."
     # We use 'check' because 'build' requires the MSVC linker
-    cargo check --workspace --target x86_64-pc-windows-msvc || echo "Warning: Windows target not installed."
+    cargo check --workspace --locked --target x86_64-pc-windows-msvc || echo "Warning: Windows target not installed."
     # Create dummy for script flow
     mkdir -p "target/$TARGET/release"
     touch "target/$TARGET/release/lumen_core.dll"

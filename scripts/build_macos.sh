@@ -15,8 +15,8 @@ echo "Host OS: $(uname)"
 echo ""
 echo "=== Step 1: Rust Check/Build ==="
 if [[ "$OSTYPE" != "darwin"* ]]; then
-    echo "Notice: Not on macOS. Running 'cargo check' as a smoke test."
-    cargo check --workspace
+    echo "Notice: Not on macOS. Running 'cargo check --locked' as a smoke test."
+    cargo check --workspace --locked
     # Create a dummy file so Step 2 doesn't fail during local test
     mkdir -p target/release
     touch target/release/liblumen_core.dylib

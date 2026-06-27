@@ -1,0 +1,11 @@
+name = "example-plugin"
+version = "0.1.0"
+description = "Example Lumen plugin demonstrating the external plugin interface"
+author = "your-name"
+license = "Lumen Non-Commercial License v1.0"
+hooks = ["on_entry", "on_export"]
+
+[build]
+# To build this plugin on Linux:
+#   cargo build --release --lib
+#   cp target/release/libexample_plugin.so ~/.local/share/lumen/plugins/example_plugin/
