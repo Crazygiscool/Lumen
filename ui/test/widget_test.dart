@@ -1,30 +1,67 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:lumen/main.dart';
+import 'package:lumen/utils/theme.dart';
+import 'package:lumen/widgets/status_badge.dart';
+import 'package:lumen/widgets/empty_state.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('Theme', () {
+    test('buildLumenTheme returns dark theme', () {
+      final theme = buildLumenTheme();
+      expect(theme.brightness, Brightness.dark);
+      expect(theme.useMaterial3, true);
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('theme has Geist font family', () {
+      final theme = buildLumenTheme();
+      expect(theme.textTheme.bodyLarge?.fontFamily, 'Geist');
+      expect(theme.textTheme.bodyMedium?.fontFamily, 'Geist');
+      expect(theme.textTheme.displayLarge?.fontFamily, 'Geist');
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('theme has no card elevation', () {
+      final theme = buildLumenTheme();
+      expect(theme.cardTheme.elevation, 0);
+    });
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  group('StatusBadge', () {
+    test('statusColor returns correct colors', () {
+      expect(statusColor('done'), Colors.green);
+      expect(statusColor('in_progress'), Colors.blue);
+      expect(statusColor('todo'), Colors.grey);
+      expect(statusColor('unknown'), Colors.grey);
+    });
+
+    testWidgets('renders a small colored circle', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatusBadge('done', size: 12),
+          ),
+        ),
+      );
+
+      final container = tester.widget<Container>(find.byType(Container));
+      final decoration = container.decoration as BoxDecoration;
+      expect(decoration.color, Colors.green);
+      expect(decoration.shape, BoxShape.circle);
+      expect(container.constraints?.maxWidth, 12);
+    });
+  });
+
+  group('EmptyState', () {
+    testWidgets('displays the provided message', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: EmptyState(message: 'No entries found'),
+          ),
+        ),
+      );
+
+      expect(find.text('No entries found'), findsOneWidget);
+    });
   });
 }

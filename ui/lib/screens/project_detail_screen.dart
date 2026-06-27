@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/journal_entry.dart';
 import '../core/providers.dart';
 import '../utils/frontmatter.dart';
+import '../widgets/gantt_chart.dart';
 import 'board_screen.dart';
 import 'entry_view_screen.dart';
 
@@ -173,6 +174,21 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                         builder: (_) => EntryViewScreen(entry: m)),
                   ),
                 )),
+            const SizedBox(height: 16),
+          ],
+
+          // Gantt chart
+          if (childTasks.any((t) => t.dueDate != null)) ...[
+            Text('Timeline',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: cs.onSurface)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: childTasks.length * 32.0 + 24,
+              child: GanttChart(tasks: childTasks),
+            ),
             const SizedBox(height: 16),
           ],
 

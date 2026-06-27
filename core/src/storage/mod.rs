@@ -130,24 +130,32 @@ impl Storage {
     }
 
     pub fn get_entry(&self, id: &str) -> Result<Option<JournalEntry>, String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, encrypted, nonce, salt, kind, tags, display_title,
-                 pinned, mood, author, timestamp, plugin_origin, feedback, metadata,
-                 priority, status, due_date, parent_project_id, history
-                 FROM entries WHERE id=?1",
-            )
-            .map_err(|e| e.to_string())?;
+        let entry = {
+            let conn = self.conn.lock().map_err(|e| e.to_string())?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, encrypted, nonce, salt, kind, tags, display_title,
+                     pinned, mood, author, timestamp, plugin_origin, feedback, metadata,
+                     priority, status, due_date, parent_project_id, history
+                     FROM entries WHERE id=?1",
+                )
+                .map_err(|e| e.to_string())?;
 
-        let mut rows = stmt.query(params![id]).map_err(|e| e.to_string())?;
-        match rows.next().map_err(|e| e.to_string())? {
-            Some(row) => {
-                let mut entry = row_to_entry(row).map_err(|e| e.to_string())?;
-                entry.assets = self.get_assets_for_entry(&entry.id)?;
-                Ok(Some(entry))
-            },
-            None => Ok(None),
+            let mut rows = stmt.query(params![id]).map_err(|e| e.to_string())?;
+            match rows.next().map_err(|e| e.to_string())? {
+                Some(row) => {
+                    let entry = row_to_entry(row).map_err(|e| e.to_string())?;
+                    Some(entry)
+                },
+                None => None,
+            }
+        };
+
+        if let Some(mut entry) = entry {
+            entry.assets = self.get_assets_for_entry(&entry.id)?;
+            Ok(Some(entry))
+        } else {
+            Ok(None)
         }
     }
 
@@ -558,6 +566,205 @@ pub struct Folder {
     pub name: String,
     pub parent_id: Option<String>,
     pub sort_order: i32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entry::encryption;
+
+    fn test_storage() -> Storage {
+        Storage::new(Path::new(":memory:")).expect("in-memory SQLite")
+    }
+
+    fn make_entry(id: &str, kind: &str, title: &str, author: &str) -> JournalEntry {
+        let salt: [u8; 16] = rand::random();
+        let key = encryption::derive_key("password", &salt);
+        JournalEntry::new(
+            id.to_string(),
+            format!("Body of {}", title),
+            author.to_string(),
+            None,
+            &key,
+            salt.to_vec(),
+            EntryKind::from_str(kind),
+            vec!["test".to_string()],
+            title.to_string(),
+        )
+    }
+
+    #[test]
+    fn test_folder_crud() {
+        let storage = test_storage();
+
+        let id1 = storage.create_folder("Folder A", None).unwrap();
+        let id2 = storage.create_folder("Folder B", None).unwrap();
+        let _child = storage.create_folder("Sub Folder", Some(&id1)).unwrap();
+
+        let folders = storage.list_folders().unwrap();
+        assert_eq!(folders.len(), 3);
+
+        storage.delete_folder(&id2).unwrap();
+        assert_eq!(storage.list_folders().unwrap().len(), 2);
+
+        // Move entry to folder
+        let entry = make_entry("folder-entry", "note", "In Folder", "test");
+        storage.add_entry(&entry).unwrap();
+        storage.move_to_folder("folder-entry", Some(&id1)).unwrap();
+        let fetched = storage.get_entry("folder-entry").unwrap().unwrap();
+        assert_eq!(fetched.parent_project_id, Some(id1));
+    }
+
+    #[test]
+    fn test_pin_toggle() {
+        let storage = test_storage();
+        let entry = make_entry("pin-test", "note", "Pin Me", "test");
+        storage.add_entry(&entry).unwrap();
+
+        let pinned = storage.toggle_pin("pin-test").unwrap();
+        assert!(pinned);
+
+        let unpinned = storage.toggle_pin("pin-test").unwrap();
+        assert!(!unpinned);
+    }
+
+    #[test]
+    fn test_status_and_mood() {
+        let storage = test_storage();
+        let entry = make_entry("status-mood-test", "task", "Test Task", "test");
+        storage.add_entry(&entry).unwrap();
+
+        storage.set_entry_status("status-mood-test", "done").unwrap();
+        let fetched = storage.get_entry("status-mood-test").unwrap().unwrap();
+        assert_eq!(fetched.status, Some("done".to_string()));
+
+        storage.set_entry_mood("status-mood-test", Some("😊")).unwrap();
+        let fetched = storage.get_entry("status-mood-test").unwrap().unwrap();
+        assert_eq!(fetched.mood, Some("😊".to_string()));
+
+        storage.set_entry_mood("status-mood-test", None).unwrap();
+        let fetched = storage.get_entry("status-mood-test").unwrap().unwrap();
+        assert_eq!(fetched.mood, None);
+    }
+
+    #[test]
+    fn test_fts5_basic() {
+        // Test FTS5 with a regular (non-contentless) table
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS test_fts USING fts5(a, b);"
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO test_fts (a, b) VALUES (?1, ?2)",
+            params!["test-1", "the quick brown fox"],
+        ).unwrap();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM test_fts", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1, "Should have 1 row");
+        let mut stmt = conn.prepare("SELECT a FROM test_fts WHERE test_fts MATCH ?1").unwrap();
+        let found: Vec<String> = stmt.query_map(params!["fox"], |row| row.get(0))
+            .unwrap().filter_map(|r| r.ok()).collect();
+        assert_eq!(found.len(), 1, "Should find 'fox', found {found:?}");
+    }
+
+    #[test]
+    fn test_fts5_full_text_search() {
+        let storage = test_storage();
+
+        let salt: [u8; 16] = rand::random();
+        let key = encryption::derive_key("pw", &salt);
+        let entry = JournalEntry::new(
+            "fts-test-1".to_string(),
+            "The quick brown fox jumps over the lazy dog".to_string(),
+            "author1".to_string(),
+            None,
+            &key,
+            salt.to_vec(),
+            EntryKind::Journal,
+            vec!["nature".to_string()],
+            "Fox Story".to_string(),
+        );
+        storage.add_entry(&entry).unwrap();
+
+        storage.index_entry_fts("fts-test-1", "The quick brown fox jumps over the lazy dog", "Fox Story", &["nature".to_string()], "author1").unwrap();
+
+        let results = storage.search_entries_fts("fox").unwrap();
+        assert_eq!(results.len(), 1);
+
+        let results = storage.search_entries_fts("brown").unwrap();
+        assert_eq!(results.len(), 1);
+
+        let results = storage.search_entries_fts("elephant").unwrap();
+        assert_eq!(results.len(), 0);
+
+        // Verify metadata search also works
+        let results = storage.search_entries("Fox Story").unwrap();
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_bulk_import() {
+        let storage = test_storage();
+        let mut entries = Vec::new();
+
+        for i in 0..10 {
+            let salt: [u8; 16] = rand::random();
+            let key = encryption::derive_key("pw", &salt);
+            entries.push(JournalEntry::new(
+                format!("bulk-{}", i),
+                format!("Entry {}", i),
+                "importer".to_string(),
+                None,
+                &key,
+                salt.to_vec(),
+                EntryKind::Note,
+                vec![],
+                format!("Bulk Entry {}", i),
+            ));
+        }
+
+        let count = storage.import_entries(&entries).unwrap();
+        assert_eq!(count, 10);
+        assert_eq!(storage.list_entries().unwrap().len(), 10);
+
+        // Duplicate IDs should be ignored
+        let count = storage.import_entries(&entries).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_update_preserves_fields() {
+        let storage = test_storage();
+
+        let salt: [u8; 16] = rand::random();
+        let key = encryption::derive_key("pw", &salt);
+        let mut entry = JournalEntry::new(
+            "update-test".to_string(),
+            "Original body".to_string(),
+            "author".to_string(),
+            None,
+            &key,
+            salt.to_vec(),
+            EntryKind::Task,
+            vec!["initial".to_string()],
+            "Original Title".to_string(),
+        );
+        entry.priority = Some("high".to_string());
+        entry.due_date = Some("2026-07-01".to_string());
+        storage.add_entry(&entry).unwrap();
+
+        // Update with new title and tags
+        let mut updated = entry.clone();
+        updated.display_title = "Updated Title".to_string();
+        updated.tags = vec!["updated".to_string()];
+        storage.update_entry(&updated).unwrap();
+
+        let fetched = storage.get_entry("update-test").unwrap().unwrap();
+        assert_eq!(fetched.display_title, "Updated Title");
+        assert_eq!(fetched.tags, vec!["updated"]);
+        // Priority and due_date should be preserved
+        assert_eq!(fetched.priority, Some("high".to_string()));
+        assert_eq!(fetched.due_date, Some("2026-07-01".to_string()));
+    }
 }
 
 pub(crate) fn row_to_entry(row: &rusqlite::Row) -> Result<JournalEntry, rusqlite::Error> {

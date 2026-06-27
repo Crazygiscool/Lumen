@@ -32,8 +32,7 @@ pub fn initialize(conn: &Connection) -> Result<(), String> {
             body,
             display_title,
             tags,
-            author,
-            content=''
+            author
         );
 
         CREATE TABLE IF NOT EXISTS entry_assets (

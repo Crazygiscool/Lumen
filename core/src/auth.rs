@@ -86,3 +86,59 @@ pub fn session_key() -> Option<[u8; 32]> {
 pub fn is_unlocked() -> bool {
     SESSION_KEY.lock().map(|s| s.is_some()).unwrap_or(false)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_session_lifecycle() {
+        assert!(!is_unlocked());
+        assert_eq!(session_key(), None);
+
+        // Set password (should auto-unlock)
+        set_password("test_password").unwrap();
+        assert!(is_unlocked());
+        assert!(session_key().is_some());
+
+        // Lock
+        lock();
+        assert!(!is_unlocked());
+        assert_eq!(session_key(), None);
+
+        // Unlock with wrong password
+        assert!(!unlock("wrong_password"));
+        assert!(!is_unlocked());
+
+        // Unlock with correct password
+        assert!(unlock("test_password"));
+        assert!(is_unlocked());
+    }
+
+    #[test]
+    fn test_has_password() {
+        // This writes to the real auth.json, so we test the logic indirectly
+        // by verifying the auth_path() and has_password() are consistent
+        let path = auth_path();
+        if path.exists() {
+            assert!(has_password());
+        }
+    }
+
+    #[test]
+    fn test_key_derivation_consistency() {
+        let password = "consistent_test_password";
+        let salt: [u8; 16] = rand::random();
+        let key1 = encryption::derive_key(password, &salt);
+        let key2 = encryption::derive_key(password, &salt);
+        assert_eq!(key1, key2);
+    }
+
+    #[test]
+    fn test_different_passwords_different_keys() {
+        let salt: [u8; 16] = rand::random();
+        let key1 = encryption::derive_key("password_a", &salt);
+        let key2 = encryption::derive_key("password_b", &salt);
+        assert_ne!(key1, key2);
+    }
+}

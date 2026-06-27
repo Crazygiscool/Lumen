@@ -1,44 +1,53 @@
-# 🔌 Lumen Plugin System(not implemented yet)
+# Lumen Plugin System
 
 Lumen supports a modular plugin architecture designed for privacy-first journaling, expressive feedback, and provenance tracking. This document outlines how to build, register, and integrate plugins into the Lumen ecosystem.
 
 ---
 
-## 🧠 Philosophy
+## Philosophy
 
 Plugins are treated as expressive companions—not just utilities. Each plugin should:
 
-- Respect Lumen’s **offline-first**, **encrypted**, and **non-commercial** principles.
+- Respect Lumen's **offline-first**, **encrypted**, and **non-commercial** principles.
 - Be **modular**, with clear lifecycle hooks and minimal side effects.
 - Provide **emotionally intelligent feedback** or expressive UX enhancements.
 - Support **per-entry provenance**, including plugin name, version, and timestamp.
 
 ---
 
-## 📦 Plugin Manifest
+## Implementation Status
 
-Every plugin must include a `plugin.toml` manifest with the following fields:
+The plugin system is implemented in the Rust core (`core/src/plugins/`) and supports:
+
+- **Built-in plugins** — compiled directly into the core library (Export Markdown, Daily Summary, Word Count Tracker)
+- **External plugins** — loaded dynamically at runtime via `libloading` from `~/.local/share/lumen/plugins/`
+- **Plugin manifest** — `plugin.toml` files parsed via `serde`/`toml`
+- **Lifecycle hooks** — `on_entry` and `on_export` methods
+
+---
+
+## Plugin Manifest
+
+Every external plugin must include a `plugin.toml` manifest with the following fields in its plugin directory:
 
 ```toml
-name = "lumen"
-version = "0.3.1"
-description = "AI-powered feedback engine for journal entries"
-author = "crazygiscool"
+name = "my-plugin"
+version = "0.1.0"
+description = "Description of what my plugin does"
+author = "your-name"
 license = "Lumen Non-Commercial License v1.0"
-entrypoint = "lumen_plugin.rs"
 hooks = ["on_entry", "on_export"]
 ```
 
 Optional fields:
 
 ```toml
-tags = ["feedback", "ai", "expressive"]
-config_ui = "lumen_config.dart"  # Flutter config panel
+tags = ["feedback", "expressive"]
 ```
 
 ---
 
-## 🔁 Lifecycle Hooks
+## Lifecycle Hooks
 
 Plugins may implement any of the following hooks:
 
@@ -54,19 +63,47 @@ Each hook receives a structured payload with metadata, encrypted content, and pr
 
 ---
 
-## 🧪 Example: Feedback Plugin
+## Built-in Plugins
+
+Three built-in plugins ship with Lumen:
+
+- **Export Markdown** (`export_md`) — generates Markdown-formatted output for entry export
+- **Daily Summary** (`daily_summary`) — logs daily entry summaries via the `on_entry` hook
+- **Word Count Tracker** (`wordcount`) — estimates word count from encrypted body length
+
+---
+
+## External Plugins
+
+External plugins are loaded at runtime from `~/.local/share/lumen/plugins/`. Each plugin is a subdirectory containing:
+
+1. A `plugin.toml` manifest
+2. A shared library (`lib<name>.so` on Linux, `lib<name>.dylib` on macOS)
+
+The shared library must expose a C ABI function:
+
+```c
+char* lumen_plugin_on_entry(const char* entry_id);
+```
+
+Returns a feedback string, or NULL if no feedback. The caller frees the returned string.
+
+---
+
+## Plugin Trait (Rust)
+
+Built-in plugins implement the `Plugin` trait:
 
 ```rust
-fn on_entry(entry: JournalEntry, ctx: PluginContext) -> PluginResult {
-    let feedback = analyze_sentiment(&entry.text);
-    let annotation = format!("Lumen says: {}", feedback.summary);
-    Ok(entry.with_annotation(annotation))
+pub trait Plugin {
+    fn on_entry(&self, entry: &JournalEntry) -> Option<String>;
+    fn on_export(&self, entry: &JournalEntry) -> Option<Vec<u8>>;
 }
 ```
 
 ---
 
-## 🧩 Plugin Registry (Coming Soon)
+## Plugin Registry (Coming Soon)
 
 We plan to launch a **Plugin Registry** for community-built plugins. All submissions must:
 
@@ -76,39 +113,25 @@ We plan to launch a **Plugin Registry** for community-built plugins. All submiss
 
 ---
 
-## 🛡️ Security & Privacy
+## Security & Privacy
 
-Plugins run in a sandboxed environment. They must:
-
-- Never transmit data externally
-- Respect encryption boundaries
+- Built-in plugins run in-process and have access to decrypted content
+- External plugins are loaded via `libloading` and **share the process address space** — there is no Wasm sandbox yet. Audit external plugins manually
+- Plugins must never transmit data externally
+- Plugins must respect encryption boundaries
 - Avoid persistent logging unless explicitly configured
 
 ---
 
-## 🧠 Expressive UX
-
-Plugins may include optional config panels (`config_ui`) written in Flutter. These should:
-
-- Be minimal and intuitive
-- Use emotionally intelligent copy
-- Avoid clutter or log spam
-
----
-
-## 🧾 Contribution Guidelines
+## Contribution Guidelines
 
 To contribute a plugin:
 
-1. Fork the [Lumen Plugin Template](we are not there yet, wait for a bit)
-2. Build your plugin with clear lifecycle hooks
-3. Submit a pull request with your `plugin.toml` and source files
+1. Build your plugin using the Plugin trait or shared library ABI
+2. Include a `plugin.toml` and source files
+3. Submit a pull request with documentation
 4. Include a README with usage, philosophy, and provenance notes
 
 ---
 
-## 💬 Questions?
-
-Reach out via [Discussions](https://github.com/crazygiscool/lumen/discussions) or email **crazygiscool** directly.
-
-Let’s build plugins that listen, reflect, and evolve.
+Let's build plugins that listen, reflect, and evolve.

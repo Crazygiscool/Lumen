@@ -1,83 +1,95 @@
-# 🏗️ Lumen Architecture Overview
+# Lumen Architecture Overview
 
-Lumen is a modular, encrypted journaling engine built with a Rust core and Flutter UI. It’s designed for privacy-first workflows, plugin extensibility, and expressive feedback. This document outlines the file structure and architectural principles that guide Lumen’s development.
+Lumen is a modular, encrypted journaling engine built with a Rust core and Flutter UI. It's designed for privacy-first workflows, plugin extensibility, and expressive feedback. This document outlines the file structure and architectural principles that guide Lumen's development.
 
 ---
 
-## 📁 File Structure
+## File Structure
 
 ```txt
 lumen/
 ├── core/                  # Rust journaling engine
 │   ├── entry/             # Journal entry structs, encryption, provenance
-│   ├── storage/           # Local-first storage, sync adapters
-│   ├── plugins/           # Plugin runtime, lifecycle hooks
-│   ├── feedback/          # AI feedback engines (e.g. GEORGE)
+│   ├── storage/           # SQLite storage, schema, migrations
+│   ├── plugins/           # Plugin runtime, lifecycle hooks, builtin plugins
+│   ├── sync/              # Local SQLite sync backend
+│   ├── auth.rs            # Session manager, password hashing
+│   ├── feedback.rs        # Feedback engine
+│   ├── ffi.rs             # C-compatible FFI exports
 │   └── lib.rs             # Core engine entrypoint
 │
 ├── ui/                    # Flutter UI
-│   ├── screens/           # Journal, entry, settings, plugin config
-│   ├── widgets/           # Reusable expressive components
-│   ├── themes/            # Light/dark modes, typography
+│   ├── screens/           # Journal, entry, settings, lock, board, sync
+│   ├── widgets/           # Reusable components
+│   ├── core/              # FFI bindings, providers, models
+│   ├── utils/             # Theme, wiki-links, frontmatter, responsive
+│   ├── l10n/              # Localization (en, es, fr)
 │   └── main.dart          # Flutter app entrypoint
 │
-├── tui/                   # Terminal UI (optional)
-│   ├── commands/          # CLI commands and flags
-│   ├── render/            # TUI layout and feedback
-│   └── lumen_tui.rs       # TUI entrypoint
+├── tui/                   # Terminal UI
+│   └── src/main.rs        # CLI + interactive TUI entrypoint
 │
-├── plugins/               # Community and built-in plugins
-│   ├── george/            # AI feedback plugin
-│   ├── export_pdf/        # PDF export plugin
-│   └── plugin.toml        # Manifest for each plugin
+├── scripts/               # Build and packaging scripts
+│   ├── build_linux.sh
+│   ├── build_macos.sh
+│   ├── build_windows.sh
+│   ├── release.sh
+│   └── sync.sh
 │
 ├── docs/                  # Documentation
 │   ├── architecture.md    # This file
+│   ├── roadmap.md         # Development roadmap
 │   ├── plugins.md         # Plugin system overview
-│   └── contributing.md    # Contribution guidelines
+│   ├── core.md            # Core engine documentation
+│   ├── storage.md         # Storage format and schema
+│   ├── tui.md             # TUI usage
+│   └── stoic-export-format.md
 │
+├── DESIGN.md              # UI/UX design system
 ├── LICENSE                # Lumen Non-Commercial License
+├── CONTRIBUTING.md        # Contribution guidelines
 └── README.md              # Project overview
 ```
 
 ---
 
-## 🧠 Architectural Principles
+## Architectural Principles
 
-### 1. **Modularity**
+### 1. Modularity
 
 - Each component (core, UI, TUI, plugins) is independently testable and replaceable.
 - Plugin system uses lifecycle hooks (`on_entry`, `on_export`, etc.) for extensibility.
 
-### 2. **Privacy-First**
+### 2. Privacy-First
 
-- All journal data is encrypted locally using per-entry keys.
+- All journal data is encrypted locally using per-entry keys (AES-256-GCM + Argon2id).
 - No external transmission without explicit opt-in.
 - Offline-first by default; sync adapters are optional and pluggable.
 
-### 3. **Provenance-Aware**
+### 3. Provenance-Aware
 
 - Every journal entry includes:
   - Timestamp
   - Plugin origin (if applicable)
   - Author context
   - Feedback annotations
+  - Edit history
 
-### 4. **Expressive UX**
+### 4. Expressive UX
 
 - Flutter UI emphasizes clarity, emotional resonance, and minimalism.
 - TUI mirrors this with intuitive commands and feedback loops.
 - Plugins can inject feedback or annotations in a non-intrusive way.
 
-### 5. **Plugin Extensibility**
+### 5. Plugin Extensibility
 
-- Plugins are sandboxed and declared via `plugin.toml`.
+- Built-in plugins compiled directly into the core.
+- External plugins loaded dynamically via `libloading` from `~/.local/share/lumen/plugins/`.
 - Runtime enforces lifecycle boundaries and provenance tracking.
-- Future registry will support community discovery and validation.
 
 ---
 
-## 🔄 Data Flow
+## Data Flow
 
 ```text
 [User Input]
@@ -88,7 +100,7 @@ lumen/
    ↓
 [Plugin Hooks]
    ↓
-[Encrypted Storage]
+[Encrypted Storage (SQLite)]
    ↓
 [Optional Export/Sync]
 ```
@@ -99,7 +111,7 @@ lumen/
 
 ---
 
-## 🧪 Testing Strategy
+## Testing Strategy
 
 - Rust: Unit + integration tests for core logic and plugin runtime.
 - Flutter: Widget + golden tests for expressive UI.
@@ -108,14 +120,15 @@ lumen/
 
 ---
 
-## 🛠️ Future Directions
+## Future Directions
 
 - Plugin registry with provenance scoring
 - Configurable journaling workflows (e.g. mood tracking, poetic mode)
 - Branded onboarding experiences
 - Sync adapters for encrypted cloud storage
+- Biometric authentication (Windows Hello, macOS Touch ID)
 
 ---
 
-Lumen is more than a journaling app—it’s a reflective companion.  
-Let’s build tools that listen, protect, and evolve.
+Lumen is more than a journaling app—it's a reflective companion.
+Let's build tools that listen, protect, and evolve.
