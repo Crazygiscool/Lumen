@@ -7,6 +7,7 @@ pub mod sync;
 pub mod ffi;
 pub mod import_stoic;
 pub mod progress;
+pub mod paths;
 
 pub use ffi::{
     lumen_add_entry,

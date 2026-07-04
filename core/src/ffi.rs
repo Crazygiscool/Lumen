@@ -7,31 +7,43 @@ use chrono::Utc;
 use lazy_static::lazy_static;
 
 use crate::auth;
+use crate::paths;
 use crate::entry::{EntryKind, JournalEntry};
 use crate::storage::Storage;
 use crate::sync::SyncBackend;
 
 lazy_static! {
     static ref STORAGE: Mutex<Option<Storage>> = Mutex::new(None);
-    static ref DATA_PATH: PathBuf = {
-        let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-        path.push("lumen");
-        let _ = std::fs::create_dir_all(&path);
-        path.push("lumen.db");
-        path
-    };
-    static ref BIN_PATH: PathBuf = {
-        let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-        path.push("lumen");
-        path.push("journal.bin");
-        path
-    };
+    static ref DATA_PATH: PathBuf = paths::db_path();
+    static ref BIN_PATH: PathBuf = paths::legacy_bin_path();
 }
 
 fn ensure_loaded() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
+        // Migration from ~/.local/share/lumen if ~/.config/Lumen doesn't have a DB yet
         let path = DATA_PATH.as_path();
+        if !path.exists() {
+            if let Some(old_data_dir) = dirs::data_dir() {
+                let old_lumen_dir = old_data_dir.join("lumen");
+                let old_db = old_lumen_dir.join("lumen.db");
+                if old_db.exists() {
+                    eprintln!("[lumen] Found old database in {:?}, migrating to {:?}", old_db, path);
+                    // Copy everything from old dir to new dir
+                    if let Some(new_dir) = path.parent() {
+                        let _ = std::fs::create_dir_all(new_dir);
+                        if let Ok(entries) = std::fs::read_dir(&old_lumen_dir) {
+                            for entry in entries.flatten() {
+                                let from = entry.path();
+                                let to = new_dir.join(entry.file_name());
+                                let _ = std::fs::copy(&from, &to);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let storage = Storage::new(path).expect("Failed to open lumen.db");
 
         // Migrate from bincode if journal.bin exists
@@ -770,15 +782,13 @@ pub unsafe extern "C" fn lumen_get_import_progress() -> f32 {
 #[no_mangle]
 pub unsafe extern "C" fn lumen_list_vaults() -> *mut c_char {
     let mut vaults: Vec<String> = Vec::new();
-    if let Some(data_dir) = dirs::data_dir() {
-        let lumen_dir = data_dir.join("lumen");
-        if let Ok(entries) = std::fs::read_dir(&lumen_dir) {
-            for entry in entries.flatten() {
-                let vault_path = entry.path();
-                if vault_path.is_dir() && vault_path.join("lumen.db").exists() {
-                    if let Some(name) = vault_path.file_name() {
-                        vaults.push(name.to_string_lossy().to_string());
-                    }
+    let lumen_dir = paths::ROOT_CONFIG_PATH.as_path();
+    if let Ok(entries) = std::fs::read_dir(lumen_dir) {
+        for entry in entries.flatten() {
+            let vault_path = entry.path();
+            if vault_path.is_dir() && vault_path.join("lumen.db").exists() {
+                if let Some(name) = vault_path.file_name() {
+                    vaults.push(name.to_string_lossy().to_string());
                 }
             }
         }
@@ -789,14 +799,7 @@ pub unsafe extern "C" fn lumen_list_vaults() -> *mut c_char {
 #[no_mangle]
 pub unsafe extern "C" fn lumen_open_vault(name: *const c_char) -> i32 {
     let name = unsafe { c_str_to_owned(name) };
-    let data_dir = match dirs::data_dir() {
-        Some(d) => d,
-        None => {
-            eprintln!("[lumen] Cannot find data directory");
-            return 0;
-        }
-    };
-    let vault_dir = data_dir.join("lumen").join(&name);
+    let vault_dir = paths::vault_path(&name);
     if let Err(e) = std::fs::create_dir_all(&vault_dir) {
         eprintln!("[lumen] Cannot create vault directory: {e}");
         return 0;

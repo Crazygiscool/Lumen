@@ -53,10 +53,7 @@ enum Commands {
 }
 
 fn get_default_db_path() -> PathBuf {
-    let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("lumen");
-    path.push("lumen.db");
-    path
+    lumen_core::paths::db_path()
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

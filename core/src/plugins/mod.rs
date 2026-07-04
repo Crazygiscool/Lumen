@@ -21,11 +21,11 @@ impl PluginManager {
         builtins.push(Box::new(builtin::daily_summary::DailySummaryPlugin));
         builtins.push(Box::new(builtin::wordcount::WordCountPlugin));
 
-        let plugins_dir = dirs::data_dir()
-            .map(|d| d.join("lumen").join("plugins"));
-        let externals = match plugins_dir {
-            Some(dir) if dir.exists() => scan_plugins(&dir),
-            _ => Vec::new(),
+        let plugins_dir = crate::paths::plugins_dir();
+        let externals = if plugins_dir.exists() {
+            scan_plugins(&plugins_dir)
+        } else {
+            Vec::new()
         };
 
         PluginManager { builtins, externals }

@@ -5,6 +5,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::entry::encryption;
+use crate::paths;
 
 lazy_static! {
     static ref SESSION_KEY: Mutex<Option<[u8; 32]>> = Mutex::new(None);
@@ -17,11 +18,7 @@ struct AuthData {
 }
 
 fn auth_path() -> PathBuf {
-    let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("lumen");
-    let _ = std::fs::create_dir_all(&path);
-    path.push("auth.json");
-    path
+    paths::auth_path()
 }
 
 pub fn has_password() -> bool {

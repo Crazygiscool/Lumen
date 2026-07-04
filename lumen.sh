@@ -7,7 +7,7 @@ set -e
 CORE_DIR="core"
 UI_DIR="ui"
 LIB_NAME="liblumen_core.so"
-TARGET_LIB="$CORE_DIR/target/release/$LIB_NAME"
+TARGET_LIB="target/release/$LIB_NAME"
 
 # Flutter bundle output directory
 FLUTTER_BUNDLE_DIR="$UI_DIR/build/linux/x64/debug/bundle"
@@ -82,7 +82,7 @@ fi
 # -----------------------------------------
 if [ "$TUI_MODE" = true ]; then
     echo "🖥️ Running Rust TUI..."
-    cargo run --manifest-path "$CORE_DIR/Cargo.toml" --bin lumen_tui
+    cargo run --bin lumen
 fi
 
 echo "✨ Done."

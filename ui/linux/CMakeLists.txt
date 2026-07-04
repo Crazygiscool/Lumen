@@ -5,9 +5,9 @@ project(runner LANGUAGES CXX)
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "Lumen")
-# The unique GTK application identifier for this application. See:
-# https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "me.crazygiscool.lumen")
+# The unique GTK application identifier for this application.
+# Set to Lumen.Lumen to ensure it's valid for GTK/DBus while keeping the name
+set(APPLICATION_ID "Lumen.Lumen")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
