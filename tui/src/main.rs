@@ -63,9 +63,9 @@ fn find_gui_executable() -> Option<PathBuf> {
     let candidates = if cfg!(target_os = "windows") {
         vec![
             exe_dir.join("Lumen.exe"),
+            exe_dir.join("../../ui/build/windows/x64/runner/Release/Lumen.exe"),
+            exe_dir.join("../../ui/build/windows/x64/runner/Debug/Lumen.exe"),
             exe_dir.join("../../ui/build/windows/x64/release/bundle/Lumen.exe"),
-            exe_dir.join("../../ui/build/windows/x64/debug/bundle/Lumen.exe"),
-            exe_dir.join("../build/windows/runner/release/Lumen.exe"),
         ]
     } else if cfg!(target_os = "macos") {
         vec![

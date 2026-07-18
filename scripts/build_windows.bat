@@ -50,10 +50,15 @@ rem Step 3: Package
 rem -----------------------------------------
 echo.
 echo === Step 3: Packaging ===
-set BUNDLE_DIR=%UI_DIR%\build\windows\runner\release
+set BUNDLE_DIR=%UI_DIR%\build\windows\x64\runner\Release
 set ZIP_NAME=Lumen-windows-v%VERSION%.zip
 
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
+
+rem Copy Rust FFI library into bundle (lib/ subdirectory for lumen_loader.dart)
+if not exist "%BUNDLE_DIR%\lib" mkdir "%BUNDLE_DIR%\lib"
+copy /Y "%ROOT_DIR%\target\release\lumen_core.dll" "%BUNDLE_DIR%\lib\lumen_core.dll" >nul
+echo Bundled lumen_core.dll
 
 rem Copy TUI into bundle
 copy /Y "%ROOT_DIR%\target\release\lumen.exe" "%BUNDLE_DIR%\lumen-cli.exe" >nul

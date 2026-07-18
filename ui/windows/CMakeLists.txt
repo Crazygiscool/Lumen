@@ -87,9 +87,9 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
-# Install Rust FFI library
+# Install Rust FFI library into lib/ subdirectory (matching lumen_loader.dart expectations)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/lumen_core.dll"
-        DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
         COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
