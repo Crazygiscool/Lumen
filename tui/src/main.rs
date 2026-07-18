@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use lumen_core::storage::Storage;
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, process::Command};
 use termimad::MadSkin;
 use ratatui::{
     backend::CrosstermBackend,
@@ -56,14 +56,39 @@ fn get_default_db_path() -> PathBuf {
     lumen_core::paths::db_path()
 }
 
+fn find_gui_executable() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?;
+
+    let candidates = if cfg!(target_os = "windows") {
+        vec![
+            exe_dir.join("Lumen.exe"),
+            exe_dir.join("../../ui/build/windows/x64/release/bundle/Lumen.exe"),
+            exe_dir.join("../../ui/build/windows/x64/debug/bundle/Lumen.exe"),
+            exe_dir.join("../build/windows/runner/release/Lumen.exe"),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            exe_dir.join("../../ui/build/macos/Build/Products/Release/Lumen.app/Contents/MacOS/Lumen"),
+        ]
+    } else {
+        vec![
+            exe_dir.join("../../ui/build/linux/x64/release/bundle/Lumen"),
+            exe_dir.join("../../ui/build/linux/x64/debug/bundle/Lumen"),
+        ]
+    };
+
+    for path in &candidates {
+        if path.exists() {
+            return Some(path.clone());
+        }
+    }
+    None
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let db_path = cli.database.unwrap_or_else(get_default_db_path);
-
-    if !db_path.exists() {
-        eprintln!("Error: Database not found at {:?}", db_path);
-        std::process::exit(1);
-    }
 
     let storage = Storage::new(&db_path)?;
 
@@ -128,8 +153,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Streak) => {
             println!("Current Streak: **{} days** 🔥", storage.get_streak()?);
         }
-        Some(Commands::Interactive) | None => {
+        Some(Commands::Interactive) => {
             run_tui(storage)?;
+        }
+        None => {
+            if let Some(gui_path) = find_gui_executable() {
+                eprintln!("Launching GUI from {:?}", gui_path);
+                Command::new(&gui_path).spawn()?;
+            } else {
+                eprintln!("Flutter GUI not found. Falling back to TUI.");
+                run_tui(storage)?;
+            }
         }
     }
 

@@ -27,16 +27,33 @@ goto parse_args
 :done_args
 
 rem -----------------------------------------
-rem STEP 1 — Build Rust backend
+rem STEP 1 — Build Rust backend (core + TUI)
 rem -----------------------------------------
 echo Building Rust backend...
 cd %CORE_DIR%
 cargo build --release
 if %errorlevel% neq 0 (
-    echo ERROR: Rust build failed.
+    echo ERROR: Core build failed.
+    exit /b 1
+)
+cargo build --release -p lumen-tui
+if %errorlevel% neq 0 (
+    echo ERROR: TUI build failed.
     exit /b 1
 )
 cd ..
+
+rem -----------------------------------------
+rem STEP 1b — Check for Flutter
+rem -----------------------------------------
+set HAS_FLUTTER=false
+where flutter >nul 2>&1
+if %errorlevel% equ 0 (
+    set HAS_FLUTTER=true
+) else (
+    echo WARNING: Flutter not found on PATH. Skipping UI build.
+    echo Install Flutter from https://docs.flutter.dev/get-started/install/windows
+)
 
 rem -----------------------------------------
 rem STEP 2 — Ensure shared library is linked
@@ -58,7 +75,9 @@ echo Updated: %UI_DIR%\windows\lib\%LIB_NAME%
 rem -----------------------------------------
 rem EXECUTION
 rem -----------------------------------------
-if "%DEV_MODE%"=="true" (
+if "%HAS_FLUTTER%"=="false" (
+    echo Skipping Flutter UI — not installed.
+) else if "%DEV_MODE%"=="true" (
     echo Dev mode enabled — running with flutter run (DDS + hot reload)
     cd %UI_DIR%
     flutter config --enable-windows-desktop
