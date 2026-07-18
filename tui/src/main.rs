@@ -80,6 +80,11 @@ fn find_gui_executable() -> Option<PathBuf> {
 
     for path in &candidates {
         if path.exists() {
+            if let (Ok(candidate), Ok(current)) = (path.canonicalize(), exe.canonicalize()) {
+                if candidate == current {
+                    continue;
+                }
+            }
             return Some(path.clone());
         }
     }
