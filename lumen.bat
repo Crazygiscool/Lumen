@@ -7,7 +7,7 @@ rem -----------------------------------------
 set CORE_DIR=core
 set UI_DIR=ui
 set LIB_NAME=lumen_core.dll
-set TARGET_LIB=%CORE_DIR%\target\release\%LIB_NAME%
+set TARGET_LIB=target\release\%LIB_NAME%
 
 rem Flutter bundle output directory (debug)
 set FLUTTER_BUNDLE_DIR=%UI_DIR%\build\windows\x64\debug\bundle
