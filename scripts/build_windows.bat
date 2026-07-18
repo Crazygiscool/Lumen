@@ -69,7 +69,23 @@ cd "%BUNDLE_DIR%"
 powershell -Command "Compress-Archive -Path '.\*' -DestinationPath '%DIST_DIR%\%ZIP_NAME%' -Force"
 cd "%ROOT_DIR%"
 
+rem -----------------------------------------
+rem Step 4: Build installer
+rem -----------------------------------------
+echo.
+echo === Step 4: Build Installer ===
+set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if exist %ISCC% (
+    %ISCC% /DAPP_VERSION=%VERSION% /DBUNDLE_DIR="%BUNDLE_DIR%" "%~dp0lumen.iss"
+    if !errorlevel! neq 0 (
+        echo ERROR: Installer build failed.
+        exit /b 1
+    )
+    echo Installer: %DIST_DIR%\Lumen-windows-v%VERSION%-setup.exe
+) else (
+    echo SKIPPED: Inno Setup not found at %ISCC%
+    echo Install with: winget install JRSoftware.InnoSetup
+)
+
 echo.
 echo === DONE ===
-echo Bundle: %BUNDLE_DIR%
-echo Archive: %DIST_DIR%\%ZIP_NAME%
