@@ -68,20 +68,17 @@ build/macos/
 
 ### **From Source (Rust + Flutter)**
 
-```bash
-# Rust core
-cargo build --release
-
-# Flutter UI
-flutter pub get
-flutter run
-```
-
-### **TUI Mode**
+The Makefile works on Linux, macOS, and Windows (Windows needs GNU Make from a Unix-like shell — Git Bash, MSYS2, or WSL):
 
 ```bash
-cargo run --bin lumen-cli
+make           # Build core + FFI lib, build & run the app
+make dev       # Hot-reload dev mode (DDS + hot reload)
+make tui=1     # ...then run the Rust TUI afterwards
+make tui       # Run the TUI directly
+make help      # List all targets
 ```
+
+Release packaging is available per-platform (`make build-linux`, `make build-macos`, `make build-windows`).
 
 ## 📦 File Structure
 

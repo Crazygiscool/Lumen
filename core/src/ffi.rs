@@ -486,34 +486,6 @@ pub unsafe extern "C" fn lumen_get_asset_data(asset_id: *const c_char, password:
 }}
 
 // ------------------------------------------------------------
-// STOIC IMPORT
-// ------------------------------------------------------------
-#[no_mangle]
-pub unsafe extern "C" fn lumen_import_stoic(
-    export_dir: *const c_char,
-    password: *const c_char,
-    author: *const c_char,
-) -> i32 { unsafe {
-    ensure_loaded();
-    let export_dir = c_str_to_owned(export_dir);
-    let password = c_str_to_owned(password);
-    let author = c_str_to_owned(author);
-
-    // If no password provided but session key is available, use session key
-    let effective_password = if password.is_empty() {
-        if crate::auth::is_unlocked() {
-            "" // signal to import_stoic to use session key
-        } else {
-            eprintln!("[lumen] Cannot import — not unlocked and no password provided");
-            return 0;
-        }
-    } else {
-        &password
-    };
-    with_storage(|s| crate::import_stoic::import_stoic(&export_dir, effective_password, &author, s))
-}}
-
-// ------------------------------------------------------------
 // DECRYPT ENTRY
 // ------------------------------------------------------------
 #[no_mangle]

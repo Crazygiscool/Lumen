@@ -37,6 +37,7 @@ Source: "{#BUNDLE_DIR}\lumen.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BUNDLE_DIR}\flutter_windows.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; Rust FFI core library
 Source: "{#BUNDLE_DIR}\lib\lumen_core.dll"; DestDir: "{app}\lib"; Flags: ignoreversion
+Source: "{#BUNDLE_DIR}\lib\fscore.dll"; DestDir: "{app}\lib"; Flags: ignoreversion
 ; Rust TUI CLI
 Source: "{#BUNDLE_DIR}\lumen-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Flutter data directory

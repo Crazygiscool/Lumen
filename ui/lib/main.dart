@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'core/providers.dart';
-import 'screens/home_screen.dart';
-import 'screens/lock_screen.dart';
-import 'screens/new_entry_screen.dart';
-import 'screens/setup_screen.dart';
-import 'utils/theme.dart';
-import 'l10n/app_localizations.dart';
+import 'shell/command_palette.dart';
+import 'shell/lumen_shell.dart';
+import 'shell/tabs/tabs_provider.dart';
+import 'state/providers.dart';
+import 'theme/app_theme.dart';
+import 'theme/glass.dart';
+import 'theme/lumen_colors.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: LumenApp()));
+  configureSystemUi();
+  final prefs = await SharedPreferences.getInstance();
+  runApp(
+    ProviderScope(
+      overrides: [
+        settingsProvider.overrideWith(() => SettingsNotifier(prefs)),
+        tabsProvider.overrideWith(() => TabsNotifier(prefs)),
+      ],
+      child: const LumenApp(),
+    ),
+  );
 }
 
 class LumenApp extends ConsumerWidget {
@@ -20,30 +30,32 @@ class LumenApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unlocked = ref.watch(authProvider);
-    final hasPassword = ref.read(authProvider.notifier).hasPassword();
+    final settings = ref.watch(settingsProvider);
+    final palette = ref.watch(commandPaletteProvider);
+    final gtk = ref.watch(gtkThemeProvider).value;
+    final themeMode = resolveThemeMode(settings.themeSource, gtk);
+    final accentName = settings.matchGtkAccent ? gtk?.accentName : null;
 
     return MaterialApp(
       title: 'Lumen',
-      theme: buildLumenTheme(),
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('en'),
-        Locale('es'),
-        Locale('fr'),
-      ],
-      home: unlocked
-          ? const HomeScreen()
-          : (!hasPassword ? const SetupScreen() : const LockScreen()),
-      routes: {
-        '/new': (context) => const NewEntryScreen(),
-      },
+      theme: buildLumenTheme(
+        dark: false,
+        accentPrimary: gtkAccentPrimary(accentName, dark: false),
+      ),
+      darkTheme: buildLumenTheme(
+        dark: true,
+        accentPrimary: gtkAccentPrimary(accentName, dark: true),
+      ),
+      themeMode: themeMode,
+      home: AmbientBackground(
+        child: Stack(
+          children: [
+            const LumenShell(),
+            if (palette.visible) const CommandPalette(),
+          ],
+        ),
+      ),
     );
   }
 }

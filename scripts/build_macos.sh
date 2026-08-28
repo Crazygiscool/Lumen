@@ -20,6 +20,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     # Create a dummy file so Step 2 doesn't fail during local test
     mkdir -p target/release
     touch target/release/liblumen_core.dylib
+    touch target/release/libfscore.dylib
 else
     cargo build --release --locked
 fi
@@ -29,6 +30,9 @@ echo "=== Step 2: Prepare Assets ==="
 mkdir -p "$MACOS_RUNNER_DIR"
 if [ -f "$ROOT_DIR/target/release/liblumen_core.dylib" ]; then
     cp "$ROOT_DIR/target/release/liblumen_core.dylib" "$MACOS_RUNNER_DIR/"
+fi
+if [ -f "$ROOT_DIR/target/release/libfscore.dylib" ]; then
+    cp "$ROOT_DIR/target/release/libfscore.dylib" "$MACOS_RUNNER_DIR/"
 fi
 
 echo ""

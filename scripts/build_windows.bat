@@ -59,6 +59,8 @@ rem Copy Rust FFI library into bundle (lib/ subdirectory for lumen_loader.dart)
 if not exist "%BUNDLE_DIR%\lib" mkdir "%BUNDLE_DIR%\lib"
 copy /Y "%ROOT_DIR%\target\release\lumen_core.dll" "%BUNDLE_DIR%\lib\lumen_core.dll" >nul
 echo Bundled lumen_core.dll
+copy /Y "%ROOT_DIR%\target\release\fscore.dll" "%BUNDLE_DIR%\lib\fscore.dll" >nul
+echo Bundled fscore.dll
 
 rem Copy TUI into bundle
 copy /Y "%ROOT_DIR%\target\release\lumen.exe" "%BUNDLE_DIR%\lumen-cli.exe" >nul

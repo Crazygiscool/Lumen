@@ -20,6 +20,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Create dummy for script flow
     mkdir -p "target/$TARGET/release"
     touch "target/$TARGET/release/lumen_core.dll"
+    touch "target/$TARGET/release/fscore.dll"
     touch "target/$TARGET/release/lumen.exe"
 else
     cargo build --release --locked --target "$TARGET"

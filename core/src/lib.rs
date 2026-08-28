@@ -2,12 +2,11 @@ pub mod auth;
 pub mod entry;
 pub mod storage;
 pub mod plugins;
-pub mod feedback;
 pub mod sync;
 pub mod ffi;
-pub mod import_stoic;
 pub mod progress;
 pub mod paths;
+pub mod vault;
 
 pub use ffi::{
     lumen_add_entry,
@@ -45,15 +44,15 @@ pub use ffi::{
     lumen_add_asset,
     lumen_get_assets,
     lumen_get_asset_data,
-    lumen_import_stoic,
 };
+
+pub use vault::ffi::{lumen_vault_call, lumen_vault_free};
 
 #[cfg(test)]
 mod tests {
 use crate::entry::{EntryKind, JournalEntry};
 use crate::storage::Storage;
 use crate::plugins::{Plugin, PluginManager};
-use crate::feedback::GeorgeFeedback;
 use std::path::Path;
 
     use crate::entry::encryption;
@@ -91,10 +90,6 @@ use std::path::Path;
         let storage = test_storage();
         storage.add_entry(&entry).unwrap();
         assert_eq!(storage.list_entries().unwrap().len(), 1);
-
-        // Feedback engine usage
-        let feedback = GeorgeFeedback::analyze(&entry);
-        assert_eq!(feedback, "Expressive feedback goes here.");
 
         // Plugin usage
         let mut manager = PluginManager::new();
@@ -170,34 +165,5 @@ use std::path::Path;
         storage.add_entry(&e2).unwrap();
 
         assert!(storage.get_streak().unwrap() >= 2);
-    }
-
-    #[test]
-    fn test_stoic_import() {
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let stoic_dir = format!("{}/../stoic", manifest_dir);
-        let stoic_path = std::path::Path::new(&stoic_dir);
-        if !stoic_path.join("journal-entries.json").exists() {
-            eprintln!("Skipping stoic import test — test data not found at {stoic_dir}");
-            return;
-        }
-
-        let storage = crate::storage::Storage::new(std::path::Path::new(":memory:")).unwrap();
-        let count = crate::import_stoic::import_stoic(&stoic_dir, "testpassword", "test-user", &storage);
-        assert!(count > 0, "Expected at least 1 imported entry, got {count}");
-
-        let entries = storage.list_entries().unwrap();
-        assert!(entries.len() as i32 >= count);
-
-        // Verify entries have stoic tags and provenance
-        let stoic_entries: Vec<_> = entries.iter().filter(|e| e.tags.contains(&"stoic-imported".to_string())).collect();
-        assert!(stoic_entries.len() as i32 >= count);
-
-        // Verify at least one entry can be decrypted
-        let entry = &entries[0];
-        let key = encryption::derive_key("testpassword", &entry.salt);
-        let decrypted = entry.decrypt(&key).ok().and_then(|b| String::from_utf8(b).ok()).unwrap_or_default();
-        assert!(!decrypted.is_empty(), "Decrypted text should not be empty");
-        assert!(decrypted.contains("Stoic"), "Decrypted text should contain 'Stoic'");
     }
 }

@@ -1,0 +1,21 @@
+[package]
+name = "fscore"
+version = "0.1.0"
+edition = "2021"
+description = "Lumen file-system engine: scanning, ops, search, and OS introspection FFI"
+
+[lib]
+name = "fscore"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+trash = "5"
+sysinfo = "0.30"
+chrono = "0.4"
+base64 = "0.21"
+
+[target.'cfg(unix)'.dependencies]
+uzers = "0.11"

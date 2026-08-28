@@ -30,6 +30,7 @@ echo "=== Step 3: Copy binaries into Flutter bundle ==="
 BUNDLE_DIR="$UI_DIR/build/linux/x64/release/bundle"
 mkdir -p "$BUNDLE_DIR/lib"
 cp "$ROOT_DIR/target/release/liblumen_core.so" "$BUNDLE_DIR/lib/"
+cp "$ROOT_DIR/target/release/libfscore.so" "$BUNDLE_DIR/lib/"
 cp "$ROOT_DIR/target/release/lumen" "$BUNDLE_DIR/lumen-cli"
 
 echo ""

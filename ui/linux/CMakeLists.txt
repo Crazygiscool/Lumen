@@ -106,8 +106,11 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-# Install Rust FFI library
+# Install Rust FFI libraries
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/liblumen_core.so"
+        DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+        COMPONENT Runtime)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/libfscore.so"
         DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
         COMPONENT Runtime)
 
