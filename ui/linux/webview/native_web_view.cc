@@ -204,6 +204,20 @@ NativeWebView::NativeWebView(FlBinaryMessenger* messenger,
   gtk_widget_show(web_view_);
   gtk_widget_realize(window_);
 
+  // Pitch-black chrome: no white flash on blank/offscreen pages.
+  GdkRGBA black = {0.0, 0.0, 0.0, 1.0};
+  webkit_web_view_set_background_color(WEBKIT_WEB_VIEW(web_view_), &black);
+  // Also paint pages that don't set their own background black
+  // (document.documentElement lands at the very document start).
+  WebKitUserContentManager* manager =
+      webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(web_view_));
+  WebKitUserScript* black_bg = webkit_user_script_new(
+      "document.documentElement.style.background='#000';",
+      WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+      WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, nullptr, nullptr);
+  webkit_user_content_manager_add_script(manager, black_bg);
+  webkit_user_script_unref(black_bg);
+
   g_signal_connect(web_view_, "load-changed", G_CALLBACK(on_load_changed), this);
   g_signal_connect(web_view_, "load-failed", G_CALLBACK(on_load_failed), this);
   g_signal_connect(web_view_, "notify::uri", G_CALLBACK(on_uri_notify), this);

@@ -16,24 +16,24 @@ abstract final class LumenColors {
   // -------------------------------------------------------------------------
   static const glowIndigo = Color(0xFF3D4FFF);
   static const glowViolet = Color(0xFF7F5AFF);
-  static const glowDeep = Color(0xFF16083A);
+  static const glowDeep = Color(0xFF000000);
 
   // --- Pitch-black base (dark) ---
-  static const background = Color(0xFF04050A);
-  static const surface = Color(0xFF080A12);
+  static const background = Color(0xFF000000);
+  static const surface = Color(0xFF000000);
 
   // --- Glass surface tokens (alpha components) ---
-  static const glass = Color(0x990B0E1A);
-  static const glassStrong = Color(0xCC0B0E1A);
-  static const glassFloat = Color(0xF20D1120);
+  static const glass = Color(0x99000000);
+  static const glassStrong = Color(0xCC000000);
+  static const glassFloat = Color(0xF2000000);
   static const glassHover = Color(0x14FFFFFF);
   static const glassSelected = Color(0x273D4FFF);
 
   // Legacy surface names kept for the light palette mapping.
-  static const surfaceLow = Color(0xB30B0E1A);
-  static const surfaceContainer = Color(0xD90B0E1A);
-  static const surfaceHigh = Color(0xEF101420);
-  static const surfaceHighest = Color(0xFF1A2031);
+  static const surfaceLow = Color(0xB3000000);
+  static const surfaceContainer = Color(0xD9000000);
+  static const surfaceHigh = Color(0xEF000000);
+  static const surfaceHighest = Color(0xFF000000);
 
   static const hairline = Color(0x14FFFFFF);
   static const hairlineStrong = Color(0x26FFFFFF);
@@ -67,7 +67,7 @@ abstract final class LumenColors {
   static const info = Color(0xFF82C7F5);
 
   // --- Code syntax palette (stays dark in both modes: self-contained panel) ---
-  static const codeBackground = Color(0xFF06080F);
+  static const codeBackground = Color(0xFF000000);
   static const codeKeyword = Color(0xFFC792EA);
   static const codeString = Color(0xFF9ECE6A);
   static const codeComment = Color(0xFF6C7486);

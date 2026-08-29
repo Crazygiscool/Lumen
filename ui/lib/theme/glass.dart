@@ -30,14 +30,14 @@ class AmbientBackground extends StatelessWidget {
             left: -140,
             width: 460,
             height: 460,
-            child: _Glow(color: t.glowIndigo, opacity: 0.17),
+            child: _Glow(color: t.glowIndigo, opacity: 0.05),
           ),
           Positioned(
             bottom: -180,
             right: -160,
             width: 520,
             height: 520,
-            child: _Glow(color: t.glowViolet, opacity: 0.12),
+            child: _Glow(color: t.glowViolet, opacity: 0.04),
           ),
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
