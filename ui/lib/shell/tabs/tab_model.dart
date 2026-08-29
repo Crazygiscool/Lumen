@@ -294,4 +294,42 @@ class LumenTab {
       historyIndex: historyIndex + 1,
     );
   }
+
+  /// Live URL/title update from the embedded webview. The WebView owns its own
+  /// history, so this only touches the current spec + head history entry.
+  LumenTab syncWeb({String? url, String? title}) {
+    if (kind != TabKind.web) return this;
+    var next = spec;
+    next = TabSpec(
+      kind: next.kind,
+      page: next.page,
+      url: url ?? next.url,
+      title: title ?? next.title,
+    );
+    final h = [...history];
+    final idx = historyIndex < 0 ? 0 : historyIndex;
+    if (idx >= 0 && idx < h.length) {
+      final e = h[idx];
+      h[idx] = LumenHistoryEntry(
+        kind: e.kind,
+        url: url ?? e.url,
+        title: title ?? e.title,
+        page: e.page,
+      );
+    } else if (url != null) {
+      h.add(
+        LumenHistoryEntry(
+          kind: next.kind,
+          url: url,
+          title: title ?? next.title,
+          page: next.page,
+        ),
+      );
+    }
+    return copyWith(
+      spec: next,
+      history: h,
+      historyIndex: historyIndex < 0 && h.isNotEmpty ? h.length - 1 : historyIndex,
+    );
+  }
 }

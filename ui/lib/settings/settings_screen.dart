@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shell/web/ad_block_service.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
@@ -138,6 +139,8 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 20),
+        _AdBlockSection(),
+        const SizedBox(height: 20),
         const _Section(
           title: 'About',
           children: [
@@ -146,6 +149,126 @@ class SettingsScreen extends ConsumerWidget {
             _Row(label: 'Native core', valueText: 'Rust · fscore · lumen_core'),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _AdBlockSection extends ConsumerWidget {
+  const _AdBlockSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ad = ref.watch(adBlockProvider);
+    final notifier = ref.read(adBlockProvider.notifier);
+    final t = LumenColors.of(context);
+
+    final statusLabel = switch (ad.status) {
+      AdBlockStatus.off => 'Disabled',
+      AdBlockStatus.downloading => 'Downloading filter lists…',
+      AdBlockStatus.compiling => 'Compiling rules…',
+      AdBlockStatus.ready => ad.fromCache
+          ? 'Using cached filter lists'
+          : 'Filter lists loaded',
+      AdBlockStatus.error => 'Error',
+    };
+    final total = (ad.stats['total_lines'] as num?)?.toInt() ?? 0;
+    final rules =
+        (((ad.stats['network_blocked'] as num?)?.toInt() ?? 0) +
+                ((ad.stats['cosmetic'] as num?)?.toInt() ?? 0) +
+                ((ad.stats['exceptions'] as num?)?.toInt() ?? 0) +
+                ((ad.stats['important'] as num?)?.toInt() ?? 0))
+            .toString();
+    final updated = ad.lastUpdated == null
+        ? '—'
+        : '${ad.lastUpdated!.toLocal()}'.split(' ').first;
+
+    return _Section(
+      title: 'Ad blocking',
+      children: [
+        _Row(
+          label: 'Ad blocking',
+          valueText: 'uBlock Origin lists',
+          child: Switch(
+            value: ad.enabled,
+            onChanged: (v) => notifier.toggle(v),
+          ),
+        ),
+        _Row(
+          label: 'Status',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                ad.status == AdBlockStatus.error
+                    ? Icons.error_outline
+                    : ad.status == AdBlockStatus.ready
+                    ? Icons.shield
+                    : Icons.sync,
+                size: 15,
+                color: ad.status == AdBlockStatus.error
+                    ? t.error
+                    : t.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(statusLabel, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        _Row(
+          label: 'Rules compiled',
+          valueText: total == 0 ? '—' : '$rules of $total lines',
+        ),
+        _Row(label: 'Blocked (session)', valueText: '${ad.blockedCount}'),
+        _Row(label: 'Last updated', valueText: updated),
+        _Row(
+          label: 'Update filters',
+          valueText: 'Download latest lists',
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Re-download uAssets and recompile',
+            icon: ad.status == AdBlockStatus.downloading ||
+                    ad.status == AdBlockStatus.compiling
+                ? const SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.update, size: 18),
+            onPressed: ad.status == AdBlockStatus.downloading ||
+                    ad.status == AdBlockStatus.compiling
+                ? null
+                : () => notifier.refresh(force: true),
+          ),
+        ),
+        if (ad.exemptHosts.isNotEmpty) ...[
+          const Divider(indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+            child: Text(
+              'Blocking paused on',
+              style: TextStyle(fontSize: 11, color: t.onSurfaceVariant),
+            ),
+          ),
+          for (final host in ad.exemptHosts)
+            _Row(
+              label: host,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Resume blocking',
+                icon: const Icon(Icons.restart_alt, size: 16),
+                onPressed: () => notifier.toggleExempt(host),
+              ),
+            ),
+        ],
+        if (ad.error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+            child: Text(
+              ad.error!,
+              style: TextStyle(fontSize: 12, color: t.error),
+            ),
+          ),
       ],
     );
   }

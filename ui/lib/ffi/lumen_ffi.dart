@@ -29,10 +29,11 @@ class LumenFfi {
 
   DynamicLibrary? _core;
   DynamicLibrary? _fscore;
+  DynamicLibrary? _ublock;
   String? _initError;
   bool _initialized = false;
 
-  bool get ready => _core != null && _fscore != null;
+  bool get ready => _core != null && _fscore != null && _ublock != null;
 
   String? get initError => _initError;
 
@@ -78,8 +79,10 @@ class LumenFfi {
     try {
       final corePath = _resolve('lumen_core', 'lumen_core');
       final fscorePath = _resolve('fscore', 'fscore');
+      final ublockPath = _resolve('ublock', 'ublock');
       _core = DynamicLibrary.open(corePath);
       _fscore = DynamicLibrary.open(fscorePath);
+      _ublock = DynamicLibrary.open(ublockPath);
     } catch (e) {
       _initError = e.toString();
     }
@@ -116,6 +119,23 @@ class LumenFfi {
           Void Function(Pointer<Utf8>),
           void Function(Pointer<Utf8>)
         >('fscore_free');
+    return _invoke(call, free, method, args);
+  }
+
+  /// Invokes a method on `libublock` (`ublock_call`).
+  dynamic ublock(String method, [Map<String, Object?> args = const {}]) {
+    final lib = _ublock;
+    if (lib == null) throw FfiException(_initError ?? 'ublock not loaded');
+    final call = lib
+        .lookupFunction<
+          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
+        >('ublock_call');
+    final free = lib
+        .lookupFunction<
+          Void Function(Pointer<Utf8>),
+          void Function(Pointer<Utf8>)
+        >('ublock_free');
     return _invoke(call, free, method, args);
   }
 

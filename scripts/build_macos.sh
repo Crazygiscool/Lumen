@@ -21,6 +21,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     mkdir -p target/release
     touch target/release/liblumen_core.dylib
     touch target/release/libfscore.dylib
+    touch target/release/libublock.dylib
 else
     cargo build --release --locked
 fi
@@ -33,6 +34,9 @@ if [ -f "$ROOT_DIR/target/release/liblumen_core.dylib" ]; then
 fi
 if [ -f "$ROOT_DIR/target/release/libfscore.dylib" ]; then
     cp "$ROOT_DIR/target/release/libfscore.dylib" "$MACOS_RUNNER_DIR/"
+fi
+if [ -f "$ROOT_DIR/target/release/libublock.dylib" ]; then
+    cp "$ROOT_DIR/target/release/libublock.dylib" "$MACOS_RUNNER_DIR/"
 fi
 
 echo ""

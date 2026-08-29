@@ -53,6 +53,10 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+pkg_check_modules(WEBKIT REQUIRED IMPORTED_TARGET webkit2gtk-4.1 javascriptcoregtk-4.1)
+
+# LumenWebView native plugin (WebKitGTK → Flutter textures).
+add_subdirectory("webview")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
@@ -111,6 +115,9 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/liblumen_core.so"
         DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
         COMPONENT Runtime)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/libfscore.so"
+        DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+        COMPONENT Runtime)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/libublock.so"
         DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
         COMPONENT Runtime)
 

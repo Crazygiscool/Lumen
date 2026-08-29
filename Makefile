@@ -26,6 +26,7 @@ ifeq ($(OS),Windows_NT)
     PLATFORM       := windows
     LIB_NAME       := lumen_core.dll
     FSCORE_LIB     := fscore.dll
+    UBLOCK_LIB     := ublock.dll
     FLUTTER_TARGET := windows
     APP_NAME       := Lumen.exe
     BUNDLE_DIR     := ui/build/windows/x64/debug/bundle
@@ -38,6 +39,7 @@ else
         PLATFORM       := macos
         LIB_NAME       := liblumen_core.dylib
         FSCORE_LIB     := libfscore.dylib
+        UBLOCK_LIB     := libublock.dylib
         FLUTTER_TARGET := macos
         APP_NAME       := Runner.app
         BUNDLE_DIR     := ui/build/macos/Build/Products/Debug
@@ -48,6 +50,7 @@ else
         PLATFORM       := linux
         LIB_NAME       := liblumen_core.so
         FSCORE_LIB     := libfscore.so
+        UBLOCK_LIB     := libublock.so
         FLUTTER_TARGET := linux
         APP_NAME       := Lumen
         BUNDLE_DIR     := ui/build/linux/x64/debug/bundle
@@ -59,6 +62,7 @@ endif
 
 TARGET_LIB := target/release/$(LIB_NAME)
 FSCORE_TARGET := target/release/$(FSCORE_LIB)
+UBLOCK_TARGET := target/release/$(UBLOCK_LIB)
 
 # ----- Rules -----------------------------------------------------------------
 
@@ -73,11 +77,13 @@ run:
 	mkdir -p "$(DEV_LIB_DIR)"
 	cp "$(TARGET_LIB)" "$(DEV_LIB_DIR)/$(LIB_NAME)"
 	cp "$(FSCORE_TARGET)" "$(DEV_LIB_DIR)/$(FSCORE_LIB)"
+	cp "$(UBLOCK_TARGET)" "$(DEV_LIB_DIR)/$(UBLOCK_LIB)"
 	@echo "[Lumen] 📦 Building Flutter bundle..."
 	cd ui && $(FLUTTER_ENABLE) && flutter build $(FLUTTER_TARGET) --debug
 	@mkdir -p "$(BUNDLE_DIR)/lib"
 	cp "$(TARGET_LIB)" "$(BUNDLE_DIR)/lib/$(LIB_NAME)"
 	cp "$(FSCORE_TARGET)" "$(BUNDLE_DIR)/lib/$(FSCORE_LIB)"
+	cp "$(UBLOCK_TARGET)" "$(BUNDLE_DIR)/lib/$(UBLOCK_LIB)"
 	@echo "[Lumen] 🚀 Running $(APP_NAME)..."
 	$(LAUNCH)
 	@if [ "$(tui)" = "1" ]; then echo "[Lumen] 🖥️  Running Rust TUI..."; cargo run --bin lumen; fi
@@ -91,6 +97,7 @@ dev:
 	mkdir -p "$(DEV_LIB_DIR)"
 	cp "$(TARGET_LIB)" "$(DEV_LIB_DIR)/$(LIB_NAME)"
 	cp "$(FSCORE_TARGET)" "$(DEV_LIB_DIR)/$(FSCORE_LIB)"
+	cp "$(UBLOCK_TARGET)" "$(DEV_LIB_DIR)/$(UBLOCK_LIB)"
 	@echo "[Lumen] 🧪 Dev mode — running flutter run..."
 	cd ui && $(FLUTTER_ENABLE) && flutter run
 	@if [ "$(tui)" = "1" ]; then echo "[Lumen] 🖥️  Running Rust TUI..."; cargo run --bin lumen; fi

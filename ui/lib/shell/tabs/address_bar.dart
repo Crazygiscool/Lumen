@@ -5,6 +5,9 @@ import '../../state/providers.dart';
 import '../../theme/glass.dart';
 import '../../theme/lumen_colors.dart';
 import '../command_palette.dart';
+import '../web/ad_block_service.dart';
+import '../web/web_controller.dart';
+import '../web/web_controllers.dart';
 import 'tab_model.dart';
 import 'tabs_provider.dart';
 
@@ -66,6 +69,87 @@ class _AddressBarState extends ConsumerState<AddressBar> {
     return RegExp(r'[a-z0-9-]+\.[a-z]{2,}').hasMatch(lower);
   }
 
+  /// The live embedded webview controller for the active tab, if any.
+  LumenWebViewController? _activeWeb() {
+    final activeId = ref.read(tabsProvider).active?.id;
+    if (activeId == null) return null;
+    return WebControllers.instance[activeId];
+  }
+
+  Widget _navButton({
+    required IconData icon,
+    required String tooltip,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 18),
+      visualDensity: VisualDensity.compact,
+      onPressed: enabled ? onPressed : null,
+    );
+  }
+
+  /// The ad-block shield: reflects the active web tab's exempt state and
+  /// blocked-request count, and offers per-site pause / global controls.
+  Widget _shield({required LumenTab? active}) {
+    final ad = ref.watch(adBlockProvider);
+    final web = _activeWeb();
+    final host = web?.host;
+    final isWeb = active?.kind == TabKind.web;
+    final exempt = host != null && ad.exemptHosts.contains(host);
+    final blocked = web?.blockedCount.value ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: PopupMenuButton<String>(
+        tooltip: isWeb ? 'Ad blocking for ${host ?? 'this site'}' : 'Ad blocking',
+        enabled: isWeb && ad.enabled,
+        icon: Badge.count(
+          count: blocked,
+          isLabelVisible: blocked > 0 && isWeb,
+          child: Icon(
+            exempt || !ad.enabled ? Icons.shield_outlined : Icons.shield,
+            size: 16,
+            color: exempt || !ad.enabled
+                ? LumenColors.of(context).onSurfaceVariant
+                : LumenColors.of(context).primary,
+          ),
+        ),
+        onSelected: (v) {
+          final notifier = ref.read(adBlockProvider.notifier);
+          switch (v) {
+            case 'exempt':
+              if (host != null) notifier.toggleExempt(host);
+            case 'disable':
+              notifier.toggle(false);
+            case 'refresh':
+              notifier.refresh(force: true);
+          }
+        },
+        itemBuilder: (context) => [
+          if (host != null)
+            PopupMenuItem(
+              value: 'exempt',
+              child: Text(
+                exempt
+                    ? 'Resume blocking on $host'
+                    : 'Pause blocking on $host',
+              ),
+            ),
+          const PopupMenuItem(value: 'disable', child: Text('Disable ad blocking')),
+          const PopupMenuItem(value: 'refresh', child: Text('Update filter lists')),
+          if (ad.status != AdBlockStatus.ready)
+            const PopupMenuItem(
+              enabled: false,
+              child: Text('Filter lists unavailable',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(tabsProvider, (prev, next) {
@@ -82,7 +166,9 @@ class _AddressBarState extends ConsumerState<AddressBar> {
     final tabs = ref.watch(tabsProvider);
     final notifier = ref.read(tabsProvider.notifier);
     final active = tabs.active;
+    final web = _activeWeb();
     final suggestions = _suggestions();
+    final isWeb = active?.kind == TabKind.web;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -96,25 +182,50 @@ class _AddressBarState extends ConsumerState<AddressBar> {
             border: false,
             child: Row(
               children: [
-                IconButton(
-                  tooltip: 'Back (Alt+Left)',
-                  icon: const Icon(Icons.arrow_back, size: 18),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: active?.canGoBack == true ? notifier.back : null,
-                ),
-                IconButton(
-                  tooltip: 'Forward (Alt+Right)',
-                  icon: const Icon(Icons.arrow_forward, size: 18),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: active?.canGoForward == true
-                      ? notifier.forward
-                      : null,
-                ),
-                IconButton(
-                  tooltip: 'Reload (Ctrl+R)',
-                  icon: const Icon(Icons.refresh, size: 18),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: active == null ? null : notifier.reload,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (web != null && isWeb)
+                      ValueListenableBuilder<bool>(
+                        valueListenable: web.canGoBack,
+                        builder: (_, v, _) => IconButton(
+                          tooltip: 'Back (Alt+Left)',
+                          icon: const Icon(Icons.arrow_back, size: 18),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: v ? notifier.back : null,
+                        ),
+                      )
+                    else
+                      _navButton(
+                        icon: Icons.arrow_back,
+                        tooltip: 'Back (Alt+Left)',
+                        enabled: active?.canGoBack == true,
+                        onPressed: notifier.back,
+                      ),
+                    if (web != null && isWeb)
+                      ValueListenableBuilder<bool>(
+                        valueListenable: web.canGoForward,
+                        builder: (_, v, _) => IconButton(
+                          tooltip: 'Forward (Alt+Right)',
+                          icon: const Icon(Icons.arrow_forward, size: 18),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: v ? notifier.forward : null,
+                        ),
+                      )
+                    else
+                      _navButton(
+                        icon: Icons.arrow_forward,
+                        tooltip: 'Forward (Alt+Right)',
+                        enabled: active?.canGoForward == true,
+                        onPressed: notifier.forward,
+                      ),
+                    _navButton(
+                      icon: Icons.refresh,
+                      tooltip: 'Reload (Ctrl+R)',
+                      enabled: active != null,
+                      onPressed: notifier.reload,
+                    ),
+                  ],
                 ),
                 const SizedBox(width: 4),
                 Expanded(
@@ -158,6 +269,7 @@ class _AddressBarState extends ConsumerState<AddressBar> {
                     ),
                   ),
                 ),
+                _shield(active: active),
                 IconButton(
                   tooltip: 'New tab (Ctrl+T)',
                   icon: const Icon(Icons.library_add_outlined, size: 18),

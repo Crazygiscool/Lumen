@@ -17,7 +17,7 @@ import 'tabs/tab_strip.dart';
 import 'tabs/tab_model.dart';
 import 'tabs/new_tab_page.dart';
 import 'tabs/tabs_provider.dart';
-import 'tabs/web_tab_content.dart';
+import 'web/lumen_web_view.dart';
 
 class LumenSectionSpec {
   const LumenSectionSpec({
@@ -167,7 +167,7 @@ class _LumenShellState extends ConsumerState<LumenShell> {
       case TabKind.newtab:
         return NewTabPage(onFocusAddress: () => _addressFocus.requestFocus());
       case TabKind.web:
-        return WebTabContent(url: tab.url);
+        return LumenWebView(tabId: tab.id, startUrl: tab.url);
       case TabKind.lumen:
         return switch (tab.page) {
           LumenSection.files => FilesScreen(tabId: tab.id),

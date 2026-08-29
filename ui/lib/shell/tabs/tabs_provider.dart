@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/providers.dart';
+import '../web/web_controller.dart';
+import '../web/web_controllers.dart';
 import 'tab_model.dart';
 
 @immutable
@@ -130,8 +132,37 @@ class TabsNotifier extends Notifier<TabsState> {
     tabs[i] = tabs[i].navigate(spec);
     state = TabsState(tabs: tabs, activeId: state.activeId);
     _dispatch(tabs[i]);
+    if (spec.kind == TabKind.web) {
+      final web = WebControllers.instance[tabs[i].id];
+      if (web != null) {
+        unawaited(web.loadUrl(spec.url));
+      }
+    }
     _persist();
     return tabs[i].id;
+  }
+
+  /// Live sync from an embedded webview (url/title) for [tabId].
+  void syncWeb(String tabId, {String? url, String? title}) {
+    final i = state.tabs.indexWhere((t) => t.id == tabId);
+    if (i < 0) return;
+    final updated = state.tabs[i].syncWeb(url: url, title: title);
+    if (identical(updated.spec.url, state.tabs[i].spec.url) &&
+        identical(updated.spec.title, state.tabs[i].spec.title)) {
+      return;
+    }
+    final tabs = [...state.tabs];
+    tabs[i] = updated;
+    state = TabsState(tabs: tabs, activeId: state.activeId);
+    _persist();
+  }
+
+  /// The embedded webview (if any) for [tabId]'s tab.
+  LumenWebViewController? _web(String? tabId) {
+    if (tabId == null) return null;
+    final tab = state.tabById(tabId);
+    if (tab == null || tab.kind != TabKind.web) return null;
+    return WebControllers.instance[tabId];
   }
 
   bool back() => _step(-1);
@@ -140,6 +171,16 @@ class TabsNotifier extends Notifier<TabsState> {
 
   bool _step(int delta) {
     final id = state.activeId;
+    final web = _web(id);
+    if (web != null) {
+      // The WebView owns its own history.
+      if (delta < 0) {
+        unawaited(web.goBack());
+      } else {
+        unawaited(web.goForward());
+      }
+      return true;
+    }
     final i = state.tabs.indexWhere((t) => t.id == id);
     if (i < 0) return false;
     final before = state.tabs[i];
@@ -153,7 +194,13 @@ class TabsNotifier extends Notifier<TabsState> {
   }
 
   void reload() {
-    final tab = state.tabById(state.activeId ?? '');
+    final id = state.activeId;
+    final web = _web(id);
+    if (web != null) {
+      unawaited(web.reload());
+      return;
+    }
+    final tab = state.tabById(id ?? '');
     if (tab == null) return;
     _dispatch(tab, reload: true);
   }

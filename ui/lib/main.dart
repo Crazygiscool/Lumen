@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'shell/command_palette.dart';
 import 'shell/lumen_shell.dart';
 import 'shell/tabs/tabs_provider.dart';
+import 'shell/web/ad_block_service.dart';
 import 'state/providers.dart';
 import 'theme/app_theme.dart';
 import 'theme/glass.dart';
@@ -19,6 +20,7 @@ Future<void> main() async {
       overrides: [
         settingsProvider.overrideWith(() => SettingsNotifier(prefs)),
         tabsProvider.overrideWith(() => TabsNotifier(prefs)),
+        adBlockProvider.overrideWith(() => AdBlockNotifier(prefs)),
       ],
       child: const LumenApp(),
     ),
