@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../journal/journal_provider.dart';
 import '../journal/journal_service.dart';
+import '../shell/passphrase_dialog.dart';
 import '../shell/tabs/tabs_provider.dart';
 import '../state/providers.dart';
 import '../theme/glass.dart';
@@ -339,74 +340,20 @@ class _ActivityCard extends ConsumerWidget {
   Future<bool> _unlockJournal(BuildContext context, WidgetRef ref) async {
     final path = ref.read(settingsProvider).journalVaultPath;
     if (path == null) return false;
-    final controller = TextEditingController();
-    String? error;
-    Future<void> submit(BuildContext dialogContext, StateSetter setDialog) async {
-      try {
-        await ref
-            .read(journalVaultProvider.notifier)
-            .unlock(path, controller.text);
-        if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-      } catch (e) {
-        setDialog(() => error = e.toString());
-      }
+    final notifier = ref.read(journalVaultProvider.notifier);
+    final ok = await PassphraseDialog.showUnlock(
+      context,
+      title: 'Unlock journal',
+      label: 'Journal passphrase',
+      path: path,
+      onSubmit: (pass) => notifier.unlock(path, pass),
+    );
+    if (ok) {
+      ref.invalidate(activityProvider);
+      ref.invalidate(projectsProvider);
+      ref.invalidate(projectsNotifierProvider);
     }
-    try {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (c) => StatefulBuilder(
-          builder: (c, setDialog) => AlertDialog(
-            title: const Text('Unlock journal'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  path,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontFamily: 'Geist Mono', color: t.onSurfaceVariant),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  obscureText: true,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Journal passphrase',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) => submit(c, setDialog),
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(error!, style: TextStyle(fontSize: 12, color: t.error)),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => submit(c, setDialog),
-                child: const Text('Unlock'),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (ok == true) {
-        ref.invalidate(activityProvider);
-        ref.invalidate(projectsProvider);
-        ref.invalidate(projectsNotifierProvider);
-      }
-      return ok == true;
-    } finally {
-      controller.dispose();
-    }
+    return ok;
   }
 }
 

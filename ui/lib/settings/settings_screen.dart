@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../files/folder_picker_dialog.dart';
+import '../shell/passphrase_dialog.dart';
 import '../shell/tabs/tabs_provider.dart';
 import '../shell/web/ad_block_service.dart';
 import '../state/providers.dart';
@@ -252,14 +253,24 @@ class _TankSection extends ConsumerWidget {
       if (!context.mounted) return;
       final status = ref.read(tankProvider);
       if (!status.setup) {
-        final pass = await _askPass(context, confirm: true, title: 'Create tank');
+        final pass = await PassphraseDialog.ask(
+          context,
+          title: 'Create tank',
+          confirm: true,
+          helper: 'Unlocks the tank locally; nothing is stored in plaintext.',
+          actionLabel: 'Create',
+        );
         if (pass == null) return;
         await notifier.setup(dir, pass);
         messenger.showSnackBar(
           SnackBar(content: Text('Tank created and unlocked at $dir')),
         );
       } else if (!status.unlocked) {
-        final pass = await _askPass(context, confirm: false, title: 'Unlock tank');
+        final pass = await PassphraseDialog.ask(
+          context,
+          title: 'Unlock tank',
+          helper: 'Unlocks the tank locally; nothing is stored in plaintext.',
+        );
         if (pass == null) return;
         await notifier.unlock(dir, pass);
         messenger.showSnackBar(const SnackBar(content: Text('Tank unlocked')));
@@ -267,61 +278,6 @@ class _TankSection extends ConsumerWidget {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Tank error: ${e.toString()}')));
     }
-  }
-
-  static Future<String?> _askPass(
-    BuildContext context, {
-    required bool confirm,
-    required String title,
-  }) async {
-    final ctl = TextEditingController();
-    final ctl2 = TextEditingController();
-    final pass = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ctl,
-              autofocus: true,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Passphrase',
-                helperText: 'Unlocks the tank locally; nothing is stored in plaintext.',
-              ),
-            ),
-            if (confirm) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: ctl2,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Confirm passphrase'),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final a = ctl.text;
-              if (a.isEmpty) return;
-              if (confirm && a != ctl2.text) return;
-              Navigator.pop(c, a);
-            },
-            child: Text(confirm ? 'Create' : 'Unlock'),
-          ),
-        ],
-      ),
-    );
-    ctl.dispose();
-    ctl2.dispose();
-    return pass;
   }
 
   @override
