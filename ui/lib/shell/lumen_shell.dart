@@ -128,6 +128,14 @@ class _LumenShellState extends ConsumerState<LumenShell> {
   final FocusNode _addressFocus = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(tankProvider.notifier).init();
+    });
+  }
+
+  @override
   void dispose() {
     _focusNode.dispose();
     _addressFocus.dispose();

@@ -122,6 +122,23 @@ class LumenFfi {
     return _invoke(call, free, method, args);
   }
 
+  /// Invokes a method on the tank entry of `liblumen_core` (`lumen_tank_call`).
+  dynamic tank(String method, [Map<String, Object?> args = const {}]) {
+    final lib = _core;
+    if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
+    final call = lib
+        .lookupFunction<
+          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
+        >('lumen_tank_call');
+    final free = lib
+        .lookupFunction<
+          Void Function(Pointer<Utf8>),
+          void Function(Pointer<Utf8>)
+        >('lumen_tank_free');
+    return _invoke(call, free, method, args);
+  }
+
   /// Invokes a method on `libublock` (`ublock_call`).
   dynamic ublock(String method, [Map<String, Object?> args = const {}]) {
     final lib = _ublock;

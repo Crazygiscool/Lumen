@@ -136,6 +136,8 @@ class SettingsScreen extends ConsumerWidget {
         const SizedBox(height: 20),
         const _StorageSection(),
         const SizedBox(height: 20),
+        const _TankSection(),
+        const SizedBox(height: 20),
         const _PluginsSection(),
         const SizedBox(height: 20),
         const _GithubSettingsSection(),
@@ -224,6 +226,148 @@ class _StorageSection extends ConsumerWidget {
             onPressed: () => _pick(context, ref, true),
             child: const Text('Browse'),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TankSection extends ConsumerWidget {
+  const _TankSection();
+
+  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(settingsProvider).tankPath;
+    final dir = await showFolderPicker(
+      context,
+      title: 'Choose tank folder',
+      initialPath: current,
+    );
+    if (dir == null) return;
+    if (!context.mounted) return;
+    final notifier = ref.read(tankProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await notifier.setPath(dir);
+      if (!context.mounted) return;
+      final status = ref.read(tankProvider);
+      if (!status.setup) {
+        final pass = await _askPass(context, confirm: true, title: 'Create tank');
+        if (pass == null) return;
+        await notifier.setup(dir, pass);
+        messenger.showSnackBar(
+          SnackBar(content: Text('Tank created and unlocked at $dir')),
+        );
+      } else if (!status.unlocked) {
+        final pass = await _askPass(context, confirm: false, title: 'Unlock tank');
+        if (pass == null) return;
+        await notifier.unlock(dir, pass);
+        messenger.showSnackBar(const SnackBar(content: Text('Tank unlocked')));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Tank error: ${e.toString()}')));
+    }
+  }
+
+  static Future<String?> _askPass(
+    BuildContext context, {
+    required bool confirm,
+    required String title,
+  }) async {
+    final ctl = TextEditingController();
+    final ctl2 = TextEditingController();
+    final pass = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctl,
+              autofocus: true,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Passphrase',
+                helperText: 'Unlocks the tank locally; nothing is stored in plaintext.',
+              ),
+            ),
+            if (confirm) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctl2,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Confirm passphrase'),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final a = ctl.text;
+              if (a.isEmpty) return;
+              if (confirm && a != ctl2.text) return;
+              Navigator.pop(c, a);
+            },
+            child: Text(confirm ? 'Create' : 'Unlock'),
+          ),
+        ],
+      ),
+    );
+    ctl.dispose();
+    ctl2.dispose();
+    return pass;
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final tank = ref.watch(tankProvider);
+    final t = LumenColors.of(context);
+
+    final String statusLabel;
+    if (s.tankPath == null || s.tankPath!.isEmpty) {
+      statusLabel = 'Not set up';
+    } else if (!tank.setup) {
+      statusLabel = 'No tank at this folder';
+    } else if (tank.unlocked) {
+      statusLabel = 'Unlocked';
+    } else {
+      statusLabel = 'Locked';
+    }
+
+    return _Section(
+      title: 'Encrypted tank',
+      children: [
+        _Row(
+          label: 'Tank folder',
+          valueText: s.tankPath ?? 'Not set',
+          child: TextButton(
+            onPressed: () => _pick(context, ref),
+            child: Text(s.tankPath == null ? 'Choose' : 'Change'),
+          ),
+        ),
+        _Row(
+          label: 'Status',
+          valueText: statusLabel,
+          child: tank.unlocked
+              ? TextButton(
+                  onPressed: () async {
+                    await ref.read(tankProvider.notifier).lock();
+                  },
+                  child: const Text('Lock'),
+                )
+              : Text(
+                  'Encrypt files from the Files tab',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: t.onSurfaceVariant,
+                  ),
+                ),
         ),
       ],
     );

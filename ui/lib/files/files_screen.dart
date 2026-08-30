@@ -181,6 +181,36 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     }
   }
 
+  Future<void> _encrypt(FsEntry entry) async {
+    final tank = ref.read(tankProvider);
+    if (!tank.setup || !tank.unlocked) {
+      _toast('Unlock the encrypted tank first (Settings → Storage).');
+      return;
+    }
+    try {
+      await ref.read(tankServiceProvider).encrypt(entry.path);
+      await ref.read(_dir.notifier).refresh();
+      _toast('Encrypted ${entry.name}');
+    } catch (e) {
+      _toast('Encrypt failed: ${_short(e.toString())}');
+    }
+  }
+
+  Future<void> _decrypt(FsEntry entry) async {
+    final tank = ref.read(tankProvider);
+    if (!tank.setup || !tank.unlocked) {
+      _toast('Unlock the encrypted tank first (Settings → Storage).');
+      return;
+    }
+    try {
+      await ref.read(tankServiceProvider).decrypt(entry.path);
+      await ref.read(_dir.notifier).refresh();
+      _toast('Decrypted ${entry.name}');
+    } catch (e) {
+      _toast('Decrypt failed: ${_short(e.toString())}');
+    }
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -286,6 +316,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                                 Clipboard.setData(ClipboardData(text: e.path));
                                 _toast('Path copied');
                               },
+                              onEncrypt: _encrypt,
+                              onDecrypt: _decrypt,
                             ),
                           ),
                           if (hasPanes) ...[
@@ -611,6 +643,8 @@ class _FilesArea extends StatelessWidget {
     required this.onTrash,
     required this.onDelete,
     required this.onCopyPath,
+    required this.onEncrypt,
+    required this.onDecrypt,
   });
 
   final DirState state;
@@ -623,6 +657,8 @@ class _FilesArea extends StatelessWidget {
   final ValueChanged<FsEntry> onTrash;
   final ValueChanged<FsEntry> onDelete;
   final ValueChanged<FsEntry> onCopyPath;
+  final ValueChanged<FsEntry> onEncrypt;
+  final ValueChanged<FsEntry> onDecrypt;
 
   @override
   Widget build(BuildContext context) {
@@ -673,6 +709,8 @@ class _FilesArea extends StatelessWidget {
   }
 
   void showContextMenu(BuildContext context, FsEntry entry, Offset pos) {
+    final marker = !entry.isDir &&
+        (entry.extension?.toLowerCase() == 'lumen-tank');
     showMenu(
       context: context,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, 0, 0),
@@ -681,6 +719,11 @@ class _FilesArea extends StatelessWidget {
           value: 'open',
           child: Text(entry.isDir ? 'Open' : 'Open file'),
         ),
+        if (marker) ...[
+          PopupMenuItem(value: 'decrypt', child: const Text('Decrypt')),
+        ] else if (!entry.isDir) ...[
+          PopupMenuItem(value: 'encrypt', child: const Text('Encrypt to tank…')),
+        ],
         PopupMenuItem(value: 'rename', child: const Text('Rename…')),
         PopupMenuItem(value: 'copy', child: const Text('Copy path')),
         if (!entry.isDir) const PopupMenuDivider(),
@@ -696,6 +739,10 @@ class _FilesArea extends StatelessWidget {
           } else {
             onOpen(entry);
           }
+        case 'decrypt':
+          onDecrypt(entry);
+        case 'encrypt':
+          onEncrypt(entry);
         case 'rename':
           onRename(entry);
         case 'copy':
@@ -852,19 +899,38 @@ class _FileTileState extends State<_FileTile> {
   }
 
   Widget _content(BuildContext context) {
+    final encrypted = !entry.isDir && entry.extension?.toLowerCase() == 'lumen-tank';
     if (widget.viewMode == _ViewMode.grid) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AnimatedScale(
-            scale: _hovered ? 1.12 : 1.0,
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
-            child: Icon(
-              _icon,
-              size: 34,
-              color: _hovered ? _hoverTint(context) : _tintFor(context),
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedScale(
+                scale: _hovered ? 1.12 : 1.0,
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOut,
+                child: Icon(
+                  _icon,
+                  size: 34,
+                  color: _hovered ? _hoverTint(context) : _tintFor(context),
+                ),
+              ),
+              if (encrypted)
+                Positioned(
+                  right: -14,
+                  top: -10,
+                  child: Tooltip(
+                    message: 'Tank-encrypted',
+                    child: Icon(
+                      Icons.lock,
+                      size: 14,
+                      color: LumenColors.of(context).onPrimary,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           Padding(
@@ -882,10 +948,25 @@ class _FileTileState extends State<_FileTile> {
     }
     return ListTile(
       dense: true,
-      leading: Icon(
-        _icon,
-        color: _hovered ? _hoverTint(context) : _tintFor(context),
-        size: 20,
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(
+            _icon,
+            color: _hovered ? _hoverTint(context) : _tintFor(context),
+            size: 20,
+          ),
+          if (encrypted)
+            Positioned(
+              right: -10,
+              top: -6,
+              child: Icon(
+                Icons.lock,
+                size: 11,
+                color: LumenColors.of(context).onPrimary,
+              ),
+            ),
+        ],
       ),
       title: Text(
         entry.name,

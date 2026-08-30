@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ffi/fs_service.dart';
 import '../ffi/lumen_ffi.dart';
+import '../ffi/tank_service.dart';
 import '../ffi/vault_service.dart';
 import '../shell/tabs/tabs_provider.dart';
 import '../theme/lumen_colors.dart';
@@ -111,6 +112,64 @@ final journalVaultProvider =
     NotifierProvider<VaultNotifier, VaultUiState>(
       () => VaultNotifier('journal'),
     );
+
+// ---------------------------------------------------------------------------
+// Tank — encrypted off-site store for encrypt-any-file.
+// ---------------------------------------------------------------------------
+
+final tankServiceProvider = Provider<TankService>(
+  (ref) => TankService(ref.watch(lumenFfiProvider)),
+);
+
+class TankNotifier extends Notifier<TankStatus> {
+  @override
+  TankStatus build() => const TankStatus(setup: false, unlocked: false);
+
+  /// Restores the configured tank location (if any) from settings without
+  /// needing the passphrase; keeps the session locked state as-is.
+  Future<void> init() async {
+    final path = ref.read(settingsProvider).tankPath;
+    if (path == null || path.isEmpty) return;
+    try {
+      await ref.read(tankServiceProvider).setPath(path);
+      await refresh();
+    } catch (_) {
+      // Not set up yet, or folder moved — leave state untouched.
+    }
+  }
+
+  Future<void> refresh() async {
+    state = await ref.read(tankServiceProvider).status();
+  }
+
+  /// Points the tank at [path] without persisting it or touching keys.
+  /// Setup/unlock persist the chosen folder.
+  Future<void> setPath(String path) async {
+    await ref.read(tankServiceProvider).setPath(path);
+    await refresh();
+  }
+
+  Future<void> setup(String path, String passphrase) async {
+    await ref.read(tankServiceProvider).setup(path, passphrase);
+    ref.read(settingsProvider.notifier).setTankPath(path);
+    await refresh();
+  }
+
+  Future<void> unlock(String path, String passphrase) async {
+    await ref.read(tankServiceProvider).unlock(path, passphrase);
+    ref.read(settingsProvider.notifier).setTankPath(path);
+    await refresh();
+  }
+
+  Future<void> lock() async {
+    await ref.read(tankServiceProvider).lock();
+    await refresh();
+  }
+}
+
+final tankProvider = NotifierProvider<TankNotifier, TankStatus>(
+  TankNotifier.new,
+);
 
 // ---------------------------------------------------------------------------
 // Lumen pages (tab destinations)
@@ -311,6 +370,7 @@ class AppSettings {
     this.startPath,
     this.vaultPath,
     this.journalVaultPath,
+    this.tankPath,
     this.githubToken,
     this.githubLogin,
     this.wakaApiKey,
@@ -324,6 +384,10 @@ class AppSettings {
   final String? vaultPath;
   final String? journalVaultPath;
 
+  /// Location of the "tank": the third encrypted store that holds uniform
+  /// ciphertext blobs for encrypt-any-file.
+  final String? tankPath;
+
   /// Personal access tokens (stored locally, plaintext with the prefs).
   final String? githubToken;
   final String? githubLogin;
@@ -335,6 +399,7 @@ class AppSettings {
     String? startPath,
     String? vaultPath,
     String? journalVaultPath,
+    String? tankPath,
     String? githubToken,
     String? githubLogin,
     String? wakaApiKey,
@@ -344,6 +409,7 @@ class AppSettings {
     startPath: startPath ?? this.startPath,
     vaultPath: vaultPath ?? this.vaultPath,
     journalVaultPath: journalVaultPath ?? this.journalVaultPath,
+    tankPath: tankPath ?? this.tankPath,
     githubToken: githubToken ?? this.githubToken,
     githubLogin: githubLogin ?? this.githubLogin,
     wakaApiKey: wakaApiKey ?? this.wakaApiKey,
@@ -369,6 +435,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
       startPath: prefs.getString('startPath'),
       vaultPath: prefs.getString('vaultPath') ?? prefs.getString('kbVaultPath'),
       journalVaultPath: prefs.getString('journalVaultPath'),
+      tankPath: prefs.getString('tankPath'),
       githubToken: prefs.getString('githubToken'),
       githubLogin: prefs.getString('githubLogin'),
       wakaApiKey: prefs.getString('wakaApiKey'),
@@ -394,6 +461,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void setJournalVaultPath(String path) {
     state = state.copyWith(journalVaultPath: path);
     _prefs?.setString('journalVaultPath', path);
+  }
+
+  void setTankPath(String path) {
+    state = state.copyWith(tankPath: path);
+    _prefs?.setString('tankPath', path);
   }
 
   void setGithubToken(String? value) {
