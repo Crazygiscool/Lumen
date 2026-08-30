@@ -91,20 +91,27 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+      - name: Install Inno Setup
+        shell: bash
+        run: choco install innosetup -y
       - name: Build
         shell: bash
         run: |
           ./scripts/build_windows.sh
-      - name: Verify DLLs bundled
+      - name: Verify DLLs and installer bundled
         shell: bash
         run: |
           ls -la dist/
           unzip -l dist/*.zip | grep -E 'lib/(lumen_core|fscore|ublock)\.dll|lumen-cli\.exe'
+          test -f dist/Lumen-windows-v*.zip
+          test -f dist/Lumen-windows-v*-setup.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: lumen-windows
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
 
   release:
     name: Create GitHub Release
@@ -122,6 +129,7 @@ jobs:
             lumen-linux/*.tar.gz
             lumen-macos/*.zip
             lumen-windows/*.zip
+            lumen-windows/*.exe
           draft: false
           prerelease: false
         env:

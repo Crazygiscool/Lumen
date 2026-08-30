@@ -54,6 +54,25 @@ else
 
     cd "$BUNDLE_DIR"
     zip -r "$DIST_DIR/$ZIP_NAME" .
+
+    echo ""
+    echo "=== Step 5: Build Inno Setup installer ==="
+    if command -v iscc >/dev/null 2>&1; then
+        ISCC="$(command -v iscc)"
+    elif [ -f "$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe" ]; then
+        ISCC="$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe"
+    elif [ -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; then
+        ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+    else
+        ISCC=""
+    fi
+
+    if [ -n "$ISCC" ]; then
+        "$ISCC" /DAPP_VERSION="$VERSION" /DBUNDLE_DIR="$BUNDLE_DIR" "$ROOT_DIR/scripts/lumen.iss"
+        echo "Installer: $DIST_DIR/Lumen-windows-v${VERSION}-setup.exe"
+    else
+        echo "SKIPPED: Inno Setup (ISCC) not found. Install with: choco install innosetup -y"
+    fi
 fi
 
 echo "=== Windows Build Step Finished ==="
