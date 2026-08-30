@@ -101,7 +101,7 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
         "vault.create" => {
             let a = parse!(CreateArgs);
             match create_with_passphrase(&a.path, &a.passphrase, &a.store) {
-                Ok(()) => serde_json::json!({ "created": a.path, "store": a.store }),
+                Ok(()) => ok(serde_json::json!({ "created": a.path, "store": a.store })),
                 Err(e) => return err(e),
             }
         }
@@ -110,16 +110,16 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             if let Err(e) = unlock(&a.path, &a.passphrase, &a.store) {
                 return err(e);
             }
-            serde_json::json!({ "unlocked": a.path, "store": a.store })
+            ok(serde_json::json!({ "unlocked": a.path, "store": a.store }))
         }
         "vault.lock" => {
             let a = parse!(StoreArgs);
             lock(&a.store);
-            serde_json::json!({ "locked": true, "store": a.store })
+            ok(serde_json::json!({ "locked": true, "store": a.store }))
         }
         "vault.lock_all" => {
             lock_all();
-            serde_json::json!({ "locked": true })
+            ok(serde_json::json!({ "locked": true }))
         }
         "vault.is_unlocked" => {
             let a = parse!(StoreArgs);
@@ -129,7 +129,7 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
         "vault.info" => {
             let a = parse!(StoreArgs);
             match info(&a.store) {
-                Ok(v) => v,
+                Ok(v) => ok(v),
                 Err(e) => return err(e),
             }
         }
