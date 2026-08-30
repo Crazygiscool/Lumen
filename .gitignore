@@ -11,7 +11,9 @@ target
 build/
 ios/
 android/
-web/
+# Flutter's generated "build/web" output directory (root-anchored so module
+# directories like ui/lib/shell/web/ are not shadowed).
+/web/
 coverage/
 # VS Code settings
 .vscode/
