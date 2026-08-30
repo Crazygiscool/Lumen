@@ -266,6 +266,9 @@ class _ActivityCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final journal = ref.watch(journalVaultProvider);
+    final locked = settings.journalVaultPath != null && !journal.unlocked;
     return Glass(
       blurSigma: 0,
       radius: LumenColors.radiusLg,
@@ -295,19 +298,22 @@ class _ActivityCard extends ConsumerWidget {
                   ),
                   icon: const Icon(Icons.edit_outlined, size: 15),
                   label: const Text('Log today'),
-                  onPressed: () => _logToday(ref),
+                  onPressed: () => _logToday(context, ref),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            activity.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (e, _) => Text(
-                'Unlock the journal vault to see contributions.\n$e',
-                style: TextStyle(fontSize: 12.5, color: t.onSurfaceVariant),
+            if (locked)
+              _JournalLockBanner(t: t, onUnlock: () => _unlockJournal(context, ref))
+            else
+              activity.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text(
+                  'Could not read the journal: $e',
+                  style: TextStyle(fontSize: 12.5, color: t.onSurfaceVariant),
+                ),
+                data: (act) => ContributionChart(activity: act),
               ),
-              data: (act) => ContributionChart(activity: act),
-            ),
             const SizedBox(height: 8),
             Text(
               'Daily journal entries by day — log today to light up a cell.',
@@ -319,9 +325,126 @@ class _ActivityCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _logToday(WidgetRef ref) async {
+  Future<void> _logToday(BuildContext context, WidgetRef ref) async {
+    if (!ref.read(journalVaultProvider).unlocked) {
+      final ok = await _unlockJournal(context, ref);
+      if (ok != true) return;
+    }
     await ref.read(journalServiceProvider).recordEntry();
     ref.invalidate(activityProvider);
+  }
+
+  /// Prompts for the journal passphrase and unlocks the journal store.
+  /// Returns true when the store was unlocked successfully.
+  Future<bool> _unlockJournal(BuildContext context, WidgetRef ref) async {
+    final path = ref.read(settingsProvider).journalVaultPath;
+    if (path == null) return false;
+    final controller = TextEditingController();
+    String? error;
+    Future<void> submit(BuildContext dialogContext, StateSetter setDialog) async {
+      try {
+        await ref
+            .read(journalVaultProvider.notifier)
+            .unlock(path, controller.text);
+        if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+      } catch (e) {
+        setDialog(() => error = e.toString());
+      }
+    }
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => StatefulBuilder(
+          builder: (c, setDialog) => AlertDialog(
+            title: const Text('Unlock journal'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  path,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontFamily: 'Geist Mono', color: t.onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Journal passphrase',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => submit(c, setDialog),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(error!, style: TextStyle(fontSize: 12, color: t.error)),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => submit(c, setDialog),
+                child: const Text('Unlock'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (ok == true) {
+        ref.invalidate(activityProvider);
+        ref.invalidate(projectsProvider);
+        ref.invalidate(projectsNotifierProvider);
+      }
+      return ok == true;
+    } finally {
+      controller.dispose();
+    }
+  }
+}
+
+/// Compact locked-state banner shown on the journal card after relaunching
+/// with a configured (but not yet unlocked) journal store.
+class _JournalLockBanner extends StatelessWidget {
+  const _JournalLockBanner({required this.t, required this.onUnlock});
+  final LumenPalette t;
+  final VoidCallback onUnlock;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: t.surfaceContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.hairline),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: t.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Your journal is locked. Unlock it to log today and see your contribution chart.',
+              style: TextStyle(fontSize: 12.5, color: t.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: onUnlock,
+            icon: const Icon(Icons.key, size: 15),
+            label: const Text('Unlock'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
