@@ -164,7 +164,8 @@ class SettingsScreen extends ConsumerWidget {
           title: 'Shortcuts',
           children: [
             _Row(label: 'Command palette', valueText: 'Ctrl+P'),
-            _Row(label: 'Sections', valueText: 'Ctrl+1 … Ctrl+9'),
+            _Row(label: 'Sections', valueText: 'Alt+1 … Alt+9'),
+            _Row(label: 'Tabs (positional)', valueText: 'Ctrl+1 … Ctrl+9'),
             _Row(label: 'New tab / close tab', valueText: 'Ctrl+T / Ctrl+W'),
           ],
         ),

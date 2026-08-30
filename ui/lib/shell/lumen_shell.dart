@@ -117,6 +117,20 @@ final Map<LogicalKeyboardKey, LumenSection> _shortcutKeyToSection = {
   LogicalKeyboardKey.digit9: LumenSection.github,
 };
 
+/// Ctrl+1…9 activate tabs positionally (1 = leftmost, 0 = 10th).
+const List<LogicalKeyboardKey> _digitKeys = [
+  LogicalKeyboardKey.digit0,
+  LogicalKeyboardKey.digit1,
+  LogicalKeyboardKey.digit2,
+  LogicalKeyboardKey.digit3,
+  LogicalKeyboardKey.digit4,
+  LogicalKeyboardKey.digit5,
+  LogicalKeyboardKey.digit6,
+  LogicalKeyboardKey.digit7,
+  LogicalKeyboardKey.digit8,
+  LogicalKeyboardKey.digit9,
+];
+
 class LumenShell extends ConsumerStatefulWidget {
   const LumenShell({super.key});
 
@@ -178,10 +192,14 @@ class _LumenShellState extends ConsumerState<LumenShell> {
           }
           return KeyEventResult.handled;
       }
-      final section = _shortcutKeyToSection[event.logicalKey];
-      if (section != null) {
-        tabs.activatePage(section);
-        return KeyEventResult.handled;
+      final index = _digitKeys.indexOf(event.logicalKey);
+      if (index >= 0) {
+        final c = ref.read(tabsProvider);
+        final i = index == 0 ? 9 : index - 1;
+        if (i < c.tabs.length) {
+          tabs.activate(c.tabs[i].id);
+          return KeyEventResult.handled;
+        }
       }
       return KeyEventResult.ignored;
     }
@@ -193,6 +211,11 @@ class _LumenShellState extends ConsumerState<LumenShell> {
       }
       if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
         tabs.forward();
+        return KeyEventResult.handled;
+      }
+      final section = _shortcutKeyToSection[event.logicalKey];
+      if (section != null) {
+        tabs.activatePage(section);
         return KeyEventResult.handled;
       }
     }
