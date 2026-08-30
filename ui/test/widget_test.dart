@@ -109,6 +109,7 @@ void main() {
       expect(resolveInput('lumen:console').page, LumenSection.console);
       expect(resolveInput('lumen://projects').page, LumenSection.projects);
       expect(resolveInput('lumen://settings').page, LumenSection.settings);
+      expect(resolveInput('lumen://plugins').page, LumenSection.plugins);
       expect(resolveInput('').kind, TabKind.newtab);
       expect(resolveInput('lumen://files').kind, TabKind.lumen);
     });

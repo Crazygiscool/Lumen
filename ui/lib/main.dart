@@ -23,6 +23,7 @@ Future<void> main() async {
         adBlockProvider.overrideWith(() => AdBlockNotifier(prefs)),
         onboardingProvider.overrideWith(() => OnboardingNotifier(prefs)),
         featuresProvider.overrideWith(() => FeaturesNotifier(prefs)),
+        pluginsProvider.overrideWith(() => PluginNotifier(prefs)),
       ],
       child: const LumenApp(),
     ),

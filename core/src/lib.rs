@@ -49,12 +49,13 @@ pub use ffi::{
 
 pub use vault::ffi::{lumen_vault_call, lumen_vault_free};
 pub use tank::ffi::{lumen_tank_call, lumen_tank_free};
+pub use plugins::ffi::{lumen_plugins_call, lumen_plugins_free};
 
 #[cfg(test)]
 mod tests {
 use crate::entry::{EntryKind, JournalEntry};
 use crate::storage::Storage;
-use crate::plugins::{Plugin, PluginManager};
+use crate::plugins::{set_enabled, Plugin, PluginManager};
 use std::path::Path;
 
     use crate::entry::encryption;
@@ -95,9 +96,12 @@ use std::path::Path;
 
         // Plugin usage
         let mut manager = PluginManager::new();
-        manager.register_plugin(Box::new(TestPlugin));
+        manager.register_plugin("test", Box::new(TestPlugin));
         let feedback = manager.run_on_entry(&entry);
         assert!(!feedback.is_empty());
+        set_enabled("test", false);
+        let feedback_disabled = manager.run_on_entry(&entry);
+        assert!(!feedback_disabled.iter().any(|f| f.contains("test")));
     }
 
     #[test]

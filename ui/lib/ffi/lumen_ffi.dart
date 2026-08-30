@@ -139,6 +139,24 @@ class LumenFfi {
     return _invoke(call, free, method, args);
   }
 
+  /// Invokes a method on the plugin inventory entry of `liblumen_core`
+  /// (`lumen_plugins_call`).
+  dynamic plugins(String method, [Map<String, Object?> args = const {}]) {
+    final lib = _core;
+    if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
+    final call = lib
+        .lookupFunction<
+          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
+        >('lumen_plugins_call');
+    final free = lib
+        .lookupFunction<
+          Void Function(Pointer<Utf8>),
+          void Function(Pointer<Utf8>)
+        >('lumen_plugins_free');
+    return _invoke(call, free, method, args);
+  }
+
   /// Invokes a method on `libublock` (`ublock_call`).
   dynamic ublock(String method, [Map<String, Object?> args = const {}]) {
     final lib = _ublock;

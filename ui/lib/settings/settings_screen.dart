@@ -638,6 +638,19 @@ class _PluginsSection extends ConsumerWidget {
               onChanged: (v) => notifier.set(feature, v),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => ref
+                  .read(tabsProvider.notifier)
+                  .activatePage(LumenSection.plugins),
+              icon: const Icon(Icons.extension_outlined, size: 15),
+              label: const Text('Open Plugins screen'),
+            ),
+          ),
+        ),
       ],
     );
   }

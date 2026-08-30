@@ -18,6 +18,7 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.github => 'GitHub',
     LumenSection.settings => 'Settings',
     LumenSection.welcome => 'Getting started',
+    LumenSection.plugins => 'Plugins',
   };
 
   String get pathName => switch (this) {
@@ -31,6 +32,7 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.github => 'github',
     LumenSection.settings => 'settings',
     LumenSection.welcome => 'welcome',
+    LumenSection.plugins => 'plugins',
   };
 
   IconData get icon => switch (this) {
@@ -44,6 +46,7 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.github => Icons.account_tree_outlined,
     LumenSection.settings => Icons.settings_outlined,
     LumenSection.welcome => Icons.auto_awesome,
+    LumenSection.plugins => Icons.extension_outlined,
   };
 }
 
@@ -59,6 +62,7 @@ const _pageNames = <String, LumenSection>{
   'github': LumenSection.github,
   'settings': LumenSection.settings,
   'welcome': LumenSection.welcome,
+  'plugins': LumenSection.plugins,
 };
 
 const newTabSpec = TabSpec(

@@ -9,6 +9,7 @@ import '../graph/graph_screen.dart';
 import '../home/home_dashboard.dart';
 import '../lab/os_lab_screen.dart';
 import '../onboarding/onboarding_screen.dart';
+import '../plugins/plugins_screen.dart';
 import '../projects/projects_screen.dart';
 import '../settings/settings_screen.dart';
 import '../state/providers.dart';
@@ -216,6 +217,7 @@ class _LumenShellState extends ConsumerState<LumenShell> {
           LumenSection.github => const GithubScreen(),
           LumenSection.settings => const SettingsScreen(),
           LumenSection.welcome => OnboardingScreen(tabId: tab.id),
+          LumenSection.plugins => const PluginsScreen(),
           null => const SizedBox.shrink(),
         };
     }

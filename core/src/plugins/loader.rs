@@ -51,3 +51,26 @@ pub fn scan_plugins(plugins_dir: &PathBuf) -> Vec<LoadedPlugin> {
 
     loaded
 }
+
+/// Manifest-only listing of plugins on disk. Unlike [scan_plugins] this does
+/// NOT dlopen anything, so it is safe to call just to show the inventory.
+pub fn inventory(plugins_dir: &PathBuf) -> Vec<PluginManifest> {
+    let mut out = Vec::new();
+
+    let entries = match fs::read_dir(plugins_dir) {
+        Ok(e) => e,
+        Err(_) => return out,
+    };
+
+    for entry in entries.flatten() {
+        let dir = entry.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        if let Some(m) = PluginManifest::from_file(&dir.join("plugin.toml")) {
+            out.push(m);
+        }
+    }
+
+    out
+}

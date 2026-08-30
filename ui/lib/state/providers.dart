@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ffi/fs_service.dart';
 import '../ffi/lumen_ffi.dart';
+import '../ffi/plugin_service.dart';
 import '../ffi/tank_service.dart';
 import '../ffi/vault_service.dart';
 import '../shell/tabs/tabs_provider.dart';
@@ -172,6 +173,55 @@ final tankProvider = NotifierProvider<TankNotifier, TankStatus>(
 );
 
 // ---------------------------------------------------------------------------
+// Plugins — inventory + enable/disable (toggles persisted in prefs).
+// ---------------------------------------------------------------------------
+
+final pluginServiceProvider = Provider<PluginService>(
+  (ref) => PluginService(ref.watch(lumenFfiProvider)),
+);
+
+class PluginNotifier extends AsyncNotifier<PluginList> {
+  PluginNotifier([this._prefs]);
+
+  final SharedPreferences? _prefs;
+
+  static String _key(String name) => 'pluginEnabled.$name';
+
+  @override
+  Future<PluginList> build() async {
+    try {
+      final service = ref.read(pluginServiceProvider);
+      late PluginList list;
+      list = await service.list();
+      var dirty = false;
+      for (final p in list.all) {
+        final saved = _prefs?.getBool(_key(p.name));
+        if (saved != null && saved != p.enabled) {
+          await service.setEnabled(p.name, saved);
+          dirty = true;
+        }
+      }
+      // set_enabled flips the core-side flag; refetch so the UI matches the
+      // persisted choice.
+      if (dirty) list = await service.list();
+      return list;
+    } catch (e) {
+      throw Exception('Could not read plugins: $e');
+    }
+  }
+
+  Future<void> toggle(PluginInfo plugin, bool value) async {
+    await ref.read(pluginServiceProvider).setEnabled(plugin.name, value);
+    _prefs?.setBool(_key(plugin.name), value);
+    state = await AsyncValue.guard(ref.read(pluginServiceProvider).list);
+  }
+}
+
+final pluginsProvider = AsyncNotifierProvider<PluginNotifier, PluginList>(
+  PluginNotifier.new,
+);
+
+// ---------------------------------------------------------------------------
 // Lumen pages (tab destinations)
 // ---------------------------------------------------------------------------
 
@@ -186,6 +236,7 @@ enum LumenSection {
   github,
   settings,
   welcome,
+  plugins,
 }
 
 /// The optional feature that gates [LumenSection], or null for always-on core
