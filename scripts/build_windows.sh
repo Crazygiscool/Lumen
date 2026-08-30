@@ -42,7 +42,6 @@ else
     cd "$UI_DIR"
     flutter config --enable-windows-desktop
     flutter build windows --release
-
     echo ""
     echo "=== Step 4: Packaging ==="
     mkdir -p "$DIST_DIR"
@@ -52,8 +51,25 @@ else
     # Bundle TUI
     cp "$ROOT_DIR/target/$TARGET/release/lumen.exe" "$BUNDLE_DIR/lumen-cli.exe"
 
+    # Convert paths for Windows-native tools (PowerShell / ISCC). Git Bash
+    # produces POSIX paths; cygpath converts them to Windows form when present.
+    WIN_BUNDLE_DIR="$BUNDLE_DIR"
+    WIN_ROOT_DIR="$ROOT_DIR"
+    if command -v cygpath >/dev/null 2>&1; then
+        WIN_BUNDLE_DIR="$(cygpath -w "$BUNDLE_DIR")"
+        WIN_ROOT_DIR="$(cygpath -w "$ROOT_DIR")"
+    fi
+
     cd "$BUNDLE_DIR"
-    zip -r "$DIST_DIR/$ZIP_NAME" .
+    if command -v zip >/dev/null 2>&1; then
+        zip -r "$DIST_DIR/$ZIP_NAME" .
+    else
+        WIN_DIST_DIR="$DIST_DIR"
+        if command -v cygpath >/dev/null 2>&1; then
+            WIN_DIST_DIR="$(cygpath -w "$DIST_DIR")"
+        fi
+        powershell -NoProfile -Command "Compress-Archive -Path \"$WIN_BUNDLE_DIR\\*\" -DestinationPath \"$WIN_DIST_DIR\\$ZIP_NAME\" -Force"
+    fi
 
     echo ""
     echo "=== Step 5: Build Inno Setup installer ==="
@@ -68,7 +84,7 @@ else
     fi
 
     if [ -n "$ISCC" ]; then
-        "$ISCC" /DAPP_VERSION="$VERSION" /DBUNDLE_DIR="$BUNDLE_DIR" "$ROOT_DIR/scripts/lumen.iss"
+        "$ISCC" /DAPP_VERSION="$VERSION" /DBUNDLE_DIR="$WIN_BUNDLE_DIR" "$WIN_ROOT_DIR/scripts/lumen.iss"
         echo "Installer: $DIST_DIR/Lumen-windows-v${VERSION}-setup.exe"
     else
         echo "SKIPPED: Inno Setup (ISCC) not found. Install with: choco install innosetup -y"
