@@ -7,6 +7,7 @@ pub mod ffi;
 pub mod progress;
 pub mod paths;
 pub mod vault;
+pub mod tank;
 
 pub use ffi::{
     lumen_add_entry,
@@ -47,6 +48,7 @@ pub use ffi::{
 };
 
 pub use vault::ffi::{lumen_vault_call, lumen_vault_free};
+pub use tank::ffi::{lumen_tank_call, lumen_tank_free};
 
 #[cfg(test)]
 mod tests {
