@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../console/console_screen.dart';
 import '../files/files_screen.dart';
+import '../github/github_screen.dart';
 import '../graph/graph_screen.dart';
+import '../home/home_dashboard.dart';
 import '../lab/os_lab_screen.dart';
+import '../projects/projects_screen.dart';
 import '../settings/settings_screen.dart';
 import '../state/providers.dart';
 import '../theme/glass.dart';
@@ -36,56 +39,80 @@ class LumenSectionSpec {
 
 const _sections = [
   LumenSectionSpec(
+    section: LumenSection.home,
+    icon: Icons.home_outlined,
+    label: 'Home',
+    tooltip: 'Home tab — Ctrl+1',
+    shortcut: '1',
+  ),
+  LumenSectionSpec(
     section: LumenSection.files,
     icon: Icons.folder_outlined,
     label: 'Files',
-    tooltip: 'Files tab — Ctrl+1',
-    shortcut: '1',
+    tooltip: 'Files tab — Ctrl+2',
+    shortcut: '2',
   ),
   LumenSectionSpec(
     section: LumenSection.vault,
     icon: Icons.lock_outline,
     label: 'Vault',
-    tooltip: 'Vault tab — Ctrl+2',
-    shortcut: '2',
+    tooltip: 'Vault tab — Ctrl+3',
+    shortcut: '3',
   ),
   LumenSectionSpec(
     section: LumenSection.graph,
     icon: Icons.hub_outlined,
     label: 'Graph',
-    tooltip: 'Graph tab — Ctrl+3',
-    shortcut: '3',
+    tooltip: 'Graph tab — Ctrl+4',
+    shortcut: '4',
   ),
   LumenSectionSpec(
     section: LumenSection.osLab,
     icon: Icons.memory,
     label: 'OS Lab',
-    tooltip: 'OS Lab tab — Ctrl+4',
-    shortcut: '4',
+    tooltip: 'OS Lab tab — Ctrl+5',
+    shortcut: '5',
   ),
   LumenSectionSpec(
     section: LumenSection.console,
     icon: Icons.terminal,
     label: 'Console',
-    tooltip: 'Console tab — Ctrl+5',
-    shortcut: '5',
+    tooltip: 'Console tab — Ctrl+6',
+    shortcut: '6',
+  ),
+  LumenSectionSpec(
+    section: LumenSection.projects,
+    icon: Icons.grid_view_outlined,
+    label: 'Projects',
+    tooltip: 'Projects tab — Ctrl+8',
+    shortcut: '8',
+  ),
+  LumenSectionSpec(
+    section: LumenSection.github,
+    icon: Icons.account_tree_outlined,
+    label: 'GitHub',
+    tooltip: 'GitHub tab — Ctrl+9',
+    shortcut: '9',
   ),
   LumenSectionSpec(
     section: LumenSection.settings,
     icon: Icons.settings_outlined,
     label: 'Settings',
-    tooltip: 'Settings tab — Ctrl+6',
-    shortcut: '6',
+    tooltip: 'Settings tab — Ctrl+7',
+    shortcut: '7',
   ),
 ];
 
 final Map<LogicalKeyboardKey, LumenSection> _shortcutKeyToSection = {
-  LogicalKeyboardKey.digit1: LumenSection.files,
-  LogicalKeyboardKey.digit2: LumenSection.vault,
-  LogicalKeyboardKey.digit3: LumenSection.graph,
-  LogicalKeyboardKey.digit4: LumenSection.osLab,
-  LogicalKeyboardKey.digit5: LumenSection.console,
-  LogicalKeyboardKey.digit6: LumenSection.settings,
+  LogicalKeyboardKey.digit1: LumenSection.home,
+  LogicalKeyboardKey.digit2: LumenSection.files,
+  LogicalKeyboardKey.digit3: LumenSection.vault,
+  LogicalKeyboardKey.digit4: LumenSection.graph,
+  LogicalKeyboardKey.digit5: LumenSection.osLab,
+  LogicalKeyboardKey.digit6: LumenSection.console,
+  LogicalKeyboardKey.digit7: LumenSection.settings,
+  LogicalKeyboardKey.digit8: LumenSection.projects,
+  LogicalKeyboardKey.digit9: LumenSection.github,
 };
 
 class LumenShell extends ConsumerStatefulWidget {
@@ -170,11 +197,14 @@ class _LumenShellState extends ConsumerState<LumenShell> {
         return LumenWebView(tabId: tab.id, startUrl: tab.url);
       case TabKind.lumen:
         return switch (tab.page) {
+          LumenSection.home => const HomeDashboard(),
           LumenSection.files => FilesScreen(tabId: tab.id),
           LumenSection.vault => VaultScreen(tabId: tab.id),
           LumenSection.graph => const GraphScreen(),
           LumenSection.osLab => const OsLabScreen(),
           LumenSection.console => const ConsoleScreen(),
+          LumenSection.projects => const ProjectsScreen(),
+          LumenSection.github => const GithubScreen(),
           LumenSection.settings => const SettingsScreen(),
           null => const SizedBox.shrink(),
         };
@@ -187,6 +217,7 @@ class _LumenShellState extends ConsumerState<LumenShell> {
     final theme = Theme.of(context);
     final tabs = ref.watch(tabsProvider);
     final active = tabs.active;
+    final features = ref.watch(featuresProvider);
 
     return Focus(
       focusNode: _focusNode,
@@ -200,39 +231,42 @@ class _LumenShellState extends ConsumerState<LumenShell> {
               radius: 0,
               fill: t.glass,
               border: false,
-              child: NavigationRail(
-                selectedIndex: active?.page?.index,
-                onDestinationSelected: (i) => ref
-                    .read(tabsProvider.notifier)
-                    .activatePage(LumenSection.values[i]),
-                leading: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Tooltip(
-                    message: 'Lumen',
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: t.primaryContainer,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.auto_awesome,
-                        color: t.primary,
-                        size: 18,
+              child: SizedBox(
+                width: 56,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 12),
+                      child: Tooltip(
+                        message: 'Lumen',
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: t.primaryContainer,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.auto_awesome,
+                            color: t.primary,
+                            size: 16,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    for (final s in _sections)
+                      if (_sectionEnabled(s.section, features))
+                        _ActivityButton(
+                          tooltip: s.tooltip,
+                          icon: s.icon,
+                          selected: active?.page == s.section,
+                          onTap: () => ref
+                              .read(tabsProvider.notifier)
+                              .activatePage(s.section),
+                        ),
+                    const Spacer(),
+                  ],
                 ),
-                destinations: [
-                  for (final s in _sections)
-                    NavigationRailDestination(
-                      icon: Icon(s.icon),
-                      selectedIcon: Icon(s.icon),
-                      label: Text(s.label),
-                    ),
-                ],
-                trailing: const Spacer(),
               ),
             ),
             VerticalDivider(
@@ -261,6 +295,50 @@ class _LumenShellState extends ConsumerState<LumenShell> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Whether [section] is shown on the activity bar. Core sections are always
+/// on; feature-gated sections consult the feature registry.
+bool _sectionEnabled(LumenSection section, FeaturesState features) =>
+    section.feature == null || features.enabled(section.feature!);
+
+class _ActivityButton extends StatelessWidget {
+  const _ActivityButton({
+    required this.tooltip,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LumenColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Tooltip(
+        message: tooltip,
+        child: IconButton(
+          onPressed: onTap,
+          icon: Icon(
+            icon,
+            size: 20,
+            color: selected ? t.primary : t.onSurfaceVariant,
+          ),
+          style: IconButton.styleFrom(
+            backgroundColor: selected ? t.primaryContainer : Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
         ),
       ),
     );

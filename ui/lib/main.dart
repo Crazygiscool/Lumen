@@ -7,6 +7,7 @@ import 'shell/lumen_shell.dart';
 import 'shell/tabs/tabs_provider.dart';
 import 'shell/web/ad_block_service.dart';
 import 'state/providers.dart';
+import 'onboarding/onboarding_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/glass.dart';
 import 'theme/lumen_colors.dart';
@@ -21,6 +22,8 @@ Future<void> main() async {
         settingsProvider.overrideWith(() => SettingsNotifier(prefs)),
         tabsProvider.overrideWith(() => TabsNotifier(prefs)),
         adBlockProvider.overrideWith(() => AdBlockNotifier(prefs)),
+        onboardingProvider.overrideWith(() => OnboardingNotifier(prefs)),
+        featuresProvider.overrideWith(() => FeaturesNotifier(prefs)),
       ],
       child: const LumenApp(),
     ),
@@ -34,6 +37,7 @@ class LumenApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final palette = ref.watch(commandPaletteProvider);
+    final onboarding = ref.watch(onboardingProvider);
     final gtk = ref.watch(gtkThemeProvider).value;
     final themeMode = resolveThemeMode(settings.themeSource, gtk);
     final accentName = settings.matchGtkAccent ? gtk?.accentName : null;
@@ -55,6 +59,7 @@ class LumenApp extends ConsumerWidget {
           children: [
             const LumenShell(),
             if (palette.visible) const CommandPalette(),
+            if (!onboarding.done) const OnboardingScreen(),
           ],
         ),
       ),

@@ -22,7 +22,7 @@ core/src/
   sync/           # Sync subsystem
     mod.rs        # SyncBackend trait, Conflict struct
     local_sqlite.rs # File-based SQLite sync with conflict detection
-  feedback.rs     # Feedback engine (GEORGE)
+  feedback.rs     # Feedback engine
   ffi.rs          # C-compatible FFI exports for Flutter/Dart
   lib.rs          # Crate root — re-exports all FFI functions
 ```

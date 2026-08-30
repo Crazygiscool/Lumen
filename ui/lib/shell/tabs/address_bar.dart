@@ -322,6 +322,10 @@ class _AddressBarState extends ConsumerState<AddressBar> {
     }
 
     for (final s in LumenSection.values) {
+      if (s.feature != null &&
+          !ref.read(featuresProvider).enabled(s.feature!)) {
+        continue;
+      }
       final url = 'lumen://${s.pathName}';
       if (q.isEmpty || url.contains(ql) || s.title.toLowerCase().contains(ql)) {
         final section = s;

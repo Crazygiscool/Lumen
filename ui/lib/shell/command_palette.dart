@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../ffi/fs_service.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
+import 'tabs/tab_model.dart';
 import 'tabs/tabs_provider.dart';
 
 class CommandPaletteState {
@@ -32,19 +33,14 @@ class CommandPaletteNotifier extends Notifier<CommandPaletteState> {
       state = CommandPaletteState(visible: true, query: query);
       return;
     }
+    final features = ref.read(featuresProvider);
     final results = <Map<String, dynamic>>[];
 
-    for (final s in const [
-      'Files',
-      'Vault',
-      'Graph',
-      'OS Lab',
-      'Console',
-      'Settings',
-    ]) {
+    for (final s in LumenSection.values) {
+      if (s.feature != null && !features.enabled(s.feature!)) continue;
       final lower = query.toLowerCase();
-      if (s.toLowerCase().contains(lower)) {
-        results.add({'kind': 'section', 'title': s});
+      if (s.title.toLowerCase().contains(lower)) {
+        results.add({'kind': 'section', 'title': s.title});
       }
     }
 
@@ -66,14 +62,10 @@ class CommandPaletteNotifier extends Notifier<CommandPaletteState> {
     switch (cmd['kind']) {
       case 'section':
         final name = cmd['title'] as String;
-        final section = switch (name) {
-          'Files' => LumenSection.files,
-          'Vault' => LumenSection.vault,
-          'Graph' => LumenSection.graph,
-          'OS Lab' => LumenSection.osLab,
-          'Console' => LumenSection.console,
-          _ => LumenSection.settings,
-        };
+        final section = LumenSection.values.firstWhere(
+          (s) => s.title == name,
+          orElse: () => LumenSection.settings,
+        );
         ref.read(tabsProvider.notifier).activatePage(section);
       case 'file':
         final entry = cmd['entry'] as FsEntry;

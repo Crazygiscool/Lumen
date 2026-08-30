@@ -38,9 +38,14 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
     final vault = ref.watch(vaultProvider);
     final v = ref.watch(vaultServiceProvider);
     final nav = ref.watch(vaultNavProvider(widget.tabId));
+    final settings = ref.watch(settingsProvider);
 
     if (!vault.unlocked) {
       return _VaultGate(
+        defaultPath:
+            settings.vaultPath ??
+            settings.journalVaultPath ??
+            _defaultVaultPath(),
         customRoot: _customRoot,
         onToggleCustom: () => setState(() => _customRoot = !_customRoot),
         onUnlock: (path, pass) async {
@@ -163,13 +168,20 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
 
 // ---------------------------------------------------------------------------
 
+String _defaultVaultPath() {
+  final home = Platform.environment['HOME'] ?? '/';
+  return '$home${Platform.pathSeparator}Documents${Platform.pathSeparator}lumen-vault';
+}
+
 class _VaultGate extends ConsumerStatefulWidget {
   const _VaultGate({
+    required this.defaultPath,
     required this.customRoot,
     required this.onToggleCustom,
     required this.onUnlock,
   });
 
+  final String defaultPath;
   final bool customRoot;
   final VoidCallback onToggleCustom;
   final Future<void> Function(String path, String pass) onUnlock;
@@ -190,15 +202,12 @@ class _VaultGateState extends ConsumerState<_VaultGate> {
     super.dispose();
   }
 
-  String _defaultPath() {
-    final home = Platform.environment['HOME'] ?? '/';
-    return '$home${Platform.pathSeparator}Documents${Platform.pathSeparator}lumen-vault';
-  }
+  String _defaultPath() => widget.defaultPath;
 
   @override
   Widget build(BuildContext context) {
     if (!widget.customRoot) {
-      _path.text = _defaultPath();
+      if (_path.text.isEmpty) _path.text = _defaultPath();
     }
     return Center(
       child: ConstrainedBox(

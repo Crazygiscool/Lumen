@@ -14,9 +14,11 @@ class NewTabPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = LumenColors.of(context);
+    final features = ref.watch(featuresProvider);
     final dial = [
       for (final s in LumenSection.values)
-        _DialTile(
+        if (s.feature == null || features.enabled(s.feature!))
+          _DialTile(
           icon: s.icon,
           title: s.title,
           subtitle: 'lumen://${s.pathName}',

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/providers.dart';
+import '../../files/editor/file_workspace_provider.dart';
 import '../web/web_controller.dart';
 import '../web/web_controllers.dart';
 import 'tab_model.dart';
@@ -102,6 +103,7 @@ class TabsNotifier extends Notifier<TabsState> {
 
     ref.invalidate(fileExplorerProvider(id));
     ref.invalidate(vaultNavProvider(id));
+    ref.invalidate(fileWorkspaceProvider(id));
 
     if (state.tabs.length <= 1) {
       final t = _tabForSpec(newTabSpec);
@@ -223,11 +225,23 @@ class TabsNotifier extends Notifier<TabsState> {
   }
 
   Future<void> _dispatchFiles(String tabId, String? path, bool reload) async {
-    final n = ref.read(fileExplorerProvider(tabId).notifier);
     if (path != null && path.isNotEmpty) {
-      await n.cd(path);
-    } else if (reload) {
-      await n.refresh();
+      try {
+        final st = await ref.read(fsServiceProvider).stat(path);
+        if (!st.isDir) {
+          await ref
+              .read(fileWorkspaceProvider(tabId).notifier)
+              .openFile(path);
+          return;
+        }
+      } catch (_) {
+        // Fall through to explorer navigation on stat errors.
+      }
+      await ref.read(fileExplorerProvider(tabId).notifier).cd(path);
+      return;
+    }
+    if (reload) {
+      await ref.read(fileExplorerProvider(tabId).notifier).refresh();
     }
   }
 

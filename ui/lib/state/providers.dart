@@ -28,8 +28,14 @@ final vaultServiceProvider = Provider<VaultService>((ref) {
   return VaultService(ref.watch(lumenFfiProvider));
 });
 
+/// Targets the separate encrypted journal store (may share a folder with the
+/// vault knowledge base, but keeps its own passphrase/keys).
+final journalVaultServiceProvider = Provider<VaultService>((ref) {
+  return VaultService(ref.watch(lumenFfiProvider), store: 'journal');
+});
+
 // ---------------------------------------------------------------------------
-// Vault
+// Vault (knowledge base) + journal stores
 // ---------------------------------------------------------------------------
 
 class VaultUiState {
@@ -46,12 +52,23 @@ class VaultUiState {
       );
 }
 
+/// Unlock state for one encrypted store (`vault` = knowledge base,
+/// `journal` = journal). Each store is unlocked independently with its own
+/// passphrase via the store-aware [VaultService].
 class VaultNotifier extends Notifier<VaultUiState> {
+  VaultNotifier([this._store = 'vault']);
+
+  final String _store;
+
+  VaultService get _service => ref.read(
+    _store == 'journal' ? journalVaultServiceProvider : vaultServiceProvider,
+  );
+
   @override
   VaultUiState build() => const VaultUiState(unlocked: false);
 
   Future<void> create(String path, String passphrase) async {
-    final service = ref.read(vaultServiceProvider);
+    final service = _service;
     await service.create(path, passphrase);
     await service.unlock(path, passphrase);
     state = VaultUiState(unlocked: true, root: path);
@@ -59,7 +76,7 @@ class VaultNotifier extends Notifier<VaultUiState> {
 
   Future<void> unlock(String path, String passphrase) async {
     try {
-      final service = ref.read(vaultServiceProvider);
+      final service = _service;
       await service.unlock(path, passphrase);
       state = VaultUiState(unlocked: true, root: path, error: null);
     } catch (e) {
@@ -69,12 +86,12 @@ class VaultNotifier extends Notifier<VaultUiState> {
   }
 
   Future<void> lock() async {
-    await ref.read(vaultServiceProvider).lock();
+    await _service.lock();
     state = const VaultUiState(unlocked: false);
   }
 
   Future<bool> recover() async {
-    final service = ref.read(vaultServiceProvider);
+    final service = _service;
     final unlocked = await service.isUnlocked();
     if (unlocked) {
       final info = await service.info();
@@ -84,15 +101,32 @@ class VaultNotifier extends Notifier<VaultUiState> {
   }
 }
 
+/// Knowledge-base vault store.
 final vaultProvider = NotifierProvider<VaultNotifier, VaultUiState>(
   VaultNotifier.new,
 );
+
+/// Journal store (independent passphrase/keys; may share the vault folder).
+final journalVaultProvider =
+    NotifierProvider<VaultNotifier, VaultUiState>(
+      () => VaultNotifier('journal'),
+    );
 
 // ---------------------------------------------------------------------------
 // Lumen pages (tab destinations)
 // ---------------------------------------------------------------------------
 
-enum LumenSection { files, vault, graph, osLab, console, settings }
+enum LumenSection { home, files, vault, graph, osLab, console, projects, github, settings }
+
+/// The optional feature that gates [LumenSection], or null for always-on core
+/// sections. When a feature is disabled its section is hidden everywhere.
+extension LumenSectionFeature on LumenSection {
+  LumenFeature? get feature => switch (this) {
+    LumenSection.projects => LumenFeature.projects,
+    LumenSection.github => LumenFeature.github,
+    _ => null,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Directory (Files view) — one explorer session per tab
@@ -264,19 +298,44 @@ class AppSettings {
     this.themeSource = ThemeSource.system,
     this.matchGtkAccent = true,
     this.startPath,
+    this.vaultPath,
+    this.journalVaultPath,
+    this.githubToken,
+    this.githubLogin,
+    this.wakaApiKey,
   });
   final ThemeSource themeSource;
   final bool matchGtkAccent;
   final String? startPath;
 
+  /// Persisted paths for the two encrypted stores. The knowledge base *is*
+  /// the vault; the journal may live in the same folder.
+  final String? vaultPath;
+  final String? journalVaultPath;
+
+  /// Personal access tokens (stored locally, plaintext with the prefs).
+  final String? githubToken;
+  final String? githubLogin;
+  final String? wakaApiKey;
+
   AppSettings copyWith({
     ThemeSource? themeSource,
     bool? matchGtkAccent,
     String? startPath,
+    String? vaultPath,
+    String? journalVaultPath,
+    String? githubToken,
+    String? githubLogin,
+    String? wakaApiKey,
   }) => AppSettings(
     themeSource: themeSource ?? this.themeSource,
     matchGtkAccent: matchGtkAccent ?? this.matchGtkAccent,
     startPath: startPath ?? this.startPath,
+    vaultPath: vaultPath ?? this.vaultPath,
+    journalVaultPath: journalVaultPath ?? this.journalVaultPath,
+    githubToken: githubToken ?? this.githubToken,
+    githubLogin: githubLogin ?? this.githubLogin,
+    wakaApiKey: wakaApiKey ?? this.wakaApiKey,
   );
 }
 
@@ -296,6 +355,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
             ThemeSource.values.length - 1,
           )],
       matchGtkAccent: prefs.getBool('matchGtkAccent') ?? true,
+      startPath: prefs.getString('startPath'),
+      vaultPath: prefs.getString('vaultPath') ?? prefs.getString('kbVaultPath'),
+      journalVaultPath: prefs.getString('journalVaultPath'),
+      githubToken: prefs.getString('githubToken'),
+      githubLogin: prefs.getString('githubLogin'),
+      wakaApiKey: prefs.getString('wakaApiKey'),
     );
   }
 
@@ -308,8 +373,206 @@ class SettingsNotifier extends Notifier<AppSettings> {
     state = state.copyWith(matchGtkAccent: value);
     _prefs?.setBool('matchGtkAccent', value);
   }
+
+  void setVaultPath(String path) {
+    state = state.copyWith(vaultPath: path);
+    _prefs?.setString('vaultPath', path);
+    _prefs?.remove('kbVaultPath');
+  }
+
+  void setJournalVaultPath(String path) {
+    state = state.copyWith(journalVaultPath: path);
+    _prefs?.setString('journalVaultPath', path);
+  }
+
+  void setGithubToken(String? value) {
+    state = state.copyWith(githubToken: value);
+    if (value == null) {
+      _prefs?.remove('githubToken');
+    } else {
+      _prefs?.setString('githubToken', value);
+    }
+  }
+
+  void setGithubLogin(String? value) {
+    state = state.copyWith(githubLogin: value);
+    if (value == null) {
+      _prefs?.remove('githubLogin');
+    } else {
+      _prefs?.setString('githubLogin', value);
+    }
+  }
+
+  void setWakaApiKey(String? value) {
+    state = state.copyWith(wakaApiKey: value);
+    if (value == null) {
+      _prefs?.remove('wakaApiKey');
+    } else {
+      _prefs?.setString('wakaApiKey', value);
+    }
+  }
 }
 
 final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
   SettingsNotifier.new,
+);
+
+// ---------------------------------------------------------------------------
+// Onboarding (first-run getting-started wizard)
+// ---------------------------------------------------------------------------
+
+class OnboardingState {
+  const OnboardingState({required this.done, this.goals = const []});
+  final bool done;
+  final List<Goal> goals;
+}
+
+@immutable
+class Goal {
+  const Goal({required this.text, this.id});
+  final String text;
+  final String? id;
+}
+
+class OnboardingNotifier extends Notifier<OnboardingState> {
+  OnboardingNotifier([SharedPreferences? prefs]) : _prefs = prefs;
+
+  final SharedPreferences? _prefs;
+
+  @override
+  OnboardingState build() {
+    final prefs = _prefs;
+    return OnboardingState(
+      done: prefs?.getBool('onboardingDone') ?? false,
+      goals: prefs == null ? const [] : _loadGoals(prefs),
+    );
+  }
+
+  List<Goal> _loadGoals(SharedPreferences prefs) {
+    final raw = prefs.getStringList('goals') ?? const [];
+    return [
+      for (final s in raw) Goal(text: s),
+    ];
+  }
+
+  void _saveGoals(List<Goal> goals) {
+    _prefs?.setStringList('goals', [for (final g in goals) g.text]);
+  }
+
+  void complete({List<Goal> goals = const []}) {
+    final merged = [...state.goals, ...goals];
+    state = OnboardingState(done: true, goals: merged);
+    _prefs?.setBool('onboardingDone', true);
+    _saveGoals(merged);
+  }
+
+  void skip() {
+    state = OnboardingState(done: true, goals: state.goals);
+    _prefs?.setBool('onboardingDone', true);
+  }
+
+  void restart() {
+    state = OnboardingState(done: false, goals: state.goals);
+    _prefs?.setBool('onboardingDone', false);
+  }
+
+  void addGoal(String text) {
+    if (text.trim().isEmpty) return;
+    final goals = [...state.goals, Goal(text: text.trim())];
+    state = OnboardingState(done: state.done, goals: goals);
+    _saveGoals(goals);
+  }
+
+  void removeGoal(String text) {
+    final goals = [for (final g in state.goals) if (g.text != text) g];
+    state = OnboardingState(done: state.done, goals: goals);
+    _saveGoals(goals);
+  }
+}
+
+final onboardingProvider = NotifierProvider<OnboardingNotifier, OnboardingState>(
+  OnboardingNotifier.new,
+);
+
+// ---------------------------------------------------------------------------
+// Feature registry — optional capabilities that can be toggled off (plugin
+// model). Sections/cards gated by these are hidden when disabled, and their
+// data is left untouched.
+// ---------------------------------------------------------------------------
+
+enum LumenFeature { projects, github, wakatime }
+
+extension LumenFeatureInfo on LumenFeature {
+  String get title => switch (this) {
+    LumenFeature.projects => 'Projects',
+    LumenFeature.github => 'GitHub',
+    LumenFeature.wakatime => 'WakaTime',
+  };
+
+  String get description => switch (this) {
+    LumenFeature.projects => 'Project manager with tasks, kanban board and gantt view.',
+    LumenFeature.github => 'GitHub workflow: link projects, issues and pull requests.',
+    LumenFeature.wakatime => 'Personal coding stats from WakaTime on the Home dashboard.',
+  };
+
+  String get key => switch (this) {
+    LumenFeature.projects => 'featureProjects',
+    LumenFeature.github => 'featureGithub',
+    LumenFeature.wakatime => 'featureWakatime',
+  };
+}
+
+class FeaturesState {
+  const FeaturesState({
+    this.projects = true,
+    this.github = true,
+    this.wakatime = true,
+  });
+
+  final bool projects;
+  final bool github;
+  final bool wakatime;
+
+  bool enabled(LumenFeature feature) => switch (feature) {
+    LumenFeature.projects => projects,
+    LumenFeature.github => github,
+    LumenFeature.wakatime => wakatime,
+  };
+
+  FeaturesState copyWith({bool? projects, bool? github, bool? wakatime}) =>
+      FeaturesState(
+        projects: projects ?? this.projects,
+        github: github ?? this.github,
+        wakatime: wakatime ?? this.wakatime,
+      );
+}
+
+class FeaturesNotifier extends Notifier<FeaturesState> {
+  FeaturesNotifier([SharedPreferences? prefs]) : _prefs = prefs;
+
+  final SharedPreferences? _prefs;
+
+  @override
+  FeaturesState build() {
+    final prefs = _prefs;
+    if (prefs == null) return const FeaturesState();
+    return FeaturesState(
+      projects: prefs.getBool(LumenFeature.projects.key) ?? true,
+      github: prefs.getBool(LumenFeature.github.key) ?? true,
+      wakatime: prefs.getBool(LumenFeature.wakatime.key) ?? true,
+    );
+  }
+
+  void set(LumenFeature feature, bool value) {
+    state = switch (feature) {
+      LumenFeature.projects => state.copyWith(projects: value),
+      LumenFeature.github => state.copyWith(github: value),
+      LumenFeature.wakatime => state.copyWith(wakatime: value),
+    };
+    _prefs?.setBool(feature.key, value);
+  }
+}
+
+final featuresProvider = NotifierProvider<FeaturesNotifier, FeaturesState>(
+  FeaturesNotifier.new,
 );

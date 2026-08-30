@@ -9,6 +9,9 @@ import '../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/glass.dart';
 import '../theme/lumen_colors.dart';
+import 'editor/editor_pane.dart';
+import 'editor/file_workspace_provider.dart';
+import 'editor/split_grid.dart';
 import 'inspector_panel.dart';
 
 enum _ViewMode { grid, list }
@@ -58,6 +61,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     _node.requestFocus();
     await ref.read(_dir.notifier).cd(entry.path);
     setState(() => _selected = null);
+  }
+
+  Future<void> _openEditor(FsEntry entry) async {
+    setState(() => _selected = entry);
+    _node.requestFocus();
+    await ref
+        .read(fileWorkspaceProvider(widget.tabId).notifier)
+        .openFile(entry.path);
   }
 
   Future<void> _newFolder() async {
@@ -181,6 +192,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(_dir);
     final fs = ref.read(fsServiceProvider);
+    final ws = ref.watch(fileWorkspaceProvider(widget.tabId));
+    final wsNotifier = ref.read(fileWorkspaceProvider(widget.tabId).notifier);
 
     return Column(
       children: [
@@ -240,33 +253,71 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                       ),
                     ),
                   ),
-                  data: (d) => _FilesArea(
-                    state: d,
-                    viewMode: _viewMode,
-                    selected: _selected,
-                    onOpen: _open,
-                    onSelect: (e) => setState(() => _selected = e),
-                    onRename: _rename,
-                    onTrash: _trash,
-                    onDelete: _delete,
-                    onCopyPath: (e) {
-                      Clipboard.setData(ClipboardData(text: e.path));
-                      _toast('Path copied');
+                  data: (d) => LayoutBuilder(
+                    builder: (context, c) {
+                      final total = c.maxWidth;
+                      final hasPanes = ws.hasPanes;
+                      final explorerWidth = total <= 0
+                          ? total
+                          : hasPanes
+                              ? (total * 0.40).clamp(260.0, 560.0)
+                              : total;
+                      final divider = VerticalDivider(
+                        width: 1,
+                        thickness: 1,
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      );
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: explorerWidth,
+                            child: _FilesArea(
+                              state: d,
+                              viewMode: _viewMode,
+                              selected: _selected,
+                              onOpen: _open,
+                              onOpenEditor: _openEditor,
+                              onSelect: (e) => setState(() => _selected = e),
+                              onRename: _rename,
+                              onTrash: _trash,
+                              onDelete: _delete,
+                              onCopyPath: (e) {
+                                Clipboard.setData(ClipboardData(text: e.path));
+                                _toast('Path copied');
+                              },
+                            ),
+                          ),
+                          if (hasPanes) ...[
+                            divider,
+                            Expanded(
+                              child: SplitGrid(
+                                layout: ws.layout!,
+                                onAdaptWeight: (id, f) =>
+                                    wsNotifier.adjustWeight(id, f),
+                                paneBuilder: (pane) => EditorPaneView(
+                                  key: ValueKey(pane.id),
+                                  pane: pane,
+                                  notifier: wsNotifier,
+                                  active: pane.id == ws.activePaneId,
+                                  onFocusPane: () =>
+                                      wsNotifier.focusPane(pane.id),
+                                ),
+                              ),
+                            ),
+                          ] else if (_inspectorOpen) ...[
+                            divider,
+                            SizedBox(
+                              width: 280,
+                              child: InspectorPanel(entry: _selected, fs: fs),
+                            ),
+                          ],
+                        ],
+                      );
                     },
                   ),
                 ),
               ),
-              if (_inspectorOpen) ...[
-                VerticalDivider(
-                  width: 1,
-                  thickness: 1,
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-                SizedBox(
-                  width: 280,
-                  child: InspectorPanel(entry: _selected, fs: fs),
-                ),
-              ],
             ],
           ),
         ),
@@ -554,6 +605,7 @@ class _FilesArea extends StatelessWidget {
     required this.viewMode,
     required this.selected,
     required this.onOpen,
+    required this.onOpenEditor,
     required this.onSelect,
     required this.onRename,
     required this.onTrash,
@@ -565,6 +617,7 @@ class _FilesArea extends StatelessWidget {
   final _ViewMode viewMode;
   final FsEntry? selected;
   final ValueChanged<FsEntry> onOpen;
+  final ValueChanged<FsEntry> onOpenEditor;
   final ValueChanged<FsEntry> onSelect;
   final ValueChanged<FsEntry> onRename;
   final ValueChanged<FsEntry> onTrash;
@@ -583,6 +636,7 @@ class _FilesArea extends StatelessWidget {
         viewMode: viewMode,
         showContext: showContextMenu,
         onTap: () => onOpen(e),
+        onOpenEditor: () => onOpenEditor(e),
         onSelect: () => onSelect(e),
       );
     }
@@ -637,7 +691,11 @@ class _FilesArea extends StatelessWidget {
     ).then((v) {
       switch (v) {
         case 'open':
-          onOpen(entry);
+          if (!entry.isDir) {
+            onOpenEditor(entry);
+          } else {
+            onOpen(entry);
+          }
         case 'rename':
           onRename(entry);
         case 'copy':
@@ -658,6 +716,7 @@ class _FileTile extends StatefulWidget {
     required this.viewMode,
     required this.showContext,
     required this.onTap,
+    required this.onOpenEditor,
     required this.onSelect,
   });
 
@@ -666,6 +725,7 @@ class _FileTile extends StatefulWidget {
   final _ViewMode viewMode;
   final void Function(BuildContext, FsEntry, Offset) showContext;
   final VoidCallback onTap;
+  final VoidCallback onOpenEditor;
   final VoidCallback onSelect;
 
   @override
@@ -776,6 +836,7 @@ class _FileTileState extends State<_FileTile> {
         ),
         child: GestureDetector(
           onTap: widget.onTap,
+          onDoubleTap: entry.isDir ? null : widget.onOpenEditor,
           onSecondaryTapDown: (d) =>
               widget.showContext(context, entry, d.globalPosition),
           child: _content(context),

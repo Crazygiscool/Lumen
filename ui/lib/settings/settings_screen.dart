@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../files/folder_picker_dialog.dart';
+import '../shell/tabs/tabs_provider.dart';
 import '../shell/web/ad_block_service.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
+import '../wakatime/wakatime_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -131,11 +134,35 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 20),
+        const _StorageSection(),
+        const SizedBox(height: 20),
+        const _PluginsSection(),
+        const SizedBox(height: 20),
+        const _GithubSettingsSection(),
+        const SizedBox(height: 20),
+        const _WakatimeSettingsSection(),
+        const SizedBox(height: 20),
+        _Section(
+          title: 'Getting started',
+          children: [
+            _Row(
+              label: 'Onboarding',
+              valueText: 'Re-run the first-time setup wizard',
+              child: TextButton(
+                onPressed: () =>
+                    ref.read(onboardingProvider.notifier).restart(),
+                child: const Text('Open'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
         const _Section(
           title: 'Shortcuts',
           children: [
             _Row(label: 'Command palette', valueText: 'Ctrl+P'),
-            _Row(label: 'Sections', valueText: 'Ctrl+1 … Ctrl+6'),
+            _Row(label: 'Sections', valueText: 'Ctrl+1 … Ctrl+9'),
+            _Row(label: 'New tab / close tab', valueText: 'Ctrl+T / Ctrl+W'),
           ],
         ),
         const SizedBox(height: 20),
@@ -150,6 +177,101 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _StorageSection extends ConsumerWidget {
+  const _StorageSection();
+
+  Future<void> _pick(BuildContext context, WidgetRef ref, bool isJournal) async {
+    final current = isJournal
+        ? ref.read(settingsProvider).journalVaultPath
+        : ref.read(settingsProvider).vaultPath;
+    final dir = await showFolderPicker(
+      context,
+      title: isJournal ? 'Choose journal folder' : 'Choose vault / knowledge base folder',
+      initialPath: current,
+    );
+    if (dir == null) return;
+    final notifier = ref.read(settingsProvider.notifier);
+    if (isJournal) {
+      notifier.setJournalVaultPath(dir);
+    } else {
+      notifier.setVaultPath(dir);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    return _Section(
+      title: 'Vault locations',
+      children: [
+        _Row(
+          label: 'Vault / knowledge base',
+          valueText: s.vaultPath ?? 'Not set',
+          child: TextButton(
+            onPressed: () => _pick(context, ref, false),
+            child: const Text('Browse'),
+          ),
+        ),
+        _Row(
+          label: 'Journal',
+          valueText: s.journalVaultPath ?? 'Not set',
+          child: TextButton(
+            onPressed: () => _pick(context, ref, true),
+            child: const Text('Browse'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ValueField extends StatefulWidget {
+  const _ValueField({
+    required this.initial,
+    required this.hint,
+    required this.onChanged,
+  });
+  final String initial;
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ValueField> createState() => _ValueFieldState();
+}
+
+class _ValueFieldState extends State<_ValueField> {
+  late final TextEditingController _ctl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      child: TextField(
+        controller: _ctl,
+        style: const TextStyle(fontSize: 13),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          isDense: true,
+          border: const OutlineInputBorder(),
+        ),
+        onChanged: widget.onChanged,
+      ),
     );
   }
 }
@@ -323,16 +445,231 @@ class _Row extends StatelessWidget {
         children: [
           Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
           if (valueText != null)
-            Text(
-              valueText!,
-              style: TextStyle(
-                fontSize: 13,
-                color: LumenColors.of(context).onSurfaceVariant,
+            Flexible(
+              child: Text(
+                valueText!,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: LumenColors.of(context).onSurfaceVariant,
+                ),
               ),
             ),
           if (child != null) Flexible(child: child!),
         ],
       ),
+    );
+  }
+}
+
+class _PluginsSection extends ConsumerWidget {
+  const _PluginsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final features = ref.watch(featuresProvider);
+    final notifier = ref.read(featuresProvider.notifier);
+    return _Section(
+      title: 'Plugins',
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Text(
+            'Disable a feature to hide its section and Home cards. Data is kept.',
+            style: TextStyle(
+              fontSize: 12,
+              color: LumenColors.of(context).onSurfaceVariant,
+            ),
+          ),
+        ),
+        for (final feature in LumenFeature.values)
+          _Row(
+            label: feature.title,
+            valueText: feature.description,
+            child: Switch(
+              value: features.enabled(feature),
+              onChanged: (v) => notifier.set(feature, v),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _GithubSettingsSection extends ConsumerWidget {
+  const _GithubSettingsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    final t = LumenColors.of(context);
+    return _Section(
+      title: 'GitHub',
+      children: [
+        _Row(
+          label: 'Personal access token',
+          valueText: s.githubToken == null
+              ? 'Not connected'
+              : 'Connected as ${s.githubLogin ?? '—'}',
+          child: PopupMenuButton<String>(
+            tooltip: 'Edit or clear token',
+            icon: Icon(Icons.more_vert, size: 18, color: t.onSurfaceVariant),
+            onSelected: (v) async {
+              if (v == 'clear') {
+                notifier.setGithubToken(null);
+                notifier.setGithubLogin(null);
+                return;
+              }
+              final value = await showDialog<String>(
+                context: context,
+                builder: (_) => const _TokenDialog(
+                  title: 'GitHub personal access token',
+                  hint: 'github_pat_…',
+                ),
+              );
+              if (value == null) return;
+              if (value.trim().isEmpty) {
+                notifier.setGithubToken(null);
+                notifier.setGithubLogin(null);
+              } else {
+                notifier.setGithubToken(value.trim());
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit token')),
+              PopupMenuItem(value: 'clear', child: Text('Clear')),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Stored locally. The GitHub tab syncs issues between linked '
+                  'repositories and projects.',
+                  style: TextStyle(fontSize: 11.5, color: t.onSurfaceVariant),
+                ),
+              ),
+              TextButton(
+                onPressed: () => ref
+                    .read(tabsProvider.notifier)
+                    .activatePage(LumenSection.github),
+                child: const Text('Open GitHub'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WakatimeSettingsSection extends ConsumerWidget {
+  const _WakatimeSettingsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    final t = LumenColors.of(context);
+    return _Section(
+      title: 'WakaTime',
+      children: [
+        _Row(
+          label: 'API key',
+          valueText: s.wakaApiKey == null ? 'Not set' : '·' * 8,
+          child: PopupMenuButton<String>(
+            tooltip: 'Edit or clear API key',
+            icon: Icon(Icons.more_vert, size: 18, color: t.onSurfaceVariant),
+            onSelected: (v) async {
+              if (v == 'clear') {
+                notifier.setWakaApiKey(null);
+                return;
+              }
+              final value = await showDialog<String>(
+                context: context,
+                builder: (_) => const _TokenDialog(
+                  title: 'WakaTime API key',
+                  hint: 'your-api-key',
+                ),
+              );
+              if (value == null) return;
+              if (value.trim().isEmpty) {
+                notifier.setWakaApiKey(null);
+              } else {
+                notifier.setWakaApiKey(value.trim());
+              }
+              ref.invalidate(wakatimeProvider);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit API key')),
+              PopupMenuItem(value: 'clear', child: Text('Clear')),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            'Stats only — WakaTime tracks no data from Lumen; this key reads '
+            'your existing coding summary on Home.',
+            style: TextStyle(fontSize: 11.5, color: t.onSurfaceVariant),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TokenDialog extends StatefulWidget {
+  const _TokenDialog({required this.title, required this.hint});
+  final String title;
+  final String hint;
+
+  @override
+  State<_TokenDialog> createState() => _TokenDialogState();
+}
+
+class _TokenDialogState extends State<_TokenDialog> {
+  final _ctl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 380,
+        child: TextField(
+          controller: _ctl,
+          autofocus: true,
+          obscureText: true,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            border: const OutlineInputBorder(),
+          ),
+          onSubmitted: (v) => Navigator.pop(context, v),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _ctl.text),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

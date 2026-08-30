@@ -8,40 +8,52 @@ enum TabKind { newtab, lumen, web }
 
 extension LumenSectionInfo on LumenSection {
   String get title => switch (this) {
+    LumenSection.home => 'Home',
     LumenSection.files => 'Files',
     LumenSection.vault => 'Vault',
     LumenSection.graph => 'Graph',
     LumenSection.osLab => 'OS Lab',
     LumenSection.console => 'Console',
+    LumenSection.projects => 'Projects',
+    LumenSection.github => 'GitHub',
     LumenSection.settings => 'Settings',
   };
 
   String get pathName => switch (this) {
+    LumenSection.home => 'home',
     LumenSection.files => 'files',
     LumenSection.vault => 'vault',
     LumenSection.graph => 'graph',
     LumenSection.osLab => 'oslab',
     LumenSection.console => 'console',
+    LumenSection.projects => 'projects',
+    LumenSection.github => 'github',
     LumenSection.settings => 'settings',
   };
 
   IconData get icon => switch (this) {
+    LumenSection.home => Icons.home_outlined,
     LumenSection.files => Icons.folder_outlined,
     LumenSection.vault => Icons.lock_outline,
     LumenSection.graph => Icons.hub_outlined,
     LumenSection.osLab => Icons.memory,
     LumenSection.console => Icons.terminal,
+    LumenSection.projects => Icons.grid_view_outlined,
+    LumenSection.github => Icons.account_tree_outlined,
     LumenSection.settings => Icons.settings_outlined,
   };
 }
 
 const _pageNames = <String, LumenSection>{
+  'home': LumenSection.home,
   'files': LumenSection.files,
   'vault': LumenSection.vault,
   'graph': LumenSection.graph,
   'oslab': LumenSection.osLab,
   'lab': LumenSection.osLab,
   'console': LumenSection.console,
+  'projects': LumenSection.projects,
+  'github': LumenSection.github,
   'settings': LumenSection.settings,
 };
 
@@ -135,6 +147,18 @@ TabSpec resolveInput(String raw, {String homePath = ''}) {
     );
   }
 
+  final absPath = _asFilesPath(input);
+  if (absPath != null) {
+    final encoded = Uri.encodeFull(absPath);
+    return TabSpec(
+      kind: TabKind.lumen,
+      page: LumenSection.files,
+      url: 'lumen://files//$encoded',
+      title: 'Files · ${_basename(absPath)}',
+      path: absPath,
+    );
+  }
+
   final web = _asWebUrl(input);
   if (web != null) {
     final host = Uri.tryParse(web)?.host ?? '';
@@ -150,6 +174,23 @@ TabSpec resolveInput(String raw, {String homePath = ''}) {
     url: 'https://duckduckgo.com/?q=${Uri.encodeQueryComponent(input)}',
     title: 'Search · $input',
   );
+}
+
+/// Absolute local paths (`/…` or `C:\…`) open the Files section; `~` expands
+/// to the user's home. Returns null when [input] is not a local path.
+String? _asFilesPath(String input) {
+  var p = input.trim();
+  if (p.isEmpty) return null;
+  final home = Platform.environment['HOME'];
+  if (p == '~') {
+    p = home ?? p;
+  } else if (p.startsWith('~/') && home != null) {
+    p = '$home${p.substring(1)}';
+  }
+  if (Platform.isWindows) {
+    return RegExp(r'^[A-Za-z]:[/\\]').hasMatch(p) ? p : null;
+  }
+  return p.startsWith('/') ? p : null;
 }
 
 String? _asWebUrl(String input) {
