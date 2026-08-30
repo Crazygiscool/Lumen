@@ -57,7 +57,9 @@ class TabsNotifier extends Notifier<TabsState> {
         return TabsState(tabs: tabs, activeId: tabs[idx].id);
       }
     }
-    final t = _tabForSpec(newTabSpec);
+    final t = _tabForSpec(
+      (_prefs?.getBool('onboardingDone') ?? false) ? newTabSpec : welcomeSpec,
+    );
     return TabsState(tabs: [t], activeId: t.id);
   }
 

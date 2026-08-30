@@ -17,6 +17,7 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.projects => 'Projects',
     LumenSection.github => 'GitHub',
     LumenSection.settings => 'Settings',
+    LumenSection.welcome => 'Getting started',
   };
 
   String get pathName => switch (this) {
@@ -29,6 +30,7 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.projects => 'projects',
     LumenSection.github => 'github',
     LumenSection.settings => 'settings',
+    LumenSection.welcome => 'welcome',
   };
 
   IconData get icon => switch (this) {
@@ -41,6 +43,7 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.projects => Icons.grid_view_outlined,
     LumenSection.github => Icons.account_tree_outlined,
     LumenSection.settings => Icons.settings_outlined,
+    LumenSection.welcome => Icons.auto_awesome,
   };
 }
 
@@ -55,12 +58,21 @@ const _pageNames = <String, LumenSection>{
   'projects': LumenSection.projects,
   'github': LumenSection.github,
   'settings': LumenSection.settings,
+  'welcome': LumenSection.welcome,
 };
 
 const newTabSpec = TabSpec(
   kind: TabKind.newtab,
   url: 'lumen://newtab',
   title: 'New Tab',
+);
+
+/// The first-run Getting Started wizard as a revisitable tab.
+const welcomeSpec = TabSpec(
+  kind: TabKind.lumen,
+  page: LumenSection.welcome,
+  url: 'lumen://welcome',
+  title: 'Getting started',
 );
 
 /// A resolved "what should this tab show" from raw address-bar input.

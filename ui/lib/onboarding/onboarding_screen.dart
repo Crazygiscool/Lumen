@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../files/folder_picker_dialog.dart';
 import '../journal/journal_provider.dart';
+import '../shell/tabs/tabs_provider.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
@@ -13,7 +14,10 @@ import '../theme/lumen_colors.dart';
 /// the journal (which may share the vault folder with its own passphrase).
 /// Re-launchable from Settings; lives as a revisitable tab.
 class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.tabId});
+
+  /// The tab this wizard lives in, so finishing/skipping can close it.
+  final String? tabId;
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -96,6 +100,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     ref.read(onboardingProvider.notifier).complete(
       goals: [for (final g in _goals) Goal(text: g)],
     );
+    _leave();
+  }
+
+  /// Leave the wizard tab: close it when other tabs are open, otherwise land
+  /// on a fresh Home tab so the session doesn't die with the wizard.
+  void _leave() {
+    final tabs = ref.read(tabsProvider.notifier);
+    final tabId = widget.tabId;
+    if (tabId == null) {
+      tabs.activatePage(LumenSection.home);
+      return;
+    }
+    final state = ref.read(tabsProvider);
+    if (state.tabs.length <= 1) {
+      tabs.navigate('lumen://home', tabId: tabId);
+    } else {
+      tabs.closeTab(tabId);
+    }
   }
 
   Future<void> _pickVault() async {
@@ -222,8 +244,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
                       const Spacer(),
                       TextButton(
-                        onPressed: () =>
-                            ref.read(onboardingProvider.notifier).skip(),
+                        onPressed: () {
+                          ref.read(onboardingProvider.notifier).skip();
+                          _leave();
+                        },
                         child: const Text('Skip for now'),
                       ),
                     ],

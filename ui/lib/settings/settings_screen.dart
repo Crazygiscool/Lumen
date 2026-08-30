@@ -147,10 +147,11 @@ class SettingsScreen extends ConsumerWidget {
           children: [
             _Row(
               label: 'Onboarding',
-              valueText: 'Re-run the first-time setup wizard',
+              valueText: 'Open the getting-started wizard as a tab',
               child: TextButton(
-                onPressed: () =>
-                    ref.read(onboardingProvider.notifier).restart(),
+                onPressed: () => ref
+                    .read(tabsProvider.notifier)
+                    .activatePage(LumenSection.welcome),
                 child: const Text('Open'),
               ),
             ),

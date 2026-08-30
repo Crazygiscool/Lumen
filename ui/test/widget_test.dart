@@ -104,6 +104,7 @@ void main() {
       expect(resolveInput('lumen://vault').page, LumenSection.vault);
       expect(resolveInput('lumen://oslab').page, LumenSection.osLab);
       expect(resolveInput('lumen://lab').page, LumenSection.osLab);
+      expect(resolveInput('lumen://welcome').page, LumenSection.welcome);
       expect(resolveInput('lumen://graph').page, LumenSection.graph);
       expect(resolveInput('lumen:console').page, LumenSection.console);
       expect(resolveInput('lumen://projects').page, LumenSection.projects);
@@ -151,6 +152,25 @@ void main() {
   });
 
   group('TabsNotifier', () {
+    test('starts on the wizard tab for a first run, new tab otherwise',
+        () async {
+      final first = ProviderContainer();
+      addTearDown(first.dispose);
+      expect(
+        first.read(tabsProvider).active!.page,
+        LumenSection.welcome,
+        reason: 'no onboardingDone means the welcome wizard is the first tab',
+      );
+
+      SharedPreferences.setMockInitialValues({'onboardingDone': true});
+      final prefs = await SharedPreferences.getInstance();
+      final t = ProviderContainer(
+        overrides: [tabsProvider.overrideWith(() => TabsNotifier(prefs))],
+      );
+      addTearDown(t.dispose);
+      expect(t.read(tabsProvider).active!.kind, TabKind.newtab);
+    });
+
     test('opens and activates tabs', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -234,6 +254,7 @@ void main() {
         ProviderScope(
           overrides: [
             onboardingProvider.overrideWith(() => OnboardingNotifier(prefs)),
+            tabsProvider.overrideWith(() => TabsNotifier(prefs)),
           ],
           child: const LumenApp(),
         ),
@@ -273,6 +294,7 @@ void main() {
         ProviderScope(
           overrides: [
             onboardingProvider.overrideWith(() => OnboardingNotifier(prefs)),
+            tabsProvider.overrideWith(() => TabsNotifier(prefs)),
             featuresProvider.overrideWith(() => FeaturesNotifier(prefs)),
           ],
           child: const LumenApp(),

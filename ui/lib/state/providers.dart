@@ -116,7 +116,18 @@ final journalVaultProvider =
 // Lumen pages (tab destinations)
 // ---------------------------------------------------------------------------
 
-enum LumenSection { home, files, vault, graph, osLab, console, projects, github, settings }
+enum LumenSection {
+  home,
+  files,
+  vault,
+  graph,
+  osLab,
+  console,
+  projects,
+  github,
+  settings,
+  welcome,
+}
 
 /// The optional feature that gates [LumenSection], or null for always-on core
 /// sections. When a feature is disabled its section is hidden everywhere.
