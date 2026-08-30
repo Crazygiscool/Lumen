@@ -84,7 +84,12 @@ else
     fi
 
     if [ -n "$ISCC" ]; then
-        "$ISCC" /DAPP_VERSION="$VERSION" /DBUNDLE_DIR="$WIN_BUNDLE_DIR" "$WIN_ROOT_DIR/scripts/lumen.iss"
+        # MSYS2/Git Bash mangles leading-slash args (/D...) into paths, which
+        # ISCC misreads as extra script filenames. Disable arg conversion.
+        MSYS2_ARG_CONV_EXCL='*' MSYS_NO_PATHCONV=1 "$ISCC" \
+            /DAPP_VERSION="$VERSION" \
+            /DBUNDLE_DIR="$WIN_BUNDLE_DIR" \
+            "$WIN_ROOT_DIR/scripts/lumen.iss"
         echo "Installer: $DIST_DIR/Lumen-windows-v${VERSION}-setup.exe"
     else
         echo "SKIPPED: Inno Setup (ISCC) not found. Install with: choco install innosetup -y"
