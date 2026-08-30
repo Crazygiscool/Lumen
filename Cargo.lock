@@ -1092,7 +1092,7 @@ dependencies = [
 
 [[package]]
 name = "lumen"
-version = "2.3.5"
+version = "2.4.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "lumen-tui"
-version = "2.3.5"
+version = "2.4.0"
 dependencies = [
  "aes-gcm",
  "argon2",

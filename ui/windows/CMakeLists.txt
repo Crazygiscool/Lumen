@@ -91,6 +91,12 @@ endif()
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/lumen_core.dll"
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
         COMPONENT Runtime)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/fscore.dll"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+        COMPONENT Runtime)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lib/ublock.dll"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+        COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")

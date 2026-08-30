@@ -6,12 +6,16 @@ on:
       - 'v*'
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Linux Dependencies
         run: |
           if command -v sudo >/dev/null; then
@@ -26,17 +30,23 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-          
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+          targets: x86_64-unknown-linux-gnu
 
       - name: Build
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_linux.sh
-          
+
+      - name: Verify FFI libs bundled
+        run: |
+          ls -la dist/
+          tar tzf dist/*.tar.gz | grep -E 'lib/(liblumen_core|libfscore|libublock)\.so|lumen-cli'
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -53,10 +63,16 @@ jobs:
           cache: true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Build
+        with:
+          target: aarch64-apple-darwin
+      - name: Build and stage FFI libs
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_macos.sh
+      - name: Verify signatures and bundle
+        run: |
+          ls -la dist/
+          codesign --verify --deep --strict "ui/build/macos/Build/Products/Release/Lumen.app"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -79,6 +95,11 @@ jobs:
         shell: bash
         run: |
           ./scripts/build_windows.sh
+      - name: Verify DLLs bundled
+        shell: bash
+        run: |
+          ls -la dist/
+          unzip -l dist/*.zip | grep -E 'lib/(lumen_core|fscore|ublock)\.dll|lumen-cli\.exe'
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -86,6 +107,7 @@ jobs:
           path: dist/*.zip
 
   release:
+    name: Create GitHub Release
     needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
@@ -104,20 +126,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-aur:
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Publish AUR package
-        uses: KSXPC/aur-deploy@v3
-        with:
-          pkgname: lumen-journal
-          pkgbuild: ./lumen-journal/PKGBUILD
-          commit_username: ${{ github.actor }}
-          commit_email: ${{ github.actor }}@users.noreply.github.com
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: "Update to v${{ github.ref_name }}"

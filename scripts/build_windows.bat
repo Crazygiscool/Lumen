@@ -32,10 +32,21 @@ if %errorlevel% neq 0 (
 )
 
 rem -----------------------------------------
-rem Step 2: Build Flutter Windows
+rem Step 2: Stage FFI DLLs into Flutter lib/ dir
 rem -----------------------------------------
 echo.
-echo === Step 2: Build Flutter Windows ===
+echo === Step 2: Stage FFI DLLs into Flutter lib/ dir ===
+if not exist "%UI_DIR%\windows\lib" mkdir "%UI_DIR%\windows\lib"
+copy /Y "%ROOT_DIR%\target\release\lumen_core.dll" "%UI_DIR%\windows\lib\lumen_core.dll" >nul
+copy /Y "%ROOT_DIR%\target\release\fscore.dll" "%UI_DIR%\windows\lib\fscore.dll" >nul
+copy /Y "%ROOT_DIR%\target\release\ublock.dll" "%UI_DIR%\windows\lib\ublock.dll" >nul
+echo Staged lumen_core.dll, fscore.dll, ublock.dll
+
+rem -----------------------------------------
+rem Step 3: Build Flutter Windows
+rem -----------------------------------------
+echo.
+echo === Step 3: Build Flutter Windows ===
 cd "%UI_DIR%"
 flutter config --enable-windows-desktop
 flutter build windows --release
@@ -46,21 +57,14 @@ if %errorlevel% neq 0 (
 cd "%ROOT_DIR%"
 
 rem -----------------------------------------
-rem Step 3: Package
+rem Step 4: Package
 rem -----------------------------------------
 echo.
-echo === Step 3: Packaging ===
+echo === Step 4: Packaging ===
 set BUNDLE_DIR=%UI_DIR%\build\windows\x64\runner\Release
 set ZIP_NAME=Lumen-windows-v%VERSION%.zip
 
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
-
-rem Copy Rust FFI library into bundle (lib/ subdirectory for lumen_loader.dart)
-if not exist "%BUNDLE_DIR%\lib" mkdir "%BUNDLE_DIR%\lib"
-copy /Y "%ROOT_DIR%\target\release\lumen_core.dll" "%BUNDLE_DIR%\lib\lumen_core.dll" >nul
-echo Bundled lumen_core.dll
-copy /Y "%ROOT_DIR%\target\release\fscore.dll" "%BUNDLE_DIR%\lib\fscore.dll" >nul
-echo Bundled fscore.dll
 
 rem Copy TUI into bundle
 copy /Y "%ROOT_DIR%\target\release\lumen.exe" "%BUNDLE_DIR%\lumen-cli.exe" >nul
@@ -72,10 +76,10 @@ powershell -Command "Compress-Archive -Path '.\*' -DestinationPath '%DIST_DIR%\%
 cd "%ROOT_DIR%"
 
 rem -----------------------------------------
-rem Step 4: Build installer
+rem Step 5: Build installer
 rem -----------------------------------------
 echo.
-echo === Step 4: Build Installer ===
+echo === Step 5: Build Installer ===
 set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 if exist %ISCC% (
     %ISCC% /DAPP_VERSION=%VERSION% /DBUNDLE_DIR="%BUNDLE_DIR%" "%~dp0lumen.iss"

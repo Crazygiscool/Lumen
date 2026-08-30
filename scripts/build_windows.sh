@@ -25,10 +25,17 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     touch "target/$TARGET/release/lumen.exe"
 else
     cargo build --release --locked --target "$TARGET"
+
+    echo ""
+    echo "=== Step 2: Stage FFI DLLs into Flutter lib/ dir ==="
+    mkdir -p "$UI_DIR/windows/lib"
+    cp "$ROOT_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
+    cp "$ROOT_DIR/target/$TARGET/release/fscore.dll" "$UI_DIR/windows/lib/"
+    cp "$ROOT_DIR/target/$TARGET/release/ublock.dll" "$UI_DIR/windows/lib/"
 fi
 
 echo ""
-echo "=== Step 2: Flutter Build ==="
+echo "=== Step 3: Flutter Build ==="
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo "Notice: Flutter cannot build Windows apps on Linux. Skipping."
 else
@@ -37,9 +44,9 @@ else
     flutter build windows --release
 
     echo ""
-    echo "=== Step 3: Packaging ==="
+    echo "=== Step 4: Packaging ==="
     mkdir -p "$DIST_DIR"
-    BUNDLE_DIR="$UI_DIR/build/windows/runner/release"
+    BUNDLE_DIR="$UI_DIR/build/windows/x64/runner/Release"
     ZIP_NAME="Lumen-windows-v${VERSION}.zip"
 
     # Bundle TUI
