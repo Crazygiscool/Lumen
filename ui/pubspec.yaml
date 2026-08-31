@@ -45,6 +45,9 @@ dependencies:
   voo_kanban: ^0.0.3
   reactive_mind_map: ^1.2.2
   shared_preferences: ^2.5.2
+  webview_flutter: ^4.14.1
+  webview_flutter_linux:
+    path: third_party/webview_flutter_linux
 
 dev_dependencies:
   flutter_test:

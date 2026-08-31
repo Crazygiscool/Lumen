@@ -7,8 +7,6 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-#include "webview/webview_plugin.h"
-
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
@@ -74,9 +72,6 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
-  lumen_webview_plugin_register_with_registrar(
-      fl_plugin_registry_get_registrar_for_plugin(FL_PLUGIN_REGISTRY(view),
-                                                  "lumen_webview"));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

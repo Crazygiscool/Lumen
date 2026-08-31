@@ -1,35 +1,28 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import 'web_controllers.dart';
-import 'web_plugin_probe.dart';
 
-/// Controller for a single embedded web tab. Talks to the `lumen_webview`
-/// Linux plugin over a per-view [`MethodChannel`] (`lumen.webview/<id>`).
+/// Controller for a single embedded web tab, backed by the federated
+/// `webview_flutter` API (WPE WebKit on Linux via `webview_flutter_linux`).
 ///
-/// The Linux embedder renders the webview into an engine texture (the same
-/// mechanism `webview_flutter_linux` uses — there is no platform-view API on
-/// Linux). [createTexture] asks the plugin to realise the WebKitGTK view and
-/// returns the texture id that a [Texture] widget should display.
+/// On Linux the embedder renders the webview into an engine texture that the
+/// `webview_flutter` widget presents; there is no platform-view API there.
 ///
 /// The controller is a plain object (not a provider): a [LumenWebView] widget
 /// owns one per tab and registers it in [WebControllers] so the ad-blocker
-/// can push content filters to every live webview.
+/// can push filters to every live webview.
 class LumenWebViewController {
   LumenWebViewController(this.id) {
-    _channel = MethodChannel('lumen.webview/$id');
-    _channel.setMethodCallHandler(_onCall);
+    WebControllers.instance.register(this);
   }
 
   final String id;
 
-  late final MethodChannel _channel;
+  late final WebViewController _native = _createNative();
   bool _disposed = false;
-
-  /// Engine texture id returned by `createTexture`, or null before creation.
-  int? textureId;
 
   final ValueNotifier<String> url = ValueNotifier<String>('');
   final ValueNotifier<String> title = ValueNotifier<String>('');
@@ -50,8 +43,12 @@ class LumenWebViewController {
   /// counter / badge).
   final StreamController<int> onBlocked = StreamController<int>.broadcast();
 
-  /// Total requests blocked by content filters for this webview.
+  /// Total requests blocked by filters for this webview.
   final ValueNotifier<int> blockedCount = ValueNotifier<int>(0);
+
+  /// The underlying federated controller, exposed for symbols that need the
+  /// real `WebViewController` (e.g. a [WebViewWidget]).
+  WebViewController get native => _native;
 
   String get host {
     final u = Uri.tryParse(url.value);
@@ -61,99 +58,88 @@ class LumenWebViewController {
   /// Origin `scheme://host[:port]` used for per-site ad-block checks.
   String get origin => Uri.tryParse(url.value)?.origin ?? url.value;
 
-  Future<void> _onCall(MethodCall call) async {
-    switch (call.method) {
-      case 'onUrlChanged':
-        final u = call.arguments as String?;
-        if (u != null) url.value = u;
-        loaded.value = false;
-      case 'onTitleChanged':
-        final t = call.arguments as String?;
-        if (t != null) title.value = t;
-      case 'onProgress':
-        final p = (call.arguments as num?)?.toDouble() ?? 0;
-        progress.value = p;
-      case 'onLoadState':
-        final s = call.arguments as String?;
-        loading.value = s == 'started' || s == 'committed';
-        if (s == 'finished') loaded.value = true;
-        if (s == 'failed') {
-          loading.value = false;
-        }
-      case 'onNavigation':
-        final args = (call.arguments as Map?)?.cast<String, Object?>() ?? {};
-        canGoBack.value = args['back'] as bool? ?? false;
-        canGoForward.value = args['forward'] as bool? ?? false;
-      case 'onBlocked':
-        final n = (call.arguments as num?)?.toInt() ?? 1;
-        blockedCount.value += n;
-        onBlocked.add(n);
-      case 'onLoadFailed':
-        final u = call.arguments as String?;
-        if (u != null) onLoadFailed.add(u);
+  WebViewController _createNative() {
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (u) {
+            url.value = u;
+            loading.value = true;
+            loaded.value = false;
+          },
+          onPageFinished: (u) {
+            url.value = u;
+            loading.value = false;
+            loaded.value = true;
+            unawaited(_refreshNavState());
+          },
+          onProgress: (p) => progress.value = p / 100,
+          onUrlChange: (change) {
+            final u = change.url;
+            if (u == null) return;
+            if (u != url.value) url.value = u.toString();
+            unawaited(_refreshNavState());
+          },
+          onWebResourceError: (error) {
+            final u = error.url ?? url.value;
+            onLoadFailed.add(u);
+          },
+        ),
+      );
+    return controller;
+  }
+
+  Future<void> _refreshNavState() async {
+    try {
+      canGoBack.value = await _native.canGoBack();
+      canGoForward.value = await _native.canGoForward();
+    } catch (_) {}
+  }
+
+  /// Best-effort load of [urlString] into the native view.
+  Future<void> loadUrl(String urlString) async {
+    final uri = Uri.tryParse(urlString);
+    if (uri == null) return;
+    loading.value = true;
+    try {
+      await _native.loadRequest(uri);
+    } catch (_) {
+      onLoadFailed.add(urlString);
     }
   }
 
-  /// Realises the native webview and loads [url] via the probe channel.
-  /// Returns the texture id from the native layer, or null on failure.
-  Future<int?> createTexture(String urlString) async {
-    final r = await WebPluginProbe.createView(id, urlString);
-    textureId = r;
-    return r;
-  }
-
-  /// Tells the native view its on-screen size in logical pixels.
-  Future<void> setSize(double width, double height) async {
-    if (textureId == null) return;
-    await _channel.invokeMethod('setSize', {'w': width, 'h': height});
-  }
-
-  Future<void> loadUrl(String urlString) async {
-    await _channel.invokeMethod('loadUrl', {'url': urlString});
-  }
-
   Future<void> goBack() async {
-    await _channel.invokeMethod('goBack');
+    await _native.goBack();
   }
 
   Future<void> goForward() async {
-    await _channel.invokeMethod('goForward');
+    await _native.goForward();
   }
 
   Future<void> reload() async {
-    await _channel.invokeMethod('reload');
+    await _native.reload();
   }
 
   Future<void> stop() async {
-    await _channel.invokeMethod('stop');
+    // The federated API has no stop; reload is the closest safe reset.
+    await _native.reload();
   }
 
-  /// Installs the given WebKit content-rule JSON documents as the webview's
-  /// ad-blocking filters. Parts replace any previously applied list.
-  Future<void> setFilters(List<String> parts) async {
-    await _channel.invokeMethod('setContentFilters', {'parts': parts});
-  }
+  /// Installs ad-blocking filters (WebKit content-rule JSON) on this webview.
+  ///
+  /// Staged: the federated webview has no content-rule API, so this is a
+  /// no-op until the JS-injection port lands.
+  Future<void> setFilters(List<String> parts) async {}
 
-  /// Removes every installed content filter from this webview.
-  Future<void> clearFilters() async {
-    await _channel.invokeMethod('clearContentFilters');
-  }
-
-  Future<String?> evaluateJavascript(String javaScript) async {
-    final r = await _channel.invokeMethod('evaluateJavascript', {
-      'js': javaScript,
-    });
-    return r as String?;
-  }
+  /// Removes every installed filter from this webview.
+  Future<void> clearFilters() async {}
 
   /// Best-effort destroy of native resources.
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
     WebControllers.instance.unregister(this);
-    try {
-      await _channel.invokeMethod('dispose').timeout(const Duration(seconds: 2));
-    } catch (_) {}
     url.dispose();
     title.dispose();
     progress.dispose();

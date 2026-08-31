@@ -1,0 +1,28 @@
+[package]
+name = "webview-flutter-linux-native"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "webview_flutter_linux_native"
+crate-type = ["staticlib", "cdylib"]
+
+[features]
+default = []
+wpe-runtime = ["dep:clipboard-rs", "dep:gio", "dep:glib", "dep:libc"]
+
+[dependencies]
+clipboard-rs = { version = "0.3.5", default-features = false, features = ["wayland"], optional = true }
+gio = { version = "0.18", optional = true }
+glib = { version = "0.18", optional = true }
+irondash_texture = "0.5.0"
+libc = { version = "0.2", optional = true }
+
+[build-dependencies]
+pkg-config = "0.3"
+
+[profile.release]
+lto = "thin"
+panic = "abort"
+strip = "symbols"

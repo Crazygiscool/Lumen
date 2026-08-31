@@ -1,0 +1,36 @@
+name: webview_flutter_linux
+description: A WPE WebKit implementation of the webview_flutter plugin for Linux.
+version: 0.1.0-dev.2
+repository: https://github.com/kingwill101/webview_flutter_linux
+issue_tracker: https://github.com/kingwill101/webview_flutter_linux/issues
+
+# This private key belongs to the public localhost-only TLS test fixture.
+false_secrets:
+  - /example/assets/test_tls_server_key.pem
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.38.0"
+
+flutter:
+  plugin:
+    implements: webview_flutter
+    platforms:
+      linux:
+        dartPluginClass: WebViewFlutterLinux
+
+dependencies:
+  code_assets: ^1.2.1
+  ffi: ^2.2.0
+  flutter:
+    sdk: flutter
+  hooks: ^2.2.0
+  irondash_engine_context: ^0.5.5
+  native_prebuilt: ^0.4.0
+  native_toolchain_rust: ^1.0.6
+  webview_flutter_platform_interface: ^2.15.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
