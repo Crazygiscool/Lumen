@@ -34,7 +34,7 @@ mod system_clipboard;
 #[cfg(all(target_os = "linux", feature = "wpe-runtime"))]
 mod wpe_runtime;
 
-const API_VERSION: u32 = 28;
+const API_VERSION: u32 = 29;
 /// Initial texture width used before WPE supplies its first buffer.
 pub(crate) const WIDTH: usize = 800;
 /// Initial texture height used before WPE supplies its first buffer.

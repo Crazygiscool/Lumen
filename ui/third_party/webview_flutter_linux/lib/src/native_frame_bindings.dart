@@ -16,6 +16,20 @@ import 'dart:ffi' as ffi;
 @ffi.Native<ffi.Uint32 Function()>(symbol: 'webview_flutter_linux_api_version')
 external int webviewFlutterLinuxApiVersion();
 
+/// Installs compiled ad-block rules for the web-process extension.
+///
+/// [bytes] and [length] describe the rule blob; the native side copies it
+/// atomically into the shared extension directory. Returns 0 on success.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Size)>(symbol: 'webview_flutter_linux_set_content_block_rules')
+external int webviewFlutterLinuxSetContentBlockRules(
+  ffi.Pointer<ffi.Uint8> bytes,
+  int length,
+);
+
+/// Returns and drains the ad-blocked request count for the view [handle].
+@ffi.Native<ffi.Uint64 Function(ffi.Uint64)>(symbol: 'webview_flutter_linux_take_blocked_count')
+external int webviewFlutterLinuxTakeBlockedCount(int handle);
+
 /// Creates a native view for [engineHandle] and writes its handle to
 /// [outputHandle].
 ///

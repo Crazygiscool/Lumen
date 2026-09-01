@@ -1281,6 +1281,7 @@ dependencies = [
  "irondash_texture",
  "libc",
  "pkg-config",
+ "regex",
 ]
 
 [[package]]

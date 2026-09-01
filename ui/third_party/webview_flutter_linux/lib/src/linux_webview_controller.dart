@@ -2464,6 +2464,22 @@ class LinuxWebViewController extends PlatformWebViewController {
     _javaScriptChannels[name] = javaScriptChannelParams;
   }
 
+  /// Installs compiled ad-block rules for the native web-process extension.
+  ///
+  /// [rulesBlob] is the binary rule blob (see Lumen's `native_adblock.dart`);
+  /// pass an empty list to disable blocking. Picks up in the web process on the
+  /// next navigation.
+  Future<void> setContentBlockRules(List<int> rulesBlob) async {
+    final renderer = await _ensureRenderer();
+    renderer.setContentBlockRules(rulesBlob);
+  }
+
+  /// Returns and drains the ad-blocked request count for this controller.
+  Future<int> takeBlockedCount() async {
+    final renderer = await _ensureRenderer();
+    return renderer.takeBlockedCount();
+  }
+
   @override
   Future<void> removeJavaScriptChannel(String javaScriptChannelName) async {
     if (!_javaScriptChannels.containsKey(javaScriptChannelName)) return;

@@ -692,7 +692,7 @@ final class NativeFrameRenderer implements Finalizable {
   final int apiVersion;
 
   /// Native ABI required by this Dart implementation.
-  static const int expectedApiVersion = 28;
+  static const int expectedApiVersion = 29;
 
   static final NativeFinalizer _finalizer = NativeFinalizer(
     Native.addressOf<NativeFunction<Void Function(Pointer<Void>)>>(
@@ -2466,6 +2466,33 @@ final class NativeFrameRenderer implements Finalizable {
       'JavaScript mode update',
       webviewFlutterLinuxWpeSetJavaScriptEnabled(handle, enabled ? 1 : 0),
     );
+  }
+
+  /// Installs compiled ad-block rules for the web-process extension.
+  ///
+  /// The blob is copied into the shared extension directory and picked up by
+  /// the web process on its next navigation. Pass an empty blob to disable.
+  void setContentBlockRules(List<int> rulesBlob) {
+    final nativeBytes = rulesBlob.isEmpty
+        ? nullptr
+        : calloc<Uint8>(rulesBlob.length)..asTypedList(rulesBlob.length).setAll(0, rulesBlob);
+    try {
+      _checkStatus(
+        'content-block rules installation',
+        webviewFlutterLinuxSetContentBlockRules(
+          nativeBytes.cast(),
+          rulesBlob.length,
+        ),
+      );
+    } finally {
+      if (nativeBytes != nullptr) calloc.free(nativeBytes);
+    }
+  }
+
+  /// Returns and drains the ad-blocked request count for this view.
+  int takeBlockedCount() {
+    _ensureAlive();
+    return webviewFlutterLinuxTakeBlockedCount(handle);
   }
 
   /// Sets whether WebKit requires a user gesture before media playback.

@@ -99,6 +99,10 @@ pub(super) use super::accessibility_worker::{
     request_accessibility_refresh, take_accessibility_response,
     take_accessibility_worker_view_discarded,
 };
+pub(super) use super::adblock::{
+    BLOB_MAGIC, install_rules, installed_version, is_empty, resource_type_from_fetch_destination,
+    should_block,
+};
 pub(super) use super::construction::*;
 #[cfg(test)]
 pub(super) use super::cursor::{CursorData, MAX_CURSOR_DIMENSION, custom_cursor_data};

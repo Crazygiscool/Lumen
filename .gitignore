@@ -48,3 +48,7 @@ stoic
 ui/linux/lib/*.so
 ui/macos/Runner/*.dylib
 ui/windows/lib/*.dll
+
+# Locally vendored native prebuilt for the webview_flutter_linux fork
+# (strategy (b): build the modified .so once and bundle it as a local artifact).
+ui/third_party/webview_flutter_linux/.prebuilt/

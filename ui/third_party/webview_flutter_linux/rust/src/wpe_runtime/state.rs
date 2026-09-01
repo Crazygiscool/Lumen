@@ -105,6 +105,9 @@ pub(super) struct NativeView {
     pub(super) close_requested: AtomicBool,
     pub(super) fullscreen_events: RefCell<VecDeque<bool>>,
     pub(super) fullscreen: AtomicBool,
+    /// Number of ad-blocked subrequests reported by the web process since the
+    /// view was created. Read through `take_blocked_count`.
+    pub(super) blocked_count: Cell<u64>,
     /// Whether the active main-frame load ended in a native failure.
     ///
     /// WebKit follows a failed-load signal with `WEBKIT_LOAD_FINISHED`; this
@@ -235,6 +238,7 @@ pub(super) fn new_native_view(engine_handle: i64) -> Result<Rc<NativeView>, i32>
         close_requested: AtomicBool::new(false),
         fullscreen_events: RefCell::new(VecDeque::new()),
         fullscreen: AtomicBool::new(false),
+        blocked_count: Cell::new(0),
         main_frame_load_failed: Cell::new(false),
         main_frame_load_provisional: Cell::new(false),
         accessibility: RefCell::new(AccessibilitySnapshot::default()),

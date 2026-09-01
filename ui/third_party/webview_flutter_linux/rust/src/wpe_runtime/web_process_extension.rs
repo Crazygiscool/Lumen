@@ -61,6 +61,11 @@ const FRAME_DECISION_MESSAGE_NAME: &CStr = c"webview-flutter-linux-frame-decisio
 const FRAME_ANNOUNCEMENT_MESSAGE_NAME: &CStr = c"webview-flutter-linux-frame-announcement-0-1";
 const FRAME_ANNOUNCEMENT_WORLD_NAME: &CStr = c"webview-flutter-linux-frame-announcement-0-1";
 const FRAME_ANNOUNCEMENT_FUNCTION_NAME: &CStr = c"__webviewFlutterLinuxAnnounceNavigation_0_1";
+const ADBLOCK_BLOCKED_MESSAGE_NAME: &CStr = c"webview-flutter-linux-adblock-blocked-0-1";
+/// File in the shared extension directory carrying the compiled content-block
+/// rules. The UI process writes it atomically; the web-process extension reads
+/// the version header and reloads only when it changes.
+const ADBLOCK_RULES_FILE: &str = "adblock-rules.blob";
 const FRAME_ANNOUNCEMENT_SOURCE: &str = r#"
 (() => {
   const announce = globalThis.__webviewFlutterLinuxAnnounceNavigation_0_1;
@@ -246,6 +251,107 @@ pub(super) fn prepare_navigation_policy_gate(
 /// Removes a UI-owned marker that the web process no longer needs.
 pub(super) fn discard_navigation_policy_gate(gate: &PreparedNavigationPolicyGate) {
     let _ = fs::remove_file(&gate.path);
+}
+
+/// Writes the compiled ad-block rules for the web process.
+///
+/// The blob lands in the shared extension directory under a fixed name and is
+/// versioned in its header, so the web process reloads it exactly once per
+/// rule-set revision. The write is atomic (temp file + rename + fsync) so a
+/// web process mid-read never observes a partial rule set.
+pub(super) fn install_content_block_rules(blob: &[u8]) -> i32 {
+    if blob.len() > 4 * 1024 * 1024 {
+        return -22;
+    }
+    let directory = match EXTENSION_DIRECTORY.get() {
+        Some(directory) => directory.clone(),
+        None => {
+            if configure_web_process_extension().is_err() {
+                return -19;
+            }
+            match EXTENSION_DIRECTORY.get() {
+                Some(directory) => directory.clone(),
+                None => return -19,
+            }
+        }
+    };
+    let path = directory.join(ADBLOCK_RULES_FILE);
+    let temporary = path.with_extension("blob.tmp");
+    let mut file = match OpenOptions::new().create(true).truncate(true).write(true).open(&temporary)
+    {
+        Ok(file) => file,
+        Err(_) => return -18,
+    };
+    if let Err(error) = file.write_all(blob).and_then(|()| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(&temporary);
+        let _ = error;
+        return -18;
+    }
+    drop(file);
+    match fs::rename(&temporary, &path) {
+        Ok(()) => 0,
+        Err(_) => {
+            let _ = fs::remove_file(&temporary);
+            -18
+        }
+    }
+}
+
+/// Path of the ad-block rules file as seen by the web-process extension.
+///
+/// Mirrors `claim_navigation_policy_gate`'s directory fallback: the extension
+/// initially lacks `EXTENSION_DIRECTORY`, so it resolves the directory that
+/// contains the loaded extension library, which is exactly the shared directory
+/// the UI process writes into.
+fn adblock_rules_dir() -> Option<PathBuf> {
+    if let Some(directory) = EXTENSION_DIRECTORY.get() {
+        return Some(directory.clone());
+    }
+    let library = current_library_path().ok()?;
+    library.parent().map(Path::to_path_buf)
+}
+
+/// Reloads the ad-block rules when the blob version moved on.
+///
+/// Cheap when nothing changed: the first bytes are the magic and version, so a
+/// shared header read skips full parsing. The parse currently happens under
+/// `install_rules`'s lock; on failure the previous table is preserved.
+fn refresh_adblock_rules() {
+    let Some(directory) = adblock_rules_dir() else {
+        return;
+    };
+    let path = directory.join(ADBLOCK_RULES_FILE);
+    let mut header = [0u8; 8 + 8];
+    let Ok(file) = fs::File::open(&path) else {
+        return;
+    };
+    let read = {
+        use std::io::Read;
+        let mut file = file;
+        file.read_exact(&mut header)
+    };
+    if read.is_err() {
+        // File smaller than the header: treat like a parse failure and keep
+        // whatever table is installed.
+        return;
+    }
+    let (magic, version) = header.split_at(8);
+    if magic != BLOB_MAGIC {
+        return;
+    }
+    if version_ne(&version, installed_version()) {
+        let Ok(blob) = fs::read(&path) else {
+            return;
+        };
+        let _ = install_rules(&blob);
+    }
+}
+
+fn version_ne(header: &[u8], installed: u64) -> bool {
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(header);
+    u64::from_le_bytes(bytes) != installed
 }
 
 /// Atomically claims the oldest exact URL marker in the web process.
@@ -573,6 +679,7 @@ unsafe extern "C" fn announce_frame_navigation(
 /// fills the public WPE frame-information gap for schemes that never reach the
 /// network or response policy gates.
 fn install_extension_frame_bridge() {
+    refresh_adblock_rules();
     let world =
         unsafe { webkit_script_world_new_with_name(FRAME_ANNOUNCEMENT_WORLD_NAME.as_ptr()) };
     if world.is_null() {
@@ -695,6 +802,54 @@ unsafe extern "C" fn frame_decision_finished(
     context.main_loop.quit();
 }
 
+/// Evaluates the native ad-blocker for a subresource request and cancels it on
+/// a match, reporting the block to the owning view for the Dart counter.
+///
+/// Returns `true` when the request was cancelled (the caller must not send it).
+fn ad_block_cancels(
+    url: &[u8],
+    request: *mut WebKitURIRequest,
+    page: *mut WebKitWebPage,
+) -> bool {
+    if is_empty() {
+        return false;
+    }
+    let Ok(url) = std::str::from_utf8(url) else {
+        return false;
+    };
+    let destination = unsafe {
+        let headers = webkit_uri_request_get_http_headers(request);
+        if headers.is_null() {
+            Vec::new()
+        } else {
+            foreign_bytes(soup_message_headers_get_one(headers, c"Sec-Fetch-Dest".as_ptr()))
+        }
+    };
+    let Some(types) = resource_type_from_fetch_destination(&destination) else {
+        return false;
+    };
+    if !should_block(url, types) {
+        return false;
+    }
+    if !page.is_null() {
+        let message = unsafe {
+            webkit_user_message_new(ADBLOCK_BLOCKED_MESSAGE_NAME.as_ptr(), std::ptr::null_mut())
+        };
+        if !message.is_null() {
+            unsafe {
+                webkit_web_page_send_message_to_view(
+                    page,
+                    message,
+                    std::ptr::null_mut(),
+                    None,
+                    std::ptr::null_mut(),
+                )
+            };
+        }
+    }
+    true
+}
+
 /// Sends one finalized navigation destination to its owning UI-process view.
 ///
 /// `WebKitWebPage::send-request` is the first public WPE hook where
@@ -711,6 +866,9 @@ fn send_frame_hint(page: *mut WebKitWebPage, request: *mut WebKitURIRequest) -> 
     let destination =
         foreign_bytes(unsafe { soup_message_headers_get_one(headers, c"Sec-Fetch-Dest".as_ptr()) });
     let is_main_frame = frame_class_from_fetch_destination(&destination)?;
+    // A main-frame navigation is an ideal, low-frequency point to pick up
+    // rule-set revisions written by the UI process after web-process startup.
+    refresh_adblock_rules();
     let url = foreign_bytes(unsafe { webkit_uri_request_get_uri(request) });
     let Ok(url) = std::str::from_utf8(&url) else {
         return None;
@@ -791,6 +949,13 @@ pub(super) fn connect_web_process_frame_hints(
             }
             return Some(true.to_value());
         }
+        if name == ADBLOCK_BLOCKED_MESSAGE_NAME.to_bytes() {
+            if let Some(native_view) = native_view.upgrade() {
+                let next = native_view.blocked_count.get().wrapping_add(1);
+                native_view.blocked_count.set(next);
+            }
+            return Some(true.to_value());
+        }
         if name != FRAME_HINT_MESSAGE_NAME.to_bytes() {
             return Some(false.to_value());
         }
@@ -827,6 +992,49 @@ pub(super) fn connect_web_process_frame_hints(
     });
 }
 
+/// Installs the compiled content-block rules read by the web-process extension.
+///
+/// The blob is copied (atomically) into the shared extension directory and is
+/// versioned in its header; the web process reloads it on the next navigation
+/// epoch. Returns `0` on success, a negative status otherwise. This is
+/// handle-independent and safe to call before a view exists.
+///
+/// # Safety
+///
+/// `length` bytes at `blob` must remain readable for the duration of the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn webview_flutter_linux_set_content_block_rules(
+    blob: *const u8,
+    length: usize,
+) -> i32 {
+    if length == 0 {
+        return 0;
+    }
+    if blob.is_null() {
+        return -22;
+    }
+    // SAFETY: `length` bytes at `blob` are valid for read for the duration of
+    // the call, as established by the Dart FFI binding backing the slice.
+    let bytes = unsafe { std::slice::from_raw_parts(blob, length) };
+    install_content_block_rules(bytes)
+}
+
+/// Returns and drains the number of ad-blocked requests this view reported.
+///
+/// The count is accumulated by the UI process from web-process notifications.
+/// Zero is the read-only-accessor default; a disposed handle yields zero.
+#[unsafe(no_mangle)]
+pub extern "C" fn webview_flutter_linux_take_blocked_count(handle: u64) -> u64 {
+    match super::state::native_view(handle) {
+        Some(native_view) => {
+            let count = native_view.blocked_count.get();
+            native_view.blocked_count.set(0);
+            count
+        }
+        None => 0,
+    }
+}
+
 /// Entry point discovered by WPE after loading this library in a web process.
 ///
 /// # Safety
@@ -861,7 +1069,18 @@ pub unsafe extern "C" fn webkit_web_process_extension_initialize(
                 )
             }
             .cast::<WebKitURIRequest>();
-            let cancel = send_frame_hint(raw_page as *mut WebKitWebPage, request).unwrap_or(false);
+            // Navigation destinations (document/iframe/frame) are gated by
+            // send_frame_hint, which also reports reconstruction hints to Dart.
+            // Non-navigation requests return None here and are subresources:
+            // those are the only ones the native ad-blocker may cancel.
+            let Some(cancel) = send_frame_hint(raw_page as *mut WebKitWebPage, request) else {
+                let url = foreign_bytes(unsafe { webkit_uri_request_get_uri(request) });
+                if ad_block_cancels(&url, request, raw_page as *mut WebKitWebPage) {
+                    return Some(true.to_value());
+                }
+                apply_request_headers(request);
+                return Some(false.to_value());
+            };
             if cancel {
                 return Some(true.to_value());
             }

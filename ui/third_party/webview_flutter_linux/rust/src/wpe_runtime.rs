@@ -47,6 +47,7 @@
 mod accessibility;
 mod accessibility_dbus;
 mod accessibility_worker;
+mod adblock;
 mod clipboard;
 mod construction;
 mod cursor;

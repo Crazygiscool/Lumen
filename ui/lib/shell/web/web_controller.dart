@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_linux/webview_flutter_linux.dart'
+    as linux_view;
 
+import 'js_adblock.dart';
+import 'native_adblock.dart';
 import 'web_controllers.dart';
 
 /// Controller for a single embedded web tab, backed by the federated
@@ -50,6 +55,12 @@ class LumenWebViewController {
   /// real `WebViewController` (e.g. a [WebViewWidget]).
   WebViewController get native => _native;
 
+  /// Compiled JS blocker to inject at the start of each page load. Non-empty
+  /// enables blocking; empty disables it.
+  String _blockScript = '';
+
+  bool get hasFilters => _blockScript.isNotEmpty;
+
   String get host {
     final u = Uri.tryParse(url.value);
     return u?.host ?? '';
@@ -67,6 +78,7 @@ class LumenWebViewController {
             url.value = u;
             loading.value = true;
             loaded.value = false;
+            _injectBlockScript();
           },
           onPageFinished: (u) {
             url.value = u;
@@ -74,7 +86,10 @@ class LumenWebViewController {
             loaded.value = true;
             unawaited(_refreshNavState());
           },
-          onProgress: (p) => progress.value = p / 100,
+          onProgress: (p) {
+            progress.value = p / 100;
+            unawaited(_pollNativeBlocked());
+          },
           onUrlChange: (change) {
             final u = change.url;
             if (u == null) return;
@@ -87,7 +102,37 @@ class LumenWebViewController {
           },
         ),
       );
+    unawaited(
+      controller.addJavaScriptChannel(
+        'lumen_ab',
+        onMessageReceived: (message) {
+          final n = int.tryParse(message.message) ?? 0;
+          if (n <= 0) return;
+          blockedCount.value += n;
+          onBlocked.add(n);
+        },
+      ),
+    );
     return controller;
+  }
+
+  /// Best-effort injection of the compiled blocker at page start.
+  void _injectBlockScript() {
+    final script = _blockScript;
+    if (script.isEmpty) return;
+    unawaited(_native.runJavaScript(script).catchError((_) => null));
+  }
+
+  /// On Linux, drains the native web-process blocked count into the shared
+  /// stream/counter so the Lumen badge stays correct without page scripts.
+  Future<void> _pollNativeBlocked() async {
+    if (!Platform.isLinux) return;
+    final renderer = _linuxController;
+    if (renderer == null) return;
+    final drained = await renderer.takeBlockedCount().catchError((_) => 0);
+    if (drained <= 0) return;
+    blockedCount.value += drained;
+    onBlocked.add(drained);
   }
 
   Future<void> _refreshNavState() async {
@@ -98,8 +143,7 @@ class LumenWebViewController {
   }
 
   /// Best-effort load of [urlString] into the native view.
-  Future<void> loadUrl(String urlString) async {
-    final uri = Uri.tryParse(urlString);
+  Future<void> loadUrl(String urlString) async {    final uri = Uri.tryParse(urlString);
     if (uri == null) return;
     loading.value = true;
     try {
@@ -126,14 +170,51 @@ class LumenWebViewController {
     await _native.reload();
   }
 
-  /// Installs ad-blocking filters (WebKit content-rule JSON) on this webview.
+  /// Installs ad-blocking filters on this webview.
   ///
-  /// Staged: the federated webview has no content-rule API, so this is a
-  /// no-op until the JS-injection port lands.
-  Future<void> setFilters(List<String> parts) async {}
+  /// `parts` are the WebKit content-rule JSON documents produced by
+  /// `libublock`. On Linux they are compiled to a binary blob and handed to the
+  /// native WPE extension, which cancels matching subresource requests in the
+  /// web process. The same parts are also translated to a JS blocker injected
+  /// at page start on platforms without the native path.
+  Future<void> setFilters(List<String> parts) async {
+    _blockScript = parts.isEmpty ? '' : jsBlockScript(parts);
+    _contentBlockRevision += 1;
+    await _setNativeContentBlockRules(parts);
+  }
 
   /// Removes every installed filter from this webview.
-  Future<void> clearFilters() async {}
+  Future<void> clearFilters() async {
+    _blockScript = '';
+    await _setNativeContentBlockRules(const []);
+  }
+
+  /// Linux: hands the compiled rule blob to the vendored WPE extension.
+  Future<void> _setNativeContentBlockRules(List<String> parts) async {
+    if (!Platform.isLinux) return;
+    final renderer = _linuxController;
+    if (renderer == null) return;
+    final revision = parts.isEmpty ? 0 : _contentBlockRevision;
+    final blob = revision == 0
+        ? Uint8List(0)
+        : buildContentRuleBlob(parts, version: revision);
+    await renderer.setContentBlockRules(blob).catchError((_) => null);
+  }
+
+  /// Revision of the native rule blob; incremented when the compiled list
+  /// changes so the web-process extension reloads.
+  int _contentBlockRevision = 0;
+
+  /// The Linux platform controller when this view runs on WPE, else null.
+  ///
+  /// Reached via the federated `WebViewController.platform` accessor, which
+  /// returns the concrete `LinuxWebViewController` on Linux.
+  linux_view.LinuxWebViewController? get _linuxController {
+    if (!Platform.isLinux) return null;
+    return _native.platform is linux_view.LinuxWebViewController
+        ? _native.platform as linux_view.LinuxWebViewController
+        : null;
+  }
 
   /// Best-effort destroy of native resources.
   Future<void> dispose() async {
