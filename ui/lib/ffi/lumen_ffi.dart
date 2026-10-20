@@ -56,8 +56,11 @@ class LumenFfi {
     final candidates = <String>[
       p.join(exeDir.path, 'lib', name),
       p.join(cwd, 'ui', _platformDir(), 'lib', name),
+      p.join(cwd, _platformDir(), 'lib', name),
       if (Platform.isMacOS) p.join(cwd, 'ui', 'macos', 'Runner', name),
+      if (Platform.isMacOS) p.join(cwd, 'macos', 'Runner', name),
       p.join(cwd, 'target', 'release', name),
+      p.join(cwd, '..', 'target', 'release', name),
     ].where((path) => File(path).existsSync()).toList();
 
     if (candidates.isEmpty) {
@@ -82,7 +85,7 @@ class LumenFfi {
   }
 
   /// Invokes a method on `liblumen_core` (`lumen_vault_call`).
-  dynamic core(String method, [Map<String, Object?> args = const {}]) {
+  Object? core(String method, [Map<String, Object?> args = const {}]) {
     final lib = _core;
     if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
     final call = lib.lookupFunction<
@@ -97,7 +100,7 @@ class LumenFfi {
   }
 
   /// Invokes the plugin inventory entry (`lumen_plugins_call`).
-  dynamic plugins(String method, [Map<String, Object?> args = const {}]) {
+  Object? plugins(String method, [Map<String, Object?> args = const {}]) {
     final lib = _core;
     if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
     final call = lib.lookupFunction<
@@ -111,7 +114,7 @@ class LumenFfi {
     return _invoke(call, free, method, args);
   }
 
-  dynamic _invoke(
+  Object? _invoke(
     Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>) call,
     void Function(Pointer<Utf8>) free,
     String method,

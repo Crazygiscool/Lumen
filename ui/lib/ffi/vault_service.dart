@@ -62,17 +62,29 @@ class VaultService {
   Map<String, Object?> args([Map<String, Object?> base = const {}]) =>
       {...base, 'store': store};
 
-  Future<void> create(String path, String passphrase) =>
-      _ffi.core('vault.create', args({'path': path, 'passphrase': passphrase}));
+  Future<void> create(String path, String passphrase) async {
+    _ffi.core(
+      'vault.create',
+      args({'path': path, 'passphrase': passphrase}),
+    );
+  }
 
-  Future<void> unlock(String path, String passphrase) =>
-      _ffi.core('vault.unlock', args({'path': path, 'passphrase': passphrase}));
+  Future<void> unlock(String path, String passphrase) async {
+    _ffi.core(
+      'vault.unlock',
+      args({'path': path, 'passphrase': passphrase}),
+    );
+  }
 
   /// Lock this service's store.
-  Future<void> lock() => _ffi.core('vault.lock', args());
+  Future<void> lock() async {
+    _ffi.core('vault.lock', args());
+  }
 
   /// Lock every open store.
-  Future<void> lockAll() => _ffi.core('vault.lock_all');
+  Future<void> lockAll() async {
+    _ffi.core('vault.lock_all');
+  }
 
   Future<bool> isUnlocked() async {
     final data = _ffi.core('vault.is_unlocked', args()) as Map<String, dynamic>;
@@ -109,18 +121,28 @@ class VaultService {
     return base64Decode(b64);
   }
 
-  Future<void> writeText(String path, String text) =>
-      _ffi.core('vault.write_text', args({'path': path, 'text': text}));
+  Future<void> writeText(String path, String text) async {
+    _ffi.core('vault.write_text', args({'path': path, 'text': text}));
+  }
 
-  Future<void> writeBytes(String path, Uint8List bytes) =>
-      _ffi.core('vault.write', args({'path': path, 'data': base64Encode(bytes)}));
+  Future<void> writeBytes(String path, Uint8List bytes) async {
+    _ffi.core(
+      'vault.write',
+      args({'path': path, 'data': base64Encode(bytes)}),
+    );
+  }
 
-  Future<void> mkdir(String path) => _ffi.core('vault.mkdir', args({'path': path}));
+  Future<void> mkdir(String path) async {
+    _ffi.core('vault.mkdir', args({'path': path}));
+  }
 
-  Future<void> delete(String path) => _ffi.core('vault.delete', args({'path': path}));
+  Future<void> delete(String path) async {
+    _ffi.core('vault.delete', args({'path': path}));
+  }
 
-  Future<void> rename(String from, String to) =>
-      _ffi.core('vault.rename', args({'from': from, 'to': to}));
+  Future<void> rename(String from, String to) async {
+    _ffi.core('vault.rename', args({'from': from, 'to': to}));
+  }
 
   Future<List<Map<String, dynamic>>> search(
     String query, {

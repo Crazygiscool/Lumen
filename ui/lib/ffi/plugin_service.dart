@@ -83,8 +83,9 @@ class PluginService {
   Future<PluginList> list() async =>
       PluginList.fromJson(_ffi.plugins('plugins.list') as Map<String, dynamic>);
 
-  Future<void> setEnabled(String name, bool enabled) =>
-      _ffi.plugins('plugins.set_enabled', {'name': name, 'enabled': enabled});
+  Future<void> setEnabled(String name, bool enabled) async {
+    _ffi.plugins('plugins.set_enabled', {'name': name, 'enabled': enabled});
+  }
 
   /// Runs enabled plugins against a saved note and returns their messages.
   Future<List<String>> run(String path, String title, String body) async {
