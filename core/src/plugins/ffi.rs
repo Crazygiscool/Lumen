@@ -13,7 +13,10 @@ use std::os::raw::c_char;
 
 use serde::Deserialize;
 
-use super::{builtins_metadata, inventory, is_enabled, set_enabled, PluginManifest};
+use super::{
+    builtins_metadata, inventory, is_enabled, set_enabled, NoteContext, PluginManager,
+    PluginManifest,
+};
 
 #[derive(Deserialize)]
 struct EnabledArgs {
@@ -27,6 +30,15 @@ struct ListArgs {
     dir: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct RunArgs {
+    path: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    body: String,
+}
+
 fn ok(v: serde_json::Value) -> serde_json::Value {
     serde_json::json!({ "ok": true, "data": v })
 }
@@ -36,7 +48,12 @@ fn err(e: impl ToString) -> serde_json::Value {
 }
 
 fn manifest_json(m: &PluginManifest, builtin: bool, enabled: bool) -> serde_json::Value {
-    let sorted: Vec<&String> = m.hooks.iter().collect::<BTreeSet<_>>().into_iter().collect();
+    let sorted: Vec<&String> = m
+        .hooks
+        .iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     serde_json::json!({
         "name": m.name,
         "version": m.version,
@@ -84,6 +101,17 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             set_enabled(&a.name, a.enabled);
             ok(serde_json::json!({ "name": a.name, "enabled": a.enabled }))
         }
+        "plugins.run" => {
+            let a = parse!(RunArgs);
+            let manager = PluginManager::new();
+            let note = NoteContext {
+                id: &a.path,
+                title: &a.title,
+                body: &a.body,
+            };
+            let feedback = manager.run_on_note(&note);
+            ok(serde_json::json!({ "feedback": feedback }))
+        }
         other => err(format!("unknown method: {other}")),
     }
 }
@@ -102,6 +130,10 @@ fn string_to_cptr(s: String) -> *mut c_char {
 
 /// Entry point FFI: `lumen_plugins_call(method, json_args)` → JSON result string.
 /// Caller must `lumen_plugins_free` the returned pointer.
+///
+/// # Safety
+/// `method` and `args` must be null or valid NUL-terminated C strings for the
+/// duration of the call.
 #[no_mangle]
 pub unsafe extern "C" fn lumen_plugins_call(
     method: *const c_char,
@@ -120,6 +152,10 @@ pub unsafe extern "C" fn lumen_plugins_call(
 }
 
 /// Free a string returned by `lumen_plugins_call`.
+///
+/// # Safety
+/// `ptr` must be null or a pointer returned by `lumen_plugins_call` that has not
+/// already been freed.
 #[no_mangle]
 pub unsafe extern "C" fn lumen_plugins_free(ptr: *mut c_char) {
     unsafe {

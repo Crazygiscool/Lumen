@@ -23,8 +23,6 @@ echo ""
 echo "=== Step 2: Stage FFI .so into Flutter lib/ dir ==="
 mkdir -p "$LINUX_LIB_DIR"
 cp "$ROOT_DIR/target/release/liblumen_core.so" "$LINUX_LIB_DIR/"
-cp "$ROOT_DIR/target/release/libfscore.so" "$LINUX_LIB_DIR/"
-cp "$ROOT_DIR/target/release/libublock.so" "$LINUX_LIB_DIR/"
 
 echo ""
 echo "=== Step 3: Build Flutter Linux release ==="

@@ -1,122 +1,102 @@
-# 🌟 Lumen
-[![wakatime](https://wakatime.com/badge/user/94726172-a5c4-4c20-b247-f01d1fc63010/project/e0433b06-9daf-4418-aba1-3f71a3af8149.svg)](https://wakatime.com/badge/user/94726172-a5c4-4c20-b247-f01d1fc63010/project/e0433b06-9daf-4418-aba1-3f71a3af8149)
+# Lumen
 
-**Lumen** is a secure, offline‑first journaling engine built with a Rust core and a cross‑platform Flutter UI. It focuses on privacy, clarity, and long‑term durability — giving you a fast, encrypted space to write without distractions.
+A private, offline-first journal. Write Markdown notes in an encrypted store,
+import writing you already have, and keep everything on your own machine.
 
 > *Illuminate your inner world. Write in light. Store in silence.*
 
-## ✨ Features
+## Features
 
-- 🔐 **Local Encryption**  
-  Entries are encrypted using AES‑256 and Argon2. Nothing leaves your device.
+- **Encrypted journal** — notes are Markdown files encrypted with AES-256-GCM;
+  the per-store key is derived with Argon2id and a passphrase you choose.
+- **Editor with Markdown preview** — list, create, edit, save, and delete notes
+  in the desktop app.
+- **Imports** — bring in a Stoic iOS export (folder or `.zip`), a Lumen JSON
+  export, or a folder of Markdown files. Imports are re-encrypted on disk.
+- **Plugins** — built-in word count/summary plugins run when you save; on-disk
+  plugins can be installed and toggled from the Plugins screen.
+- **Terminal UI** — browse, search, read, and edit the same encrypted journal
+  without leaving the terminal.
+- **No accounts, no network, no telemetry.**
 
-- 🧱 **Rust Core Engine**  
-  Handles encryption, storage, entry management, and provenance metadata.
+## Install / build
 
-- 🖥️ **Cross‑Platform UI**  
-  Flutter interface for Linux and macOS (other platforms compile but are not yet polished).
-
-- 🧑‍💻 **Terminal UI (TUI)**  
-  A functional command‑line journaling interface for quick writing and reading.
-
-- 📁 **Import/Export**  
-  Export entries to plaintext Markdown. Import from plaintext and basic JSON.
-
-- 🗂️ **Entry Metadata**  
-  Each entry includes timestamps, edit history, and structured provenance.
-
-- 🛠️ **Cross‑Platform Build Pipeline**  
-  Automated builds for Linux and macOS, including Rust FFI and Flutter bundling.
-
-## 🛠️ Installation
-
-### **Linux (Arch / Manjaro / EndeavourOS)**  
-
-Lumen is available on the AUR:
+Dependencies: Rust (stable), Flutter with Dart 3.9+, and the usual Linux desktop build
+packages. The Makefile works on Linux, macOS, and Windows (Windows needs GNU
+Make from Git Bash, MSYS2, or WSL).
 
 ```bash
-yay -S lumen-journal
-```
-
-Or build manually:
-
-```bash
-git clone https://github.com/your-username/lumen.git
-cd lumen
-./scripts/build_linux.sh
-```
-
-The resulting binary and desktop files will be placed in:
-
-```txt
-build/linux/
-```
-
-### **macOS**
-
-```bash
-git clone https://github.com/your-username/lumen.git
-cd lumen
-./scripts/build_macos.sh
-```
-
-The macOS `.app` bundle will appear in:
-
-```txt
-build/macos/
-```
-
-### **From Source (Rust + Flutter)**
-
-The Makefile works on Linux, macOS, and Windows (Windows needs GNU Make from a Unix-like shell — Git Bash, MSYS2, or WSL):
-
-```bash
-make           # Build core + FFI lib, build & run the app
-make dev       # Hot-reload dev mode (DDS + hot reload)
-make tui=1     # ...then run the Rust TUI afterwards
-make tui       # Run the TUI directly
+make           # Build the Rust core + Flutter app, then run it
+make dev       # Hot-reload dev mode
+make tui       # Run the terminal UI
+make build-linux / build-macos / build-windows
 make help      # List all targets
 ```
 
-Release packaging is available per-platform (`make build-linux`, `make build-macos`, `make build-windows`).
+On Linux, Lumen is also packaged on the AUR as `lumen-journal`.
 
-## 📦 File Structure
+## Using the app
+
+1. Open **Journal** and choose a folder for the encrypted store (for example
+   `~/Documents/lumen-journal`). Use **Create journal** the first time and
+   **Unlock** afterwards.
+2. Create a note or open today's entry; write Markdown and press **Save**.
+3. Use **Import** to bring in an existing journal. The journal must be unlocked
+   first; imported files land in the encrypted store and are never written in
+   plaintext.
+4. Manage built-in and on-disk plugins in **Plugins**.
+
+The journal is a normal folder containing a `.lumen/journal.json` passphrase
+container and encrypted `.md` files. Back it up like any other folder.
+
+## Terminal UI
+
+```bash
+lumen --vault ~/Documents/lumen-journal            # interactive browser
+lumen --vault ~/Documents/lumen-journal init       # create the journal
+lumen --vault ~/Documents/lumen-journal list
+lumen --vault ~/Documents/lumen-journal search tea
+lumen --vault ~/Documents/lumen-journal today      # edit in $EDITOR
+lumen --vault ~/Documents/lumen-journal streak
+```
+
+The passphrase can be supplied with `--password` or `LUMEN_PASSWORD`; otherwise
+the TUI prompts for it. The vault path can also be set with `LUMEN_JOURNAL`.
+
+## File structure
 
 ```
 lumen/
- ├─ core/          # Rust engine (encryption, storage, provenance)
- ├─ ui/            # Flutter interface
- ├─ cli/           # Terminal UI
- ├─ scripts/       # Build + packaging scripts
- ├─ LICENSE        # License file
- └─ README.md
+ ├─ core/      # Rust library: vault encryption, importers, plugins, FFI
+ ├─ tui/       # Rust terminal client (binary: lumen)
+ ├─ ui/        # Flutter desktop app
+ ├─ plugins/   # Example on-disk plugin
+ ├─ scripts/   # Build + packaging scripts
+ └─ docs/      # Plugin and Stoic export format notes
 ```
 
-## 📚 Documentation
+## Documentation
 
-- Core architecture: `docs/core.md`  
-- Storage format: `docs/storage.md`  
-- TUI usage: `docs/tui.md`  
+- Plugin manifests, hooks, and the C ABI: `docs/plugins.md`
+- Stoic export layout used by the importer: `docs/stoic-export-format.md`
 
-## 🚫 License
+## License
 
 Lumen is provided under the terms described in `LICENSE` / `LICENSE.txt`.
+Personal, educational, and research use is permitted. Commercial use requires
+prior written permission.
 
-Personal, educational, and research use is permitted.  
-Commercial use requires prior written permission.
+## Contributing
 
-## 📣 Contributing
+Contributions are welcome as long as they align with the project's
+non-commercial terms. See `CONTRIBUTING.md` before submitting pull requests.
 
-Contributions are welcome as long as they align with the project’s non‑commercial terms.  
-See `CONTRIBUTING.md` before submitting pull requests.
+## Contact
 
-## 📬 Contact
-
-For questions or licensing inquiries:
-
-**Author:** Crazygiscool  
+**Author:** Crazygiscool
 **Email:** [crazygiscool@proton.me](mailto:crazygiscool@proton.me)
 
-## 🪞 Reflect Freely. Store Safely.
+## Reflect freely. Store safely.
 
-Lumen is a secure, expressive foundation for private journaling — built to stay fast, local, and yours.
+Lumen is a secure, expressive foundation for private journaling — built to stay
+fast, local, and yours.

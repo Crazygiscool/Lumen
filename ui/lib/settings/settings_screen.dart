@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../files/folder_picker_dialog.dart';
-import '../shell/passphrase_dialog.dart';
-import '../shell/tabs/tabs_provider.dart';
-import '../shell/web/ad_block_service.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
-import '../wakatime/wakatime_provider.dart';
+import '../widgets/path_picker.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -16,483 +12,130 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
-    final gtkAsync = ref.watch(gtkThemeProvider);
-    final gtk = gtkAsync.value;
-
-    final gtkReadout = gtkAsync.isLoading
-        ? ('Detecting desktop theme…', Icons.hourglass_top)
-        : (gtk == null || !gtk.available)
-        ? ('GTK theme not detected', Icons.help_outline)
-        : (
-            'GTK ${(gtk.colorScheme ?? 'default')} · accent ${gtk.accentName ?? '—'}',
-            Icons.desktop_windows_outlined,
-          );
+    final vault = ref.watch(journalVaultProvider);
+    final t = LumenColors.of(context);
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: LumenColors.of(context).primaryContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              Icons.auto_awesome,
-              color: LumenColors.of(context).primary,
-              size: 28,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Center(
-          child: Text(
-            'Lumen',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-          ),
-        ),
-        Center(
-          child: Text(
-            'Explorer-first OS workbench · v2.4.0',
-            style: TextStyle(
-              fontSize: 12,
-              color: LumenColors.of(context).onSurfaceVariant,
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
+        Text('Settings', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 20),
+
         _Section(
           title: 'Appearance',
           children: [
-            _Row(
-              label: 'Theme',
-              child: SegmentedButton<ThemeSource>(
-                segments: [
-                  ButtonSegment(
-                    value: ThemeSource.system,
-                    icon: Icon(Icons.brightness_auto_outlined, size: 16),
-                    label: const Text('System'),
-                  ),
-                  ButtonSegment(
-                    value: ThemeSource.dark,
-                    icon: const Icon(Icons.dark_mode_outlined, size: 16),
-                    label: const Text('Dark'),
-                  ),
-                  ButtonSegment(
-                    value: ThemeSource.light,
-                    icon: const Icon(Icons.light_mode_outlined, size: 16),
-                    label: const Text('Light'),
-                  ),
-                ],
-                selected: {settings.themeSource},
-                onSelectionChanged: (s) => notifier.setThemeSource(s.first),
-                style: SegmentedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
+            SegmentedButton<ThemeSource>(
+              segments: const [
+                ButtonSegment(
+                  value: ThemeSource.system,
+                  label: Text('System'),
+                  icon: Icon(Icons.brightness_auto),
                 ),
-              ),
-            ),
-            _Row(
-              label: 'Match desktop accent',
-              valueText: 'Follow GTK accent colour',
-              child: Switch(
-                value: settings.matchGtkAccent,
-                onChanged: notifier.setMatchGtkAccent,
-              ),
-            ),
-            _Row(
-              label: 'Desktop theme',
-              valueText: null,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    gtkReadout.$2,
-                    size: 15,
-                    color: LumenColors.of(context).onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      gtkReadout.$1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'Geist Mono',
-                        color: LumenColors.of(context).onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.refresh, size: 15),
-                    tooltip: 'Re-read desktop theme',
-                    onPressed: () => ref.invalidate(gtkThemeProvider),
-                  ),
-                ],
-              ),
+                ButtonSegment(
+                  value: ThemeSource.dark,
+                  label: Text('Dark'),
+                  icon: Icon(Icons.dark_mode_outlined),
+                ),
+                ButtonSegment(
+                  value: ThemeSource.light,
+                  label: Text('Light'),
+                  icon: Icon(Icons.light_mode_outlined),
+                ),
+              ],
+              selected: {settings.themeSource},
+              onSelectionChanged: (s) => notifier.setThemeSource(s.first),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        const _StorageSection(),
-        const SizedBox(height: 20),
-        const _TankSection(),
-        const SizedBox(height: 20),
-        const _PluginsSection(),
-        const SizedBox(height: 20),
-        const _GithubSettingsSection(),
-        const SizedBox(height: 20),
-        const _WakatimeSettingsSection(),
-        const SizedBox(height: 20),
+
         _Section(
-          title: 'Getting started',
+          title: 'Journal',
           children: [
-            _Row(
-              label: 'Onboarding',
-              valueText: 'Open the getting-started wizard as a tab',
-              child: TextButton(
-                onPressed: () => ref
-                    .read(tabsProvider.notifier)
-                    .activatePage(LumenSection.welcome),
-                child: const Text('Open'),
-              ),
+            _InfoRow(
+              icon: vault.unlocked ? Icons.lock_open : Icons.lock_outline,
+              label: 'Status',
+              value: vault.unlocked ? 'Unlocked' : 'Locked',
+            ),
+            _InfoRow(
+              icon: Icons.folder_outlined,
+              label: 'Location',
+              value: vault.root ?? settings.journalVaultPath ?? 'Not set',
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showPathPicker(
+                      context,
+                      mode: PathPickerMode.directory,
+                      initialPath:
+                          vault.root ?? settings.journalVaultPath,
+                      title: 'Choose journal folder',
+                    );
+                    if (picked != null) {
+                      if (vault.unlocked) {
+                        await ref.read(journalVaultProvider.notifier).lock();
+                      }
+                      notifier.setJournalVaultPath(picked);
+                    }
+                  },
+                  icon: const Icon(Icons.drive_file_move_outline),
+                  label: const Text('Change folder'),
+                ),
+                if (vault.unlocked)
+                  FilledButton.tonalIcon(
+                    onPressed: () => ref
+                        .read(journalVaultProvider.notifier)
+                        .lock(),
+                    icon: const Icon(Icons.lock_outline),
+                    label: const Text('Lock now'),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: () => ref
+                        .read(selectedSectionProvider.notifier)
+                        .select(LumenSection.journal),
+                    icon: const Icon(Icons.lock_open),
+                    label: const Text('Unlock'),
+                  ),
+              ],
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        const _Section(
-          title: 'Shortcuts',
+
+        _Section(
+          title: 'Plugins',
           children: [
-            _Row(label: 'Command palette', valueText: 'Ctrl+P'),
-            _Row(label: 'Sections', valueText: 'Alt+1 … Alt+9'),
-            _Row(label: 'Tabs (positional)', valueText: 'Ctrl+1 … Ctrl+9'),
-            _Row(label: 'New tab / close tab', valueText: 'Ctrl+T / Ctrl+W'),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.extension_outlined),
+              title: const Text('Installed plugins'),
+              subtitle: const Text(
+                'Built-in and on-disk plugins. Toggle which ones run.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => ref
+                  .read(selectedSectionProvider.notifier)
+                  .select(LumenSection.plugins),
+            ),
           ],
         ),
-        const SizedBox(height: 20),
-        _AdBlockSection(),
-        const SizedBox(height: 20),
-        const _Section(
+
+        _Section(
           title: 'About',
           children: [
-            _Row(label: 'Linux, macOS, Windows', valueText: 'supported'),
-            _Row(label: 'Encryption', valueText: 'Argon2id + AES-256-GCM'),
-            _Row(label: 'Native core', valueText: 'Rust · fscore · lumen_core'),
+            Text(
+              'Lumen\n\n'
+              'Journal notes are encrypted on disk with AES-256-GCM and an '
+              'Argon2id-derived key. Imports are re-encrypted into the '
+              'journal; nothing is written in plaintext.',
+              style: TextStyle(color: t.onSurfaceVariant),
+            ),
           ],
         ),
-      ],
-    );
-  }
-}
-
-class _StorageSection extends ConsumerWidget {
-  const _StorageSection();
-
-  Future<void> _pick(BuildContext context, WidgetRef ref, bool isJournal) async {
-    final current = isJournal
-        ? ref.read(settingsProvider).journalVaultPath
-        : ref.read(settingsProvider).vaultPath;
-    final dir = await showFolderPicker(
-      context,
-      title: isJournal ? 'Choose journal folder' : 'Choose vault / knowledge base folder',
-      initialPath: current,
-    );
-    if (dir == null) return;
-    final notifier = ref.read(settingsProvider.notifier);
-    if (isJournal) {
-      notifier.setJournalVaultPath(dir);
-    } else {
-      notifier.setVaultPath(dir);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    return _Section(
-      title: 'Vault locations',
-      children: [
-        _Row(
-          label: 'Vault / knowledge base',
-          valueText: s.vaultPath ?? 'Not set',
-          child: TextButton(
-            onPressed: () => _pick(context, ref, false),
-            child: const Text('Browse'),
-          ),
-        ),
-        _Row(
-          label: 'Journal',
-          valueText: s.journalVaultPath ?? 'Not set',
-          child: TextButton(
-            onPressed: () => _pick(context, ref, true),
-            child: const Text('Browse'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TankSection extends ConsumerWidget {
-  const _TankSection();
-
-  Future<void> _pick(BuildContext context, WidgetRef ref) async {
-    final current = ref.read(settingsProvider).tankPath;
-    final dir = await showFolderPicker(
-      context,
-      title: 'Choose tank folder',
-      initialPath: current,
-    );
-    if (dir == null) return;
-    if (!context.mounted) return;
-    final notifier = ref.read(tankProvider.notifier);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await notifier.setPath(dir);
-      if (!context.mounted) return;
-      final status = ref.read(tankProvider);
-      if (!status.setup) {
-        final pass = await PassphraseDialog.ask(
-          context,
-          title: 'Create tank',
-          confirm: true,
-          helper: 'Unlocks the tank locally; nothing is stored in plaintext.',
-          actionLabel: 'Create',
-        );
-        if (pass == null) return;
-        await notifier.setup(dir, pass);
-        messenger.showSnackBar(
-          SnackBar(content: Text('Tank created and unlocked at $dir')),
-        );
-      } else if (!status.unlocked) {
-        final pass = await PassphraseDialog.ask(
-          context,
-          title: 'Unlock tank',
-          helper: 'Unlocks the tank locally; nothing is stored in plaintext.',
-        );
-        if (pass == null) return;
-        await notifier.unlock(dir, pass);
-        messenger.showSnackBar(const SnackBar(content: Text('Tank unlocked')));
-      }
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Tank error: ${e.toString()}')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final tank = ref.watch(tankProvider);
-    final t = LumenColors.of(context);
-
-    final String statusLabel;
-    if (s.tankPath == null || s.tankPath!.isEmpty) {
-      statusLabel = 'Not set up';
-    } else if (!tank.setup) {
-      statusLabel = 'No tank at this folder';
-    } else if (tank.unlocked) {
-      statusLabel = 'Unlocked';
-    } else {
-      statusLabel = 'Locked';
-    }
-
-    return _Section(
-      title: 'Encrypted tank',
-      children: [
-        _Row(
-          label: 'Tank folder',
-          valueText: s.tankPath ?? 'Not set',
-          child: TextButton(
-            onPressed: () => _pick(context, ref),
-            child: Text(s.tankPath == null ? 'Choose' : 'Change'),
-          ),
-        ),
-        _Row(
-          label: 'Status',
-          valueText: statusLabel,
-          child: tank.unlocked
-              ? TextButton(
-                  onPressed: () async {
-                    await ref.read(tankProvider.notifier).lock();
-                  },
-                  child: const Text('Lock'),
-                )
-              : Text(
-                  'Encrypt files from the Files tab',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: t.onSurfaceVariant,
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ValueField extends StatefulWidget {
-  const _ValueField({
-    required this.initial,
-    required this.hint,
-    required this.onChanged,
-  });
-  final String initial;
-  final String hint;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_ValueField> createState() => _ValueFieldState();
-}
-
-class _ValueFieldState extends State<_ValueField> {
-  late final TextEditingController _ctl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctl = TextEditingController(text: widget.initial);
-  }
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: TextField(
-        controller: _ctl,
-        style: const TextStyle(fontSize: 13),
-        decoration: InputDecoration(
-          hintText: widget.hint,
-          isDense: true,
-          border: const OutlineInputBorder(),
-        ),
-        onChanged: widget.onChanged,
-      ),
-    );
-  }
-}
-
-class _AdBlockSection extends ConsumerWidget {
-  const _AdBlockSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ad = ref.watch(adBlockProvider);
-    final notifier = ref.read(adBlockProvider.notifier);
-    final t = LumenColors.of(context);
-
-    final statusLabel = switch (ad.status) {
-      AdBlockStatus.off => 'Disabled',
-      AdBlockStatus.downloading => 'Downloading filter lists…',
-      AdBlockStatus.compiling => 'Compiling rules…',
-      AdBlockStatus.ready => ad.fromCache
-          ? 'Using cached filter lists'
-          : 'Filter lists loaded',
-      AdBlockStatus.error => 'Error',
-    };
-    final total = (ad.stats['total_lines'] as num?)?.toInt() ?? 0;
-    final rules =
-        (((ad.stats['network_blocked'] as num?)?.toInt() ?? 0) +
-                ((ad.stats['cosmetic'] as num?)?.toInt() ?? 0) +
-                ((ad.stats['exceptions'] as num?)?.toInt() ?? 0) +
-                ((ad.stats['important'] as num?)?.toInt() ?? 0))
-            .toString();
-    final updated = ad.lastUpdated == null
-        ? '—'
-        : '${ad.lastUpdated!.toLocal()}'.split(' ').first;
-
-    return _Section(
-      title: 'Ad blocking',
-      children: [
-        _Row(
-          label: 'Ad blocking',
-          valueText: 'uBlock Origin lists',
-          child: Switch(
-            value: ad.enabled,
-            onChanged: (v) => notifier.toggle(v),
-          ),
-        ),
-        _Row(
-          label: 'Status',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                ad.status == AdBlockStatus.error
-                    ? Icons.error_outline
-                    : ad.status == AdBlockStatus.ready
-                    ? Icons.shield
-                    : Icons.sync,
-                size: 15,
-                color: ad.status == AdBlockStatus.error
-                    ? t.error
-                    : t.onSurfaceVariant,
-              ),
-              const SizedBox(width: 6),
-              Text(statusLabel, style: const TextStyle(fontSize: 13)),
-            ],
-          ),
-        ),
-        _Row(
-          label: 'Rules compiled',
-          valueText: total == 0 ? '—' : '$rules of $total lines',
-        ),
-        _Row(label: 'Blocked (session)', valueText: '${ad.blockedCount}'),
-        _Row(label: 'Last updated', valueText: updated),
-        _Row(
-          label: 'Update filters',
-          valueText: 'Download latest lists',
-          child: IconButton(
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Re-download uAssets and recompile',
-            icon: ad.status == AdBlockStatus.downloading ||
-                    ad.status == AdBlockStatus.compiling
-                ? const SizedBox(
-                    width: 15,
-                    height: 15,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.update, size: 18),
-            onPressed: ad.status == AdBlockStatus.downloading ||
-                    ad.status == AdBlockStatus.compiling
-                ? null
-                : () => notifier.refresh(force: true),
-          ),
-        ),
-        if (ad.exemptHosts.isNotEmpty) ...[
-          const Divider(indent: 16, endIndent: 16),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-            child: Text(
-              'Blocking paused on',
-              style: TextStyle(fontSize: 11, color: t.onSurfaceVariant),
-            ),
-          ),
-          for (final host in ad.exemptHosts)
-            _Row(
-              label: host,
-              child: IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Resume blocking',
-                icon: const Icon(Icons.restart_alt, size: 16),
-                onPressed: () => notifier.toggleExempt(host),
-              ),
-            ),
-        ],
-        if (ad.error != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-            child: Text(
-              ad.error!,
-              style: TextStyle(fontSize: 12, color: t.error),
-            ),
-          ),
       ],
     );
   }
@@ -506,26 +149,15 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1.2,
-                  color: LumenColors.of(context).outline,
-                ),
-              ),
-            ),
-            for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const Divider(indent: 16, endIndent: 16),
-              children[i],
-            ],
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 14),
+            ...children,
           ],
         ),
       ),
@@ -533,258 +165,40 @@ class _Section extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({required this.label, this.child, this.valueText});
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
   final String label;
-  final Widget? child;
-  final String? valueText;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
+    final t = LumenColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
-          if (valueText != null)
-            Flexible(
-              child: Text(
-                valueText!,
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: LumenColors.of(context).onSurfaceVariant,
-                ),
-              ),
+          Icon(icon, size: 18, color: t.onSurfaceVariant),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 90,
+            child: Text(label, style: TextStyle(color: t.onSurfaceVariant)),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              maxLines: 2,
+              style: const TextStyle(fontSize: 13),
             ),
-          if (child != null) Flexible(child: child!),
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _PluginsSection extends ConsumerWidget {
-  const _PluginsSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final features = ref.watch(featuresProvider);
-    final notifier = ref.read(featuresProvider.notifier);
-    return _Section(
-      title: 'Plugins',
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-          child: Text(
-            'Disable a feature to hide its section and Home cards. Data is kept.',
-            style: TextStyle(
-              fontSize: 12,
-              color: LumenColors.of(context).onSurfaceVariant,
-            ),
-          ),
-        ),
-        for (final feature in LumenFeature.values)
-          _Row(
-            label: feature.title,
-            valueText: feature.description,
-            child: Switch(
-              value: features.enabled(feature),
-              onChanged: (v) => notifier.set(feature, v),
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => ref
-                  .read(tabsProvider.notifier)
-                  .activatePage(LumenSection.plugins),
-              icon: const Icon(Icons.extension_outlined, size: 15),
-              label: const Text('Open Plugins screen'),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GithubSettingsSection extends ConsumerWidget {
-  const _GithubSettingsSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
-    final t = LumenColors.of(context);
-    return _Section(
-      title: 'GitHub',
-      children: [
-        _Row(
-          label: 'Personal access token',
-          valueText: s.githubToken == null
-              ? 'Not connected'
-              : 'Connected as ${s.githubLogin ?? '—'}',
-          child: PopupMenuButton<String>(
-            tooltip: 'Edit or clear token',
-            icon: Icon(Icons.more_vert, size: 18, color: t.onSurfaceVariant),
-            onSelected: (v) async {
-              if (v == 'clear') {
-                notifier.setGithubToken(null);
-                notifier.setGithubLogin(null);
-                return;
-              }
-              final value = await showDialog<String>(
-                context: context,
-                builder: (_) => const _TokenDialog(
-                  title: 'GitHub personal access token',
-                  hint: 'github_pat_…',
-                ),
-              );
-              if (value == null) return;
-              if (value.trim().isEmpty) {
-                notifier.setGithubToken(null);
-                notifier.setGithubLogin(null);
-              } else {
-                notifier.setGithubToken(value.trim());
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Edit token')),
-              PopupMenuItem(value: 'clear', child: Text('Clear')),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Stored locally. The GitHub tab syncs issues between linked '
-                  'repositories and projects.',
-                  style: TextStyle(fontSize: 11.5, color: t.onSurfaceVariant),
-                ),
-              ),
-              TextButton(
-                onPressed: () => ref
-                    .read(tabsProvider.notifier)
-                    .activatePage(LumenSection.github),
-                child: const Text('Open GitHub'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _WakatimeSettingsSection extends ConsumerWidget {
-  const _WakatimeSettingsSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
-    final t = LumenColors.of(context);
-    return _Section(
-      title: 'WakaTime',
-      children: [
-        _Row(
-          label: 'API key',
-          valueText: s.wakaApiKey == null ? 'Not set' : '·' * 8,
-          child: PopupMenuButton<String>(
-            tooltip: 'Edit or clear API key',
-            icon: Icon(Icons.more_vert, size: 18, color: t.onSurfaceVariant),
-            onSelected: (v) async {
-              if (v == 'clear') {
-                notifier.setWakaApiKey(null);
-                return;
-              }
-              final value = await showDialog<String>(
-                context: context,
-                builder: (_) => const _TokenDialog(
-                  title: 'WakaTime API key',
-                  hint: 'your-api-key',
-                ),
-              );
-              if (value == null) return;
-              if (value.trim().isEmpty) {
-                notifier.setWakaApiKey(null);
-              } else {
-                notifier.setWakaApiKey(value.trim());
-              }
-              ref.invalidate(wakatimeProvider);
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Edit API key')),
-              PopupMenuItem(value: 'clear', child: Text('Clear')),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            'Stats only — WakaTime tracks no data from Lumen; this key reads '
-            'your existing coding summary on Home.',
-            style: TextStyle(fontSize: 11.5, color: t.onSurfaceVariant),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TokenDialog extends StatefulWidget {
-  const _TokenDialog({required this.title, required this.hint});
-  final String title;
-  final String hint;
-
-  @override
-  State<_TokenDialog> createState() => _TokenDialogState();
-}
-
-class _TokenDialogState extends State<_TokenDialog> {
-  final _ctl = TextEditingController();
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SizedBox(
-        width: 380,
-        child: TextField(
-          controller: _ctl,
-          autofocus: true,
-          obscureText: true,
-          decoration: InputDecoration(
-            hintText: widget.hint,
-            border: const OutlineInputBorder(),
-          ),
-          onSubmitted: (v) => Navigator.pop(context, v),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _ctl.text),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }

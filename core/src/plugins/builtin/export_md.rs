@@ -1,26 +1,17 @@
-use crate::entry::JournalEntry;
-use super::super::Plugin;
+use super::super::{NoteContext, Plugin};
 
 pub struct ExportMdPlugin;
 
 impl Plugin for ExportMdPlugin {
-    fn on_entry(&self, entry: &JournalEntry) -> Option<String> {
-        let title = if entry.display_title.is_empty() {
-            &entry.id
-        } else {
-            &entry.display_title
-        };
-        Some(format!("[export_md] Entry '{}' available for export", title))
+    fn on_note(&self, _note: &NoteContext<'_>) -> Option<String> {
+        None
     }
 
-    fn on_export(&self, entry: &JournalEntry) -> Option<Vec<u8>> {
-        let body = "[body would be decrypted here]";
-        let md = format!(
-            "## {}\n\n{}\n\n---\n*Tags: {}*\n",
-            entry.display_title,
-            body,
-            entry.tags.join(", "),
-        );
-        Some(md.into_bytes())
+    fn on_export(&self, note: &NoteContext<'_>) -> Option<Vec<u8>> {
+        if note.body.trim_start().starts_with('#') {
+            Some(note.body.as_bytes().to_vec())
+        } else {
+            Some(format!("# {}\n\n{}", note.title, note.body).into_bytes())
+        }
     }
 }

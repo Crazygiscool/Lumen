@@ -75,6 +75,13 @@ struct StoreArgs {
     store: String,
 }
 
+#[derive(Deserialize)]
+struct ImportArgs {
+    path: String,
+    #[serde(default = "default_store")]
+    store: String,
+}
+
 fn default_max() -> usize {
     200
 }
@@ -213,6 +220,27 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 Err(e) => return err(e),
             }
         }
+        "vault.import_stoic" => {
+            let a = parse!(ImportArgs);
+            match crate::importer::import_stoic(&a.path, &a.store) {
+                Ok(r) => ok(serde_json::to_value(r).unwrap_or_default()),
+                Err(e) => return err(e),
+            }
+        }
+        "vault.import_json" => {
+            let a = parse!(ImportArgs);
+            match crate::importer::import_json(&a.path, &a.store) {
+                Ok(r) => ok(serde_json::to_value(r).unwrap_or_default()),
+                Err(e) => return err(e),
+            }
+        }
+        "vault.import_markdown" => {
+            let a = parse!(ImportArgs);
+            match crate::importer::import_markdown_dir(&a.path, &a.store) {
+                Ok(r) => ok(serde_json::to_value(r).unwrap_or_default()),
+                Err(e) => return err(e),
+            }
+        }
         other => return err(format!("unknown method: {other}")),
     };
 
@@ -233,8 +261,15 @@ fn string_to_cptr(s: String) -> *mut c_char {
 
 /// Entry point FFI: `lumen_vault_call(method, json_args)` → JSON result string.
 /// Caller must `lumen_vault_free` the returned pointer.
+///
+/// # Safety
+/// `method` and `args` must be null or valid NUL-terminated C strings for the
+/// duration of the call.
 #[no_mangle]
-pub unsafe extern "C" fn lumen_vault_call(method: *const c_char, args: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn lumen_vault_call(
+    method: *const c_char,
+    args: *const c_char,
+) -> *mut c_char {
     let method = unsafe { c_to_string(method) };
     let args_str = unsafe { c_to_string(args) };
     let args: serde_json::Value = if args_str.is_empty() {
@@ -248,6 +283,10 @@ pub unsafe extern "C" fn lumen_vault_call(method: *const c_char, args: *const c_
 }
 
 /// Free a string returned by `lumen_vault_call`.
+///
+/// # Safety
+/// `ptr` must be null or a pointer returned by `lumen_vault_call` that has not
+/// already been freed.
 #[no_mangle]
 pub unsafe extern "C" fn lumen_vault_free(ptr: *mut c_char) {
     unsafe {

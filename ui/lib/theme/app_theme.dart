@@ -99,7 +99,6 @@ ThemeData buildLumenTheme({required bool dark, Color? accentPrimary}) {
     colorScheme: scheme,
     scaffoldBackgroundColor: t.background,
     fontFamily: 'Geist',
-    extensions: const [lumenCodePalette],
   );
 
   return base.copyWith(
@@ -362,61 +361,8 @@ ThemeData buildLumenTheme({required bool dark, Color? accentPrimary}) {
   );
 }
 
-/// Builds an identical-dark theme (used before GTK detection resolves).
-ThemeData buildLumenDark() => buildLumenTheme(dark: true);
-
-/// Mono font used for paths, sizes and code.
-const String lumenMonoFont = 'Geist Mono';
-
-/// Formats bytes into a human-readable string.
-String formatBytes(int bytes) {
-  if (bytes == 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  var value = bytes.toDouble();
-  var unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  return unit == 0 ? '$bytes B' : '${value.toStringAsFixed(1)} ${units[unit]}';
-}
-
-/// Formats a millis timestamp into a short human date.
-String formatDate(int? millis) {
-  if (millis == null || millis <= 0) return '—';
-  return formatReadableDate(DateTime.fromMillisecondsSinceEpoch(millis));
-}
-
-String formatReadableDate(DateTime dt) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(dt.year, dt.month, dt.day);
-  final diff = today.difference(day).inDays;
-  final time =
-      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  if (diff == 0) return 'Today $time';
-  if (diff == 1) return 'Yesterday $time';
-  return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $time';
-}
-
-/// Injects Fluent-style focus highlights anywhere focus rings matter.
-Widget focusRing(BuildContext context, {required Widget child}) {
-  return FocusDecoration(child: child);
-}
-
-class FocusDecoration extends StatelessWidget {
-  const FocusDecoration({super.key, required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return child;
-  }
-}
-
-/// Convenience: read the code palette extension.
-LumenCodePalette codePalette(BuildContext context) =>
-    Theme.of(context).extension<LumenCodePalette>() ?? lumenCodePalette;
+/// Mono font used for note bodies.
+const String lumenMonoFont = 'monospace';
 
 // Ensure system UI overlays match the dark chrome.
 void configureSystemUi() {

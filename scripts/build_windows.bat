@@ -32,15 +32,13 @@ if %errorlevel% neq 0 (
 )
 
 rem -----------------------------------------
-rem Step 2: Stage FFI DLLs into Flutter lib/ dir
+rem Step 2: Stage FFI DLL into Flutter lib/ dir
 rem -----------------------------------------
 echo.
-echo === Step 2: Stage FFI DLLs into Flutter lib/ dir ===
+echo === Step 2: Stage FFI DLL into Flutter lib/ dir ===
 if not exist "%UI_DIR%\windows\lib" mkdir "%UI_DIR%\windows\lib"
 copy /Y "%ROOT_DIR%\target\release\lumen_core.dll" "%UI_DIR%\windows\lib\lumen_core.dll" >nul
-copy /Y "%ROOT_DIR%\target\release\fscore.dll" "%UI_DIR%\windows\lib\fscore.dll" >nul
-copy /Y "%ROOT_DIR%\target\release\ublock.dll" "%UI_DIR%\windows\lib\ublock.dll" >nul
-echo Staged lumen_core.dll, fscore.dll, ublock.dll
+echo Staged lumen_core.dll
 
 rem -----------------------------------------
 rem Step 3: Build Flutter Windows

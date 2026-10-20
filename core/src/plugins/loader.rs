@@ -30,7 +30,12 @@ pub fn scan_plugins(plugins_dir: &PathBuf) -> Vec<LoadedPlugin> {
             None => continue,
         };
 
-        // Determine shared library path
+        // Determine shared library path for the host platform.
+        #[cfg(target_os = "macos")]
+        let lib_name = format!("lib{}.dylib", manifest.name);
+        #[cfg(target_os = "windows")]
+        let lib_name = format!("{}.dll", manifest.name);
+        #[cfg(all(unix, not(target_os = "macos")))]
         let lib_name = format!("lib{}.so", manifest.name);
         let lib_path = dir.join(&lib_name);
         if !lib_path.exists() {

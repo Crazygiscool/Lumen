@@ -22,7 +22,8 @@ use base64::Engine;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use crate::entry::encryption::{decrypt, encrypt};
+use aes_gcm::aead::Aead;
+use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
 
 pub const META_DIR: &str = ".lumen";
 pub const CONFIG_FILE: &str = "config.json";
@@ -30,6 +31,26 @@ pub const JOURNAL_FILE: &str = "journal.json";
 
 pub const STORE_VAULT: &str = "vault";
 pub const STORE_JOURNAL: &str = "journal";
+
+// ---------------------------------------------------------------------------
+// File-content encryption
+// ---------------------------------------------------------------------------
+
+fn encrypt(data: &[u8], key: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let nonce: [u8; 12] = rand::random();
+    let ciphertext = cipher
+        .encrypt(Nonce::from_slice(&nonce), data)
+        .expect("Encryption failed");
+    (ciphertext, nonce.to_vec())
+}
+
+fn decrypt(ciphertext: &[u8], nonce: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    cipher
+        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .map_err(|_| "Decryption failed".to_string())
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VaultConfig {
@@ -160,10 +181,7 @@ fn create_with_params(
     let (wrapped, nonce) = encrypt(&data_key, &master);
     let cfg = VaultConfig {
         data_key: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &wrapped),
-        data_key_nonce: base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &nonce,
-        ),
+        data_key_nonce: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &nonce),
         ..cfg
     };
 
@@ -208,8 +226,14 @@ pub fn unlock(root: &str, passphrase: &str, store: &str) -> Result<(), String> {
         config: cfg,
         data_key,
     };
-    VAULTS.lock().unwrap().insert((state.root.clone(), store.to_string()), state);
-    ACTIVE.lock().unwrap().insert(store.to_string(), root_path.to_path_buf());
+    VAULTS
+        .lock()
+        .unwrap()
+        .insert((state.root.clone(), store.to_string()), state);
+    ACTIVE
+        .lock()
+        .unwrap()
+        .insert(store.to_string(), root_path.to_path_buf());
     Ok(())
 }
 
@@ -228,7 +252,10 @@ pub fn lock_all() {
 pub fn is_unlocked(store: &str) -> bool {
     let root = ACTIVE.lock().unwrap().get(store).cloned();
     match root {
-        Some(root) => VAULTS.lock().unwrap().contains_key(&(root, store.to_string())),
+        Some(root) => VAULTS
+            .lock()
+            .unwrap()
+            .contains_key(&(root, store.to_string())),
         None => false,
     }
 }
@@ -269,7 +296,10 @@ fn resolve_under_root(root: &Path, input: &str) -> Result<PathBuf, String> {
         root.join(p)
     };
 
-    if full.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+    if full
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
         return Err("Path escapes the vault".into());
     }
 
@@ -361,7 +391,7 @@ pub fn rename(from: &str, to: &str, store: &str) -> Result<(), String> {
     fs::rename(&src, &dst).map_err(|e| e.to_string())
 }
 
-fn walk_entries(root: &Path, dir: &Path, rel_prefix: &str, out: &mut Vec<VaultEntry>) {
+fn walk_entries(dir: &Path, rel_prefix: &str, out: &mut Vec<VaultEntry>) {
     let read = match fs::read_dir(dir) {
         Ok(r) => r,
         Err(_) => return,
@@ -402,7 +432,7 @@ fn walk_entries(root: &Path, dir: &Path, rel_prefix: &str, out: &mut Vec<VaultEn
         });
 
         if meta.is_dir() {
-            walk_entries(root, &de.path(), &rel_path, out);
+            walk_entries(&de.path(), &rel_path, out);
         }
     }
 }
@@ -416,19 +446,22 @@ pub fn list(input: &str, store: &str) -> Result<Vec<VaultEntry>, String> {
     };
     if start.is_dir() {
         let mut out = Vec::new();
-        walk_entries(&st.root, &start, "", &mut out);
+        walk_entries(&start, "", &mut out);
         Ok(out)
     } else {
         Err("Not a directory".into())
     }
 }
 
-pub fn search(query: &str, max_results: usize, store: &str) -> Result<Vec<serde_json::Value>, String> {
-    let st = state_clone(store)?;
-    let root = st.root.clone();
+pub fn search(
+    query: &str,
+    max_results: usize,
+    store: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    // Fail early if the store is locked.
+    state_clone(store)?;
 
     let mut results = Vec::new();
-    walk_entries(&root, &root, "", &mut Vec::new());
     let entries = list("", store)?;
 
     for e in entries {
@@ -446,7 +479,9 @@ pub fn search(query: &str, max_results: usize, store: &str) -> Result<Vec<serde_
         let hit = if e.name.to_lowercase().contains(&query.to_lowercase()) {
             true
         } else if let Ok(text) = read_bytes(&e.rel_path, store) {
-            String::from_utf8_lossy(&text).to_lowercase().contains(&query.to_lowercase())
+            String::from_utf8_lossy(&text)
+                .to_lowercase()
+                .contains(&query.to_lowercase())
         } else {
             false
         };
@@ -487,7 +522,7 @@ pub fn hex_encode(bytes: &[u8]) -> String {
 }
 
 pub fn hex_decode(hex: &str) -> Result<Vec<u8>, String> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err("odd hex length".into());
     }
     (0..hex.len())
@@ -540,7 +575,10 @@ mod tests {
         assert!(is_unlocked(STORE_VAULT));
 
         let info = info(STORE_VAULT).unwrap();
-        assert_eq!(info["root"].as_str().unwrap().to_lowercase(), dir.to_str().unwrap().to_lowercase());
+        assert_eq!(
+            info["root"].as_str().unwrap().to_lowercase(),
+            dir.to_str().unwrap().to_lowercase()
+        );
 
         lock(STORE_VAULT);
         assert!(!is_unlocked(STORE_VAULT));
@@ -577,14 +615,19 @@ mod tests {
         // Plain file must not contain plaintext on disk
         let on_disk = fs::read(dir.join("welcome.md")).unwrap();
         let disk_str = String::from_utf8_lossy(&on_disk);
-        assert!(!disk_str.contains("Encrypted note"), "plaintext leaked to disk");
+        assert!(
+            !disk_str.contains("Encrypted note"),
+            "plaintext leaked to disk"
+        );
 
         delete("sub/other.md", STORE_VAULT).unwrap();
         let names = names_of(list("", STORE_VAULT).unwrap());
         assert_eq!(names, vec!["sub", "welcome.md"]);
 
         rename("welcome.md", "renamed.md", STORE_VAULT).unwrap();
-        assert!(read_text("renamed.md", STORE_VAULT).unwrap().contains("Hello"));
+        assert!(read_text("renamed.md", STORE_VAULT)
+            .unwrap()
+            .contains("Hello"));
 
         lock(STORE_VAULT);
         assert!(read_text("welcome.md", STORE_VAULT).is_err());
@@ -623,14 +666,8 @@ mod tests {
 
         let count = export(out.to_str().unwrap(), STORE_VAULT).unwrap();
         assert_eq!(count, 2);
-        assert_eq!(
-            fs::read_to_string(out.join("a.md")).unwrap(),
-            "alpha"
-        );
-        assert_eq!(
-            fs::read_to_string(out.join("n/b.md")).unwrap(),
-            "beta"
-        );
+        assert_eq!(fs::read_to_string(out.join("a.md")).unwrap(), "alpha");
+        assert_eq!(fs::read_to_string(out.join("n/b.md")).unwrap(), "beta");
         fs::remove_dir_all(&dir).unwrap();
         fs::remove_dir_all(&out).unwrap();
     }
@@ -657,7 +694,10 @@ mod tests {
         write_text("2026-08-29.md", "journal entry", STORE_JOURNAL).unwrap();
 
         assert_eq!(read_text("note.md", STORE_VAULT).unwrap(), "kb note");
-        assert_eq!(read_text("2026-08-29.md", STORE_JOURNAL).unwrap(), "journal entry");
+        assert_eq!(
+            read_text("2026-08-29.md", STORE_JOURNAL).unwrap(),
+            "journal entry"
+        );
 
         // Configs are distinct files.
         assert!(dir.join(META_DIR).join(CONFIG_FILE).exists());
@@ -667,7 +707,10 @@ mod tests {
         lock(STORE_VAULT);
         assert!(!is_unlocked(STORE_VAULT));
         assert!(is_unlocked(STORE_JOURNAL));
-        assert_eq!(read_text("2026-08-29.md", STORE_JOURNAL).unwrap(), "journal entry");
+        assert_eq!(
+            read_text("2026-08-29.md", STORE_JOURNAL).unwrap(),
+            "journal entry"
+        );
 
         // Wrong passphrase for the journal store is rejected independently.
         lock(STORE_JOURNAL);

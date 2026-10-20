@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -13,22 +14,7 @@ lazy_static! {
     };
 }
 
-pub fn db_path() -> PathBuf {
-    ROOT_CONFIG_PATH.join("lumen.db")
-}
-
-pub fn auth_path() -> PathBuf {
-    ROOT_CONFIG_PATH.join("auth.json")
-}
-
+/// Directory scanned for on-disk plugin manifests.
 pub fn plugins_dir() -> PathBuf {
     ROOT_CONFIG_PATH.join("plugins")
-}
-
-pub fn legacy_bin_path() -> PathBuf {
-    ROOT_CONFIG_PATH.join("journal.bin")
-}
-
-pub fn vault_path(name: &str) -> PathBuf {
-    ROOT_CONFIG_PATH.join(name)
 }

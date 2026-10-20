@@ -137,4 +137,23 @@ class VaultService {
     final data = _ffi.core('vault.export', args({'path': dest}));
     return (data as Map<String, dynamic>)['exported'] as int? ?? 0;
   }
+
+  /// Imports a Stoic export (folder or `.zip`). Returns `(imported, skipped)`.
+  Future<(int, int)> importStoic(String path) => _importResult('vault.import_stoic', path);
+
+  /// Imports a Lumen JSON export or a generic JSON list. Returns `(imported, skipped)`.
+  Future<(int, int)> importJson(String path) => _importResult('vault.import_json', path);
+
+  /// Imports every Markdown file under a folder. Returns `(imported, skipped)`.
+  Future<(int, int)> importMarkdown(String path) =>
+      _importResult('vault.import_markdown', path);
+
+  Future<(int, int)> _importResult(String method, String path) async {
+    final data =
+        _ffi.core(method, args({'path': path})) as Map<String, dynamic>;
+    return (
+      (data['imported'] as num?)?.toInt() ?? 0,
+      (data['skipped'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

@@ -1,15 +1,15 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-/// Called when a new journal entry is created.
-/// Receives the entry ID as a C string and returns optional feedback.
+/// Called when a note is saved.
+/// Receives the note path as a C string and returns optional feedback.
 #[no_mangle]
 pub unsafe extern "C" fn lumen_plugin_on_entry(entry_id: *const c_char) -> *mut c_char {
     let id = unsafe { CStr::from_ptr(entry_id) }
         .to_string_lossy()
         .into_owned();
 
-    let feedback = format!("[example] Entry '{}' processed by example-plugin v0.1.0", id);
+    let feedback = format!("[example] Note '{}' processed by example-plugin v0.1.0", id);
 
     CString::new(feedback).unwrap().into_raw()
 }

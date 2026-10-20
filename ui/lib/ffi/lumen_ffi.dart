@@ -12,28 +12,26 @@ class FfiException implements Exception {
   String toString() => message;
 }
 
-/// Locates and loads Lumen's native libraries.
+/// Locates and loads Lumen's native core library.
 ///
 /// Tries, in order:
 ///  1. The Flutter bundle's `lib/` dir (packaged app).
 ///  2. The in-repo CMake lib dir (`ui/<platform>/lib` — dev `flutter run`).
 ///  3. The Cargo `target/release` output.
 ///
-/// Initialization is non-fatal: if the libraries cannot be located the error is
-/// surfaced lazily as a [FfiException] on the first call, so the UI can render
-/// a graceful degraded state instead of crashing the widget tree.
+/// Initialization is non-fatal: if the library cannot be located the error is
+/// surfaced lazily as a [FfiException] on the first call, so the UI renders a
+/// graceful degraded state instead of crashing the widget tree.
 class LumenFfi {
   LumenFfi._();
 
   static final LumenFfi instance = LumenFfi._();
 
   DynamicLibrary? _core;
-  DynamicLibrary? _fscore;
-  DynamicLibrary? _ublock;
   String? _initError;
   bool _initialized = false;
 
-  bool get ready => _core != null && _fscore != null && _ublock != null;
+  bool get ready => _core != null;
 
   String? get initError => _initError;
 
@@ -50,7 +48,7 @@ class LumenFfi {
     return 'lib$base.so';
   }
 
-  static String _resolve(String base, String label) {
+  static String _resolve(String base) {
     final name = _libName(base);
     final exeDir = File(Platform.resolvedExecutable).parent;
     final cwd = Directory.current.path;
@@ -60,11 +58,11 @@ class LumenFfi {
       p.join(cwd, 'ui', _platformDir(), 'lib', name),
       if (Platform.isMacOS) p.join(cwd, 'ui', 'macos', 'Runner', name),
       p.join(cwd, 'target', 'release', name),
-    ].where((path) => File(path).existsSync());
+    ].where((path) => File(path).existsSync()).toList();
 
     if (candidates.isEmpty) {
       throw FfiException(
-        '$label library not found. Build first:\n'
+        'lumen_core library not found. Build first:\n'
         '  cargo build --release --locked\n'
         '  make dev   (or: make)\n'
         'Looked for: $name in ${exeDir.path}/lib, $cwd/ui/${_platformDir()}/lib, $cwd/target/release',
@@ -77,12 +75,7 @@ class LumenFfi {
     if (_initialized) return;
     _initialized = true;
     try {
-      final corePath = _resolve('lumen_core', 'lumen_core');
-      final fscorePath = _resolve('fscore', 'fscore');
-      final ublockPath = _resolve('ublock', 'ublock');
-      _core = DynamicLibrary.open(corePath);
-      _fscore = DynamicLibrary.open(fscorePath);
-      _ublock = DynamicLibrary.open(ublockPath);
+      _core = DynamicLibrary.open(_resolve('lumen_core'));
     } catch (e) {
       _initError = e.toString();
     }
@@ -92,85 +85,29 @@ class LumenFfi {
   dynamic core(String method, [Map<String, Object?> args = const {}]) {
     final lib = _core;
     if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
-    final call = lib
-        .lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
-        >('lumen_vault_call');
-    final free = lib
-        .lookupFunction<
-          Void Function(Pointer<Utf8>),
-          void Function(Pointer<Utf8>)
-        >('lumen_vault_free');
+    final call = lib.lookupFunction<
+      Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+      Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
+    >('lumen_vault_call');
+    final free = lib.lookupFunction<
+      Void Function(Pointer<Utf8>),
+      void Function(Pointer<Utf8>)
+    >('lumen_vault_free');
     return _invoke(call, free, method, args);
   }
 
-  /// Invokes a method on `libfscore` (`fscore_call`).
-  dynamic fscore(String method, [Map<String, Object?> args = const {}]) {
-    final lib = _fscore;
-    if (lib == null) throw FfiException(_initError ?? 'fscore not loaded');
-    final call = lib
-        .lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
-        >('fscore_call');
-    final free = lib
-        .lookupFunction<
-          Void Function(Pointer<Utf8>),
-          void Function(Pointer<Utf8>)
-        >('fscore_free');
-    return _invoke(call, free, method, args);
-  }
-
-  /// Invokes a method on the tank entry of `liblumen_core` (`lumen_tank_call`).
-  dynamic tank(String method, [Map<String, Object?> args = const {}]) {
-    final lib = _core;
-    if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
-    final call = lib
-        .lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
-        >('lumen_tank_call');
-    final free = lib
-        .lookupFunction<
-          Void Function(Pointer<Utf8>),
-          void Function(Pointer<Utf8>)
-        >('lumen_tank_free');
-    return _invoke(call, free, method, args);
-  }
-
-  /// Invokes a method on the plugin inventory entry of `liblumen_core`
-  /// (`lumen_plugins_call`).
+  /// Invokes the plugin inventory entry (`lumen_plugins_call`).
   dynamic plugins(String method, [Map<String, Object?> args = const {}]) {
     final lib = _core;
     if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
-    final call = lib
-        .lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
-        >('lumen_plugins_call');
-    final free = lib
-        .lookupFunction<
-          Void Function(Pointer<Utf8>),
-          void Function(Pointer<Utf8>)
-        >('lumen_plugins_free');
-    return _invoke(call, free, method, args);
-  }
-
-  /// Invokes a method on `libublock` (`ublock_call`).
-  dynamic ublock(String method, [Map<String, Object?> args = const {}]) {
-    final lib = _ublock;
-    if (lib == null) throw FfiException(_initError ?? 'ublock not loaded');
-    final call = lib
-        .lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
-        >('ublock_call');
-    final free = lib
-        .lookupFunction<
-          Void Function(Pointer<Utf8>),
-          void Function(Pointer<Utf8>)
-        >('ublock_free');
+    final call = lib.lookupFunction<
+      Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+      Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
+    >('lumen_plugins_call');
+    final free = lib.lookupFunction<
+      Void Function(Pointer<Utf8>),
+      void Function(Pointer<Utf8>)
+    >('lumen_plugins_free');
     return _invoke(call, free, method, args);
   }
 

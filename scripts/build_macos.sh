@@ -20,8 +20,6 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     # Create a dummy file so Step 2 doesn't fail during local test
     mkdir -p target/release
     touch target/release/liblumen_core.dylib
-    touch target/release/libfscore.dylib
-    touch target/release/libublock.dylib
 else
     cargo build --release --locked
 fi
@@ -31,12 +29,6 @@ echo "=== Step 2: Prepare Assets ==="
 mkdir -p "$MACOS_RUNNER_DIR"
 if [ -f "$ROOT_DIR/target/release/liblumen_core.dylib" ]; then
     cp "$ROOT_DIR/target/release/liblumen_core.dylib" "$MACOS_RUNNER_DIR/"
-fi
-if [ -f "$ROOT_DIR/target/release/libfscore.dylib" ]; then
-    cp "$ROOT_DIR/target/release/libfscore.dylib" "$MACOS_RUNNER_DIR/"
-fi
-if [ -f "$ROOT_DIR/target/release/libublock.dylib" ]; then
-    cp "$ROOT_DIR/target/release/libublock.dylib" "$MACOS_RUNNER_DIR/"
 fi
 
 echo ""
@@ -54,14 +46,10 @@ else
     LIB_DIR="$APP_PATH/Contents/MacOS/lib"
     mkdir -p "$LIB_DIR"
     cp "$ROOT_DIR/target/release/liblumen_core.dylib" "$LIB_DIR/"
-    cp "$ROOT_DIR/target/release/libfscore.dylib" "$LIB_DIR/"
-    cp "$ROOT_DIR/target/release/libublock.dylib" "$LIB_DIR/"
 
     echo ""
     echo "=== Step 5: Ad-hoc codesign (so the app runs on Apple Silicon) ==="
     codesign --force --sign - "$LIB_DIR"/liblumen_core.dylib
-    codesign --force --sign - "$LIB_DIR"/libfscore.dylib
-    codesign --force --sign - "$LIB_DIR"/libublock.dylib
     codesign --force --deep --sign - "$APP_PATH"
     echo "Codesigned: $LIB_DIR/*.dylib and $APP_PATH"
 

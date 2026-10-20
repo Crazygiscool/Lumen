@@ -20,18 +20,14 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Create dummy for script flow
     mkdir -p "target/$TARGET/release"
     touch "target/$TARGET/release/lumen_core.dll"
-    touch "target/$TARGET/release/fscore.dll"
-    touch "target/$TARGET/release/ublock.dll"
     touch "target/$TARGET/release/lumen.exe"
 else
     cargo build --release --locked --target "$TARGET"
 
     echo ""
-    echo "=== Step 2: Stage FFI DLLs into Flutter lib/ dir ==="
+    echo "=== Step 2: Stage FFI DLL into Flutter lib/ dir ==="
     mkdir -p "$UI_DIR/windows/lib"
     cp "$ROOT_DIR/target/$TARGET/release/lumen_core.dll" "$UI_DIR/windows/lib/"
-    cp "$ROOT_DIR/target/$TARGET/release/fscore.dll" "$UI_DIR/windows/lib/"
-    cp "$ROOT_DIR/target/$TARGET/release/ublock.dll" "$UI_DIR/windows/lib/"
 fi
 
 echo ""

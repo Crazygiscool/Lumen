@@ -62,7 +62,6 @@ sed -i.bak "s/^version:.*/version: $FINAL_VERSION/" "$UI_PUBSPEC"
 rm "$UI_PUBSPEC.bak"
 
 # Update the Rust workspace package + member package versions.
-# fscore/ublock keep their own internal 0.1.0 (helper libs, not the product).
 sed -i.bak "s/^version = .*/version = \"$RUST_VERSION\"/" "$ROOT_CARGO"
 rm "$ROOT_CARGO.bak"
 sed -i.bak "s/^version = .*/version = \"$RUST_VERSION\"/" "$CORE_CARGO"

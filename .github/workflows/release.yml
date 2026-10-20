@@ -45,7 +45,7 @@ jobs:
       - name: Verify FFI libs bundled
         run: |
           ls -la dist/
-          tar tzf dist/*.tar.gz | grep -E 'lib/(liblumen_core|libfscore|libublock)\.so|lumen-cli'
+          tar tzf dist/*.tar.gz | grep -E 'lib/liblumen_core\.so|lumen-cli'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           ls -la dist/
-          unzip -l dist/*.zip | grep -E 'lib/(lumen_core|fscore|ublock)\.dll|lumen-cli\.exe'
+          unzip -l dist/*.zip | grep -E 'lib/lumen_core\.dll|lumen-cli\.exe'
           test -f dist/Lumen-windows-v*.zip
           test -f dist/Lumen-windows-v*-setup.exe
       - name: Upload artifact

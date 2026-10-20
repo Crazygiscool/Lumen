@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ffi/plugin_service.dart';
 import '../state/providers.dart';
+import '../theme/app_theme.dart';
 import '../theme/lumen_colors.dart';
 
 /// Shows the installed plugin inventory (built-in + on-disk external) and lets
@@ -78,7 +79,7 @@ class PluginsScreen extends ConsumerWidget {
                 list.dir.isEmpty ? '~/.config/Lumen/plugins/' : list.dir,
                 style: TextStyle(
                   fontSize: 12,
-                  fontFamily: 'Geist Mono',
+                  fontFamily: lumenMonoFont,
                   color: t.onSurfaceVariant,
                 ),
               ),
@@ -180,7 +181,7 @@ class _PluginTile extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    fontFamily: 'Geist Mono',
+                    fontFamily: lumenMonoFont,
                   ),
                 ),
               ),
@@ -225,7 +226,7 @@ class _PluginTile extends StatelessWidget {
                       hook,
                       style: TextStyle(
                         fontSize: 10,
-                        fontFamily: 'Geist Mono',
+                        fontFamily: lumenMonoFont,
                         color: t.primary,
                       ),
                     ),

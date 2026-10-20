@@ -1,18 +1,10 @@
-use crate::entry::JournalEntry;
-use super::super::Plugin;
+use super::super::{NoteContext, Plugin};
 
 pub struct DailySummaryPlugin;
 
 impl Plugin for DailySummaryPlugin {
-    fn on_entry(&self, entry: &JournalEntry) -> Option<String> {
-        Some(format!(
-            "[daily_summary] Entry '{}' added {}",
-            entry.display_title,
-            entry.provenance.timestamp.format("%Y-%m-%d"),
-        ))
-    }
-
-    fn on_export(&self, _entry: &JournalEntry) -> Option<Vec<u8>> {
-        None
+    fn on_note(&self, note: &NoteContext<'_>) -> Option<String> {
+        let words = note.body.split_whitespace().count();
+        Some(format!("[daily_summary] {} — {} words", note.title, words))
     }
 }
