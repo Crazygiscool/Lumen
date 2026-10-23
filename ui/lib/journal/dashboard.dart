@@ -341,7 +341,7 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
 // Contribution graph
 // ---------------------------------------------------------------------------
 
-class _ContributionGraph extends StatelessWidget {
+class _ContributionGraph extends StatefulWidget {
   const _ContributionGraph({
     required this.dailyCounts,
     required this.loading,
@@ -352,7 +352,16 @@ class _ContributionGraph extends StatelessWidget {
   final bool loading;
   final ValueChanged<DateTime> onDayTap;
 
+  @override
+  State<_ContributionGraph> createState() => _ContributionGraphState();
+}
+
+class _ContributionGraphState extends State<_ContributionGraph> {
   static const _weeks = 20;
+  static const _maxWeeksBack = 260; // ~5 years
+
+  /// How many weeks the visible window is shifted into the past.
+  int _weeksBack = 0;
 
   static String _fmt(DateTime dt) =>
       '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
@@ -361,12 +370,13 @@ class _ContributionGraph extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = LumenColors.of(context);
     final now = DateTime.now();
-    final end = DateTime(now.year, now.month, now.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final end = today.subtract(Duration(days: _weeksBack * 7));
     final startDate = end.subtract(const Duration(days: _weeks * 7 - 1));
     final aligned = DateTime(startDate.year, startDate.month, startDate.day)
         .subtract(Duration(days: startDate.weekday - DateTime.monday));
 
-    final values = dailyCounts.values.toList();
+    final values = widget.dailyCounts.values.toList();
     final maxWords = values.isEmpty ? 0 : values.reduce((a, b) => a > b ? a : b);
 
     final cells = <Widget>[];
@@ -378,7 +388,7 @@ class _ContributionGraph extends StatelessWidget {
           continue;
         }
         final iso = _fmt(day);
-        final words = dailyCounts[iso] ?? 0;
+        final words = widget.dailyCounts[iso] ?? 0;
         double alpha = 0;
         if (words > 0) {
           if (maxWords == 0) {
@@ -409,7 +419,7 @@ class _ContributionGraph extends StatelessWidget {
                 : '$iso — ${_formatNumber(words)} word${words == 1 ? '' : 's'}',
             child: InkWell(
               borderRadius: BorderRadius.circular(3),
-              onTap: () => onDayTap(day),
+              onTap: () => widget.onDayTap(day),
               child: Container(
                 width: 14,
                 height: 14,
@@ -433,6 +443,10 @@ class _ContributionGraph extends StatelessWidget {
       }
     }
 
+    final rangeLabel = _weeksBack == 0
+        ? 'Last $_weeks weeks'
+        : '${_fmt(aligned)} → ${_fmt(end)}';
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -444,25 +458,53 @@ class _ContributionGraph extends StatelessWidget {
                 const Icon(Icons.calendar_month_outlined, size: 18),
                 const SizedBox(width: 8),
                 Text('Writing activity', style: Theme.of(context).textTheme.titleSmall),
-                const Spacer(),
-                if (loading)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                const SizedBox(width: 10),
                 Flexible(
                   child: Text(
-                    maxWords == 0
-                        ? 'No words yet'
-                        : '${_formatNumber(maxWords)} words in your busiest day',
+                    rangeLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
                     style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
                   ),
                 ),
+                const Spacer(),
+                if (widget.loading)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                IconButton(
+                  tooltip: 'Earlier',
+                  iconSize: 18,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _weeksBack >= _maxWeeksBack
+                      ? null
+                      : () => setState(() => _weeksBack += 12),
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                IconButton(
+                  tooltip: 'Later',
+                  iconSize: 18,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _weeksBack == 0
+                      ? null
+                      : () => setState(
+                          () => _weeksBack = (_weeksBack - 12).clamp(0, _maxWeeksBack),
+                        ),
+                  icon: const Icon(Icons.chevron_right),
+                ),
               ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              maxWords == 0
+                  ? 'No words yet'
+                  : '${_formatNumber(maxWords)} words in your busiest day',
+              style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
             ),
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -528,8 +570,6 @@ class _ContributionGraph extends StatelessWidget {
     return buf.toString();
   }
 }
-
-
 
 // ---------------------------------------------------------------------------
 // Day / Night cards
