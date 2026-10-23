@@ -13,9 +13,10 @@ class Quote {
   final String author;
 
   factory Quote.fromJson(Map<String, dynamic> j) => Quote(
-    text: (j['text'] ?? j['quote'] ?? '').toString().trim(),
+    text: (j['text'] ?? j['quote'] ?? j['q'] ?? '').toString().trim(),
     author:
         (j['author'] ??
+                j['a'] ??
                 j['speaker'] ??
                 j['character'] ??
                 j['source'] ??
@@ -25,65 +26,141 @@ class Quote {
   );
 }
 
+/// A quote source that failed in a way worth surfacing to the user.
+class QuoteException implements Exception {
+  QuoteException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 /// Where the dashboard quote comes from.
 enum QuoteSource {
-  /// A curated list bundled with the app. Works fully offline.
+  /// ZenQuotes' public random endpoint. Keyless; the default.
+  zenquotes,
+
+  /// A curated Harry Potter list bundled with the app. Fully offline.
   offline,
 
-  /// A public quotes API fetched at runtime. Requires internet.
-  online,
+  /// API Ninjas v2 random quotes. Requires a (free) API key.
+  apiNinjas,
+
+  /// Any JSON URL the user provides (optionally with an `X-Api-Key`).
+  custom,
 }
 
 extension QuoteSourceInfo on QuoteSource {
   String get label => switch (this) {
-    QuoteSource.offline => 'Offline',
-    QuoteSource.online => 'Online API',
+    QuoteSource.zenquotes => 'ZenQuotes (no key)',
+    QuoteSource.offline => 'Harry Potter (offline)',
+    QuoteSource.apiNinjas => 'API Ninjas (key)',
+    QuoteSource.custom => 'Custom URL',
   };
+
+  String get description => switch (this) {
+    QuoteSource.zenquotes =>
+      'Public random quotes from zenquotes.io. No API key needed.',
+    QuoteSource.offline =>
+      'A bundled list of Harry Potter quotes. Works with no network.',
+    QuoteSource.apiNinjas =>
+      'Free key from api-ninjas.com. Paste it below.',
+    QuoteSource.custom =>
+      'Point at your own JSON endpoint (a quote list or single object).',
+  };
+
+  bool get needsApiKey => this == QuoteSource.apiNinjas;
+  bool get allowsApiKey =>
+      this == QuoteSource.apiNinjas || this == QuoteSource.custom;
+  bool get needsUrl => this == QuoteSource.custom;
 }
 
-/// Provides the dashboard quote: offline by default, online when opted in.
+/// Provides the dashboard quote from the selected source.
 class QuoteService {
-  QuoteService({http.Client? client, Random? random})
-    : _client = client ?? http.Client(),
-      _random = random ?? Random();
+  QuoteService({
+    http.Client? client,
+    Random? random,
+    this.source = QuoteSource.zenquotes,
+    this.apiKey = '',
+    this.customUrl = '',
+  }) : _client = client ?? http.Client(),
+       _random = random ?? Random();
 
   final http.Client _client;
   final Random _random;
+  final QuoteSource source;
+  final String apiKey;
+  final String customUrl;
 
-  /// Public dataset used for the online source: a keyless, CORS-friendly JSON
-  /// list of Harry Potter quotes. If it is unreachable the caller falls back to
-  /// the bundled [offline] list.
-  static const onlineEndpoint =
-      'https://raw.githubusercontent.com/SyntaxOutlaw/HarryPotterAPI/main/'
-      'app/data/quotes.json';
+  static const zenquotesEndpoint = 'https://zenquotes.io/api/random';
+  static const apiNinjasEndpoint = 'https://api.api-ninjas.com/v2/randomquotes';
 
-  Quote offline() => _offline[_random.nextInt(_offline.length)];
+  /// A random quote from the bundled Harry Potter list (no network).
+  Quote offline() => offlineRandom(_random);
 
-  /// Releases the underlying HTTP client.
-  void close() => _client.close();
+  /// A random quote from the bundled list, usable without a service instance.
+  static Quote offlineRandom([Random? random]) {
+    final r = random ?? Random();
+    return _offline[r.nextInt(_offline.length)];
+  }
 
-  /// Fetches a random quote from the configured online source.
+  /// Fetches a quote from the configured source.
   ///
-  /// Throws on network/parse failure; callers fall back to [offline].
-  Future<Quote> fetchOnline() async {
+  /// Throws [QuoteException] with a user-facing message on failure; callers
+  /// fall back to the bundled offline list.
+  Future<Quote> fetch() async {
+    switch (source) {
+      case QuoteSource.offline:
+        return offline();
+      case QuoteSource.zenquotes:
+        return _get(zenquotesEndpoint);
+      case QuoteSource.apiNinjas:
+        final key = apiKey.trim();
+        if (key.isEmpty) {
+          throw QuoteException('Add your API Ninjas key in Settings.');
+        }
+        return _get(apiNinjasEndpoint, headers: {'X-Api-Key': key});
+      case QuoteSource.custom:
+        final url = customUrl.trim();
+        if (url.isEmpty) {
+          throw QuoteException('Add a custom quote URL in Settings.');
+        }
+        final uri = Uri.tryParse(url);
+        if (uri == null || !uri.hasScheme) {
+          throw QuoteException('That custom URL doesn\u2019t look valid.');
+        }
+        final key = apiKey.trim();
+        return _get(
+          url,
+          headers: key.isEmpty ? null : {'X-Api-Key': key},
+        );
+    }
+  }
+
+  Future<Quote> _get(String url, {Map<String, String>? headers}) async {
     final res = await _client
-        .get(Uri.parse(onlineEndpoint))
+        .get(Uri.parse(url), headers: headers)
         .timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) {
-      throw Exception('Quote source returned ${res.statusCode}');
+      throw QuoteException('Quote source returned ${res.statusCode}.');
     }
     final body = jsonDecode(utf8.decode(res.bodyBytes));
-    final items = _extractItems(body);
-    if (items.isEmpty) throw Exception('Quote source returned no quotes');
+    final items = extractItems(body);
+    if (items.isEmpty) {
+      throw QuoteException('Quote source returned no quotes.');
+    }
     final picked =
         items.length == 1 ? items.first : items[_random.nextInt(items.length)];
     final quote = Quote.fromJson(picked);
-    if (quote.text.isEmpty) throw Exception('Quote source returned an empty quote');
+    if (quote.text.isEmpty) {
+      throw QuoteException('Quote source returned an empty quote.');
+    }
     return quote;
   }
 
-  /// Handles both `[...]` and `{data: [...]}` / `{results: [...]}` shapes.
-  static List<Map<String, dynamic>> _extractItems(Object? body) {
+  /// Handles the common response shapes: a list, `{data: [...]}`,
+  /// `{results: [...]}`, or a single quote object.
+  @visibleForTesting
+  static List<Map<String, dynamic>> extractItems(Object? body) {
     if (body is List) {
       return body.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
     }
@@ -95,9 +172,17 @@ class QuoteService {
             .map((e) => e.cast<String, dynamic>())
             .toList();
       }
+      if (body.containsKey('quote') ||
+          body.containsKey('text') ||
+          body.containsKey('q')) {
+        return [body.cast<String, dynamic>()];
+      }
     }
     return const [];
   }
+
+  /// Releases the underlying HTTP client.
+  void close() => _client.close();
 
   /// Curated Harry Potter quotes bundled so the card always works offline.
   static const List<Quote> _offline = [

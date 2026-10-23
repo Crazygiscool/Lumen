@@ -78,8 +78,8 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
     });
     try {
       Quote q;
-      if (source == QuoteSource.online) {
-        q = await _quotes.fetchOnline().timeout(const Duration(seconds: 10));
+      if (source == QuoteSource.zenquotes) {
+        q = await _quotes.fetch().timeout(const Duration(seconds: 10));
       } else {
         q = _quotes.offline();
       }
@@ -89,8 +89,8 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
       if (mounted) {
         setState(() {
           _quote = fallback;
-          _quoteError = source == QuoteSource.online
-              ? 'Couldn\u2019t load online quote \u2014 showing an offline one.'
+          _quoteError = source == QuoteSource.zenquotes
+              ? 'Couldn\u2019t load zenquotes \u2014 showing an offline one.'
               : null;
         });
       }

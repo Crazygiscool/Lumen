@@ -262,12 +262,20 @@ class DashboardPrefs {
   const DashboardPrefs({
     this.order = _defaultCardOrder,
     this.hidden = const {},
-    this.quoteSource = QuoteSource.offline,
+    this.quoteSource = QuoteSource.zenquotes,
+    this.quoteApiKey = '',
+    this.quoteCustomUrl = '',
   });
 
   final List<DashboardCard> order;
   final Set<DashboardCard> hidden;
   final QuoteSource quoteSource;
+
+  /// Key for sources that need one (API Ninjas, optionally custom).
+  final String quoteApiKey;
+
+  /// Endpoint used when [quoteSource] is [QuoteSource.custom].
+  final String quoteCustomUrl;
 
   List<DashboardCard> get visibleOrder =>
       [for (final c in order) if (!hidden.contains(c)) c];
@@ -278,10 +286,14 @@ class DashboardPrefs {
     List<DashboardCard>? order,
     Set<DashboardCard>? hidden,
     QuoteSource? quoteSource,
+    String? quoteApiKey,
+    String? quoteCustomUrl,
   }) => DashboardPrefs(
     order: order ?? this.order,
     hidden: hidden ?? this.hidden,
     quoteSource: quoteSource ?? this.quoteSource,
+    quoteApiKey: quoteApiKey ?? this.quoteApiKey,
+    quoteCustomUrl: quoteCustomUrl ?? this.quoteCustomUrl,
   );
 }
 
@@ -293,6 +305,8 @@ class DashboardPrefsNotifier extends Notifier<DashboardPrefs> {
   static const _orderKey = 'dashboard.cardOrder';
   static const _hiddenKey = 'dashboard.hiddenCards';
   static const _quoteSourceKey = 'dashboard.quoteSource';
+  static const _quoteApiKeyKey = 'dashboard.quoteApiKey';
+  static const _quoteCustomUrlKey = 'dashboard.quoteCustomUrl';
 
   @override
   DashboardPrefs build() {
