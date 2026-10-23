@@ -11,13 +11,17 @@ import writing you already have, and keep everything on your own machine.
   the per-store key is derived with Argon2id and a passphrase you choose.
 - **Editor with Markdown preview** — list, create, edit, save, and delete notes
   in the desktop app.
+- **Dashboard** — a writing-activity contribution graph (brighter days mean more
+  words), morning planning and evening reflection entry points, and a Harry
+  Potter quote card. Cards can be hidden and reordered by drag-and-drop.
 - **Imports** — bring in a Stoic iOS export (folder or `.zip`), a Lumen JSON
   export, or a folder of Markdown files. Imports are re-encrypted on disk.
 - **Plugins** — built-in word count/summary plugins run when you save; on-disk
   plugins can be installed and toggled from the Plugins screen.
 - **Terminal UI** — browse, search, read, and edit the same encrypted journal
   without leaving the terminal.
-- **No accounts, no network, no telemetry.**
+- **No accounts, no telemetry.** The only optional network call is the dashboard
+  quote source, which defaults to a bundled offline list.
 
 ## Install / build
 
@@ -40,7 +44,10 @@ On Linux, Lumen is also packaged on the AUR as `lumen-journal`.
 1. Open **Journal** and choose a folder for the encrypted store (for example
    `~/Documents/lumen-journal`). Use **Create journal** the first time and
    **Unlock** afterwards.
-2. Create a note or open today's entry; write Markdown and press **Save**.
+2. Create a note or open today's entry; write Markdown and press **Save**. When
+   no note is open, the dashboard shows writing activity, plan/reflect entry
+   points, and a quote. Drag the cards (or use **Arrange**) to reorder or hide
+   them.
 3. Use **Import** to bring in an existing journal. The journal must be unlocked
    first; imported files land in the encrypted store and are never written in
    plaintext.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../journal/quotes.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 import '../widgets/path_picker.dart';
@@ -101,6 +102,59 @@ class SettingsScreen extends ConsumerWidget {
                     icon: const Icon(Icons.lock_open),
                     label: const Text('Unlock'),
                   ),
+              ],
+            ),
+          ],
+        ),
+
+        _Section(
+          title: 'Dashboard',
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.format_quote_outlined, size: 18),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Quote source'),
+                      Text(
+                        'Offline uses a bundled Harry Potter quote list. Online fetches a public dataset (needs internet).',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                DropdownButton<QuoteSource>(
+                  value: ref.watch(dashboardPrefsProvider).quoteSource,
+                  items: [
+                    for (final s in QuoteSource.values)
+                      DropdownMenuItem(value: s, child: Text(s.label)),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) {
+                      ref.read(dashboardPrefsProvider.notifier).setQuoteSource(v);
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(dashboardPrefsProvider.notifier).resetLayout();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Dashboard layout reset')),
+                    );
+                  },
+                  icon: const Icon(Icons.restore, size: 18),
+                  label: const Text('Reset card order'),
+                ),
               ],
             ),
           ],

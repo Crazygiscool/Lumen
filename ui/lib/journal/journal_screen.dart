@@ -8,6 +8,7 @@ import '../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/lumen_colors.dart';
 import '../widgets/path_picker.dart';
+import 'dashboard.dart';
 import 'journal_provider.dart';
 import 'journal_service.dart';
 
@@ -104,7 +105,11 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             VerticalDivider(width: 1, color: t.outlineVariant),
             Expanded(
               child: _editing == null
-                  ? _EmptyState(onNew: _createNote)
+                  ? JournalDashboard(
+                      onOpenNote: (relPath) {
+                        setState(() => _openNow(relPath));
+                      },
+                    )
                   : _NoteEditor(
                       key: ValueKey(_editing),
                       relPath: _editing!,
@@ -754,35 +759,6 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onNew});
-  final VoidCallback onNew;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = LumenColors.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.menu_book_outlined, size: 48, color: t.onSurfaceVariant),
-          const SizedBox(height: 12),
-          Text(
-            'Select a note or create a new one',
-            style: TextStyle(color: t.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onNew,
-            icon: const Icon(Icons.add),
-            label: const Text('New note'),
-          ),
-        ],
-      ),
     );
   }
 }

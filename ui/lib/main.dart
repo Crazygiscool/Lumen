@@ -15,6 +15,9 @@ Future<void> main() async {
       overrides: [
         settingsProvider.overrideWith(() => SettingsNotifier(prefs)),
         pluginsProvider.overrideWith(() => PluginNotifier(prefs)),
+        dashboardPrefsProvider.overrideWith(
+          () => DashboardPrefsNotifier(prefs),
+        ),
       ],
       child: const LumenApp(),
     ),

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../ffi/lumen_ffi.dart';
 import '../ffi/plugin_service.dart';
 import '../ffi/vault_service.dart';
+import '../journal/quotes.dart';
 
 final lumenFfiProvider = Provider<LumenFfi>((ref) {
   final ffi = LumenFfi.instance;
@@ -224,3 +225,158 @@ class SettingsNotifier extends Notifier<AppSettings> {
 final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
   SettingsNotifier.new,
 );
+
+// ---------------------------------------------------------------------------
+// Dashboard cards — order, visibility, and quote source (persisted in prefs).
+// ---------------------------------------------------------------------------
+
+/// A rearrangeable card on the journal dashboard.
+enum DashboardCard {graph, dayNight, quote}
+
+extension DashboardCardInfo on DashboardCard {
+  String get id => name;
+
+  String get label => switch (this) {
+    DashboardCard.graph => 'Writing activity',
+    DashboardCard.dayNight => 'Plan & reflect',
+    DashboardCard.quote => 'Quote of the day',
+  };
+
+  IconData get icon => switch (this) {
+    DashboardCard.graph => Icons.grid_view_outlined,
+    DashboardCard.dayNight => Icons.wb_twilight,
+    DashboardCard.quote => Icons.format_quote_outlined,
+  };
+
+  static DashboardCard? fromId(String id) {
+    for (final c in DashboardCard.values) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+}
+
+const _defaultCardOrder = DashboardCard.values;
+
+class DashboardPrefs {
+  const DashboardPrefs({
+    this.order = _defaultCardOrder,
+    this.hidden = const {},
+    this.quoteSource = QuoteSource.offline,
+  });
+
+  final List<DashboardCard> order;
+  final Set<DashboardCard> hidden;
+  final QuoteSource quoteSource;
+
+  List<DashboardCard> get visibleOrder =>
+      [for (final c in order) if (!hidden.contains(c)) c];
+
+  bool isVisible(DashboardCard card) => !hidden.contains(card);
+
+  DashboardPrefs copyWith({
+    List<DashboardCard>? order,
+    Set<DashboardCard>? hidden,
+    QuoteSource? quoteSource,
+  }) => DashboardPrefs(
+    order: order ?? this.order,
+    hidden: hidden ?? this.hidden,
+    quoteSource: quoteSource ?? this.quoteSource,
+  );
+}
+
+class DashboardPrefsNotifier extends Notifier<DashboardPrefs> {
+  DashboardPrefsNotifier([SharedPreferences? prefs]) : _prefs = prefs;
+
+  final SharedPreferences? _prefs;
+
+  static const _orderKey = 'dashboard.cardOrder';
+  static const _hiddenKey = 'dashboard.hiddenCards';
+  static const _quoteSourceKey = 'dashboard.quoteSource';
+
+  @override
+  DashboardPrefs build() {
+    final prefs = _prefs;
+    if (prefs == null) return const DashboardPrefs();
+
+    final savedOrder = prefs.getStringList(_orderKey) ?? const [];
+    final order = <DashboardCard>[
+      for (final id in savedOrder)
+        ?DashboardCardInfo.fromId(id),
+    ];
+    // Append any cards added since the order was last saved.
+    for (final c in DashboardCard.values) {
+      if (!order.contains(c)) order.add(c);
+    }
+
+    final hidden = <DashboardCard>{
+      for (final id in prefs.getStringList(_hiddenKey) ?? const [])
+        ?DashboardCardInfo.fromId(id),
+    };
+
+    final sourceIndex = prefs.getInt(_quoteSourceKey) ?? 0;
+    return DashboardPrefs(
+      order: order,
+      hidden: hidden,
+      quoteSource:
+          QuoteSource.values[sourceIndex.clamp(0, QuoteSource.values.length - 1)],
+    );
+  }
+
+  /// Moves a visible card to a new index. Indices are already adjusted for the
+  /// removal by [ReorderableListView.onReorderItem] and the up/down buttons.
+  void reorder(int oldIndex, int newIndex) => reorderMove(oldIndex, newIndex);
+
+  void moveBy(DashboardCard card, int delta) {
+    final visible = state.visibleOrder;
+    final from = visible.indexOf(card);
+    if (from < 0) return;
+    final to = (from + delta).clamp(0, visible.length - 1);
+    if (to == from) return;
+    reorderMove(from, to);
+  }
+
+  /// Direct move used by the up/down buttons (no index adjustment).
+  void reorderMove(int from, int to) {
+    final visible = state.visibleOrder;
+    if (from < 0 || from >= visible.length || to < 0 || to >= visible.length) {
+      return;
+    }
+    final moved = visible.removeAt(from);
+    visible.insert(to, moved);
+    final hidden = [for (final c in state.order) if (state.hidden.contains(c)) c];
+    _setOrder([...visible, ...hidden]);
+  }
+
+  void setVisible(DashboardCard card, bool visible) {
+    final hidden = {...state.hidden};
+    if (visible) {
+      hidden.remove(card);
+    } else {
+      hidden.add(card);
+    }
+    state = state.copyWith(hidden: hidden);
+    _prefs?.setStringList(_hiddenKey, [for (final c in hidden) c.id]);
+  }
+
+  void setQuoteSource(QuoteSource source) {
+    state = state.copyWith(quoteSource: source);
+    _prefs?.setInt(_quoteSourceKey, source.index);
+  }
+
+  void resetLayout() {
+    state = DashboardPrefs(quoteSource: state.quoteSource);
+    _prefs?.remove(_orderKey);
+    _prefs?.remove(_hiddenKey);
+  }
+
+  void _setOrder(List<DashboardCard> order) {
+    state = state.copyWith(order: order);
+    _prefs?.setStringList(_orderKey, [for (final c in order) c.id]);
+  }
+}
+
+final dashboardPrefsProvider =
+    NotifierProvider<DashboardPrefsNotifier, DashboardPrefs>(
+      DashboardPrefsNotifier.new,
+    );
