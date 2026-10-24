@@ -122,21 +122,32 @@ void main() {
       expect(quote.author, 'Albus Dumbledore');
     });
 
-    test('quote source labels are distinct', () {
-      expect(QuoteSource.offline.label, 'Offline');
-      expect(QuoteSource.online.label, 'Online API');
-      expect(QuoteSource.offline, isNot(QuoteSource.online));
+    test('offline source returns a bundled quote without network', () async {
+      final quote = await QuoteService(source: QuoteSource.offline).fetch();
+      expect(quote.text, isNotEmpty);
+      expect(quote.author, isNotEmpty);
     });
 
-    test('fetchOnline parses the public dataset payload', () async {
+    test('quote source labels are distinct', () {
+      expect(QuoteSource.offline.label, 'Harry Potter (offline)');
+      expect(QuoteSource.zenquotes.label, 'ZenQuotes (no key)');
+      expect(QuoteSource.offline, isNot(QuoteSource.zenquotes));
+      expect(
+        selectableQuoteSources.toSet(),
+        hasLength(selectableQuoteSources.length),
+      );
+    });
+
+    test('fetch parses a ZenQuotes payload', () async {
       final client = MockClient((request) async {
-        expect(request.url.toString(), QuoteService.onlineEndpoint);
+        expect(request.url.toString(), QuoteService.zenquotesEndpoint);
         return http.Response.bytes(
           utf8.encode(
             jsonEncode([
               {
-                'quote': 'Happiness can be found…',
-                'speaker': 'Albus Dumbledore',
+                'q': 'Happiness can be found\u2026',
+                'a': 'Albus Dumbledore',
+                'h': '<blockquote>&ldquo;Happiness&hellip;&rdquo;</blockquote>',
               },
             ]),
           ),
@@ -144,17 +155,16 @@ void main() {
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
       });
-      final service = QuoteService(client: client);
-      final quote = await service.fetchOnline();
-      expect(quote.text, 'Happiness can be found…');
+      final quote = await QuoteService(client: client).fetch();
+      expect(quote.text, 'Happiness can be found\u2026');
       expect(quote.author, 'Albus Dumbledore');
     });
 
-    test('fetchOnline rejects empty or failed responses', () async {
+    test('fetch rejects empty or failed responses', () async {
       Future<void> expectThrows(http.Client client) async {
         await expectLater(
-          QuoteService(client: client).fetchOnline(),
-          throwsA(isA<Exception>()),
+          QuoteService(client: client).fetch(),
+          throwsA(isA<QuoteException>()),
         );
       }
 
@@ -260,9 +270,7 @@ void main() {
     });
   });
 
-  testWidgets('dashboard renders activity, plan/reflect, and quote cards', (
-    tester,
-  ) async {
+  Future<void> pumpDashboard(WidgetTester tester) async {
     final ffi = _FakeFfi({'2026-10-22.md': 'one two three'});
     final container = ProviderContainer(
       overrides: [
@@ -288,6 +296,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  testWidgets('dashboard renders activity, plan/reflect, and quote cards', (
+    tester,
+  ) async {
+    await pumpDashboard(tester);
 
     expect(find.text('Writing activity'), findsOneWidget);
     expect(find.text('Plan & reflect'), findsOneWidget);
@@ -295,5 +309,52 @@ void main() {
     expect(find.byIcon(Icons.wb_sunny_outlined), findsOneWidget);
     expect(find.byIcon(Icons.nights_stay_outlined), findsOneWidget);
     expect(find.byTooltip('Another quote'), findsOneWidget);
+  });
+
+  testWidgets('activity graph fills the card instead of a fixed 20 weeks', (
+    tester,
+  ) async {
+    await pumpDashboard(tester);
+
+    final label = tester
+        .widget<Text>(find.textContaining(RegExp(r'^Last \d+ weeks$')))
+        .data!;
+    final weeks = int.parse(RegExp(r'\d+').firstMatch(label)!.group(0)!);
+    expect(weeks, greaterThan(20));
+  });
+
+  testWidgets('reorder controls stay hidden until Arrange is tapped', (
+    tester,
+  ) async {
+    await pumpDashboard(tester);
+
+    expect(find.byIcon(Icons.drag_indicator), findsNothing);
+    expect(find.byTooltip('Move down'), findsNothing);
+
+    await tester.tap(find.text('Arrange'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.drag_indicator), findsWidgets);
+    expect(find.text('Done'), findsOneWidget);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.drag_indicator), findsNothing);
+  });
+
+  testWidgets('arrange mode fits a narrow window without overflowing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(700, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await pumpDashboard(tester);
+    await tester.tap(find.text('Arrange'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byIcon(Icons.drag_indicator), findsWidgets);
   });
 }

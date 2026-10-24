@@ -99,6 +99,10 @@ ThemeData buildLumenTheme({required bool dark, Color? accentPrimary}) {
     colorScheme: scheme,
     scaffoldBackgroundColor: t.background,
     fontFamily: 'Geist',
+    // Never leave icon colour to chance: unpainted icons inherit this and the
+    // navigation rail's own icon theme below, both of which must stay legible
+    // on the pitch-black backdrop.
+    iconTheme: IconThemeData(color: t.onSurface),
   );
 
   return base.copyWith(
@@ -172,7 +176,7 @@ ThemeData buildLumenTheme({required bool dark, Color? accentPrimary}) {
       minWidth: 56,
       groupAlignment: -0.9,
       selectedIconTheme: IconThemeData(color: accent, size: 22),
-      unselectedIconTheme: const IconThemeData(color: null, size: 22),
+      unselectedIconTheme: IconThemeData(color: t.onSurface, size: 22),
       selectedLabelTextStyle: TextStyle(color: accent, fontSize: 11),
       unselectedLabelTextStyle: TextStyle(
         color: t.onSurfaceVariant,

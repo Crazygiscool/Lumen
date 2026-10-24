@@ -49,6 +49,15 @@ enum QuoteSource {
   custom,
 }
 
+/// Sources the Settings UI offers.
+///
+/// `apiNinjas` and `custom` need an API key or URL that has no entry UI yet, so
+/// they are kept in the model but hidden until that exists.
+const List<QuoteSource> selectableQuoteSources = [
+  QuoteSource.offline,
+  QuoteSource.zenquotes,
+];
+
 extension QuoteSourceInfo on QuoteSource {
   String get label => switch (this) {
     QuoteSource.zenquotes => 'ZenQuotes (no key)',

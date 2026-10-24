@@ -24,6 +24,7 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
   final Map<String, ({int modifiedMs, int words})> _wordCache = {};
   final _quotes = QuoteService();
   bool _loadingCounts = false;
+  bool _arranging = false;
   Quote? _quote;
   bool _loadingQuote = false;
   String? _quoteError;
@@ -71,17 +72,27 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
   }
 
   Future<void> _loadQuote() async {
-    final source = ref.read(dashboardPrefsProvider).quoteSource;
+    final prefs = ref.read(dashboardPrefsProvider);
+    final source = prefs.quoteSource;
     setState(() {
       _loadingQuote = true;
       _quoteError = null;
     });
     try {
       Quote q;
-      if (source == QuoteSource.zenquotes) {
-        q = await _quotes.fetch().timeout(const Duration(seconds: 10));
-      } else {
+      if (source == QuoteSource.offline) {
         q = _quotes.offline();
+      } else {
+        final service = QuoteService(
+          source: source,
+          apiKey: prefs.quoteApiKey,
+          customUrl: prefs.quoteCustomUrl,
+        );
+        try {
+          q = await service.fetch().timeout(const Duration(seconds: 10));
+        } finally {
+          service.close();
+        }
       }
       if (mounted) setState(() => _quote = q);
     } catch (e) {
@@ -91,7 +102,7 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
           _quote = fallback;
           _quoteError = source == QuoteSource.zenquotes
               ? 'Couldn\u2019t load zenquotes \u2014 showing an offline one.'
-              : null;
+              : 'Couldn\u2019t load that quote source \u2014 showing an offline one.';
         });
       }
     } finally {
@@ -169,17 +180,25 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
                     Text('Dashboard', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 2),
                     Text(
-                      'Your writing activity and a space to plan and reflect',
+                      _arranging
+                          ? 'Drag a handle to reorder, or hide cards you don\u2019t need.'
+                          : 'Your writing activity and a space to plan and reflect',
                       style: TextStyle(color: t.onSurfaceVariant, fontSize: 12),
                     ),
                   ],
                 ),
               ),
               TextButton.icon(
-                onPressed: () => _showArrangeSheet(context),
-                icon: const Icon(Icons.tune, size: 18),
-                label: const Text('Arrange'),
+                onPressed: () => setState(() => _arranging = !_arranging),
+                icon: Icon(_arranging ? Icons.check : Icons.tune, size: 18),
+                label: Text(_arranging ? 'Done' : 'Arrange'),
               ),
+              if (_arranging)
+                IconButton(
+                  tooltip: 'Show or hide cards',
+                  onPressed: () => _showCardsSheet(context),
+                  icon: const Icon(Icons.visibility_outlined),
+                ),
               IconButton(
                 tooltip: 'Refresh',
                 onPressed: () {
@@ -211,38 +230,40 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(child: _cardFor(card)),
-                        const SizedBox(width: 4),
-                        Column(
-                          children: [
-                            if (i > 0)
-                              IconButton(
-                                tooltip: 'Move up',
-                                iconSize: 18,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => ref
-                                    .read(dashboardPrefsProvider.notifier)
-                                    .moveBy(card, -1),
-                                icon: const Icon(Icons.keyboard_arrow_up),
+                        if (_arranging) ...[
+                          const SizedBox(width: 4),
+                          Column(
+                            children: [
+                              if (i > 0)
+                                IconButton(
+                                  tooltip: 'Move up',
+                                  iconSize: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => ref
+                                      .read(dashboardPrefsProvider.notifier)
+                                      .moveBy(card, -1),
+                                  icon: const Icon(Icons.keyboard_arrow_up),
+                                ),
+                              if (i < prefs.visibleOrder.length - 1)
+                                IconButton(
+                                  tooltip: 'Move down',
+                                  iconSize: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => ref
+                                      .read(dashboardPrefsProvider.notifier)
+                                      .moveBy(card, 1),
+                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                ),
+                              ReorderableDragStartListener(
+                                index: i,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(Icons.drag_indicator, size: 18),
+                                ),
                               ),
-                            if (i < prefs.visibleOrder.length - 1)
-                              IconButton(
-                                tooltip: 'Move down',
-                                iconSize: 18,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => ref
-                                    .read(dashboardPrefsProvider.notifier)
-                                    .moveBy(card, 1),
-                                icon: const Icon(Icons.keyboard_arrow_down),
-                              ),
-                            ReorderableDragStartListener(
-                              index: i,
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(Icons.drag_indicator, size: 18),
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -274,7 +295,7 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
     };
   }
 
-  void _showArrangeSheet(BuildContext context) {
+  void _showCardsSheet(BuildContext context) {
     final t = LumenColors.of(context);
     showModalBottomSheet<void>(
       context: context,
@@ -293,10 +314,10 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Arrange dashboard', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Dashboard cards', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'Drag to reorder, or show/hide cards. Order is saved automatically.',
+                    'Choose which cards appear. Use Arrange on the dashboard to reorder them.',
                     style: TextStyle(color: t.onSurfaceVariant, fontSize: 12),
                   ),
                   const SizedBox(height: 16),
@@ -357,11 +378,19 @@ class _ContributionGraph extends StatefulWidget {
 }
 
 class _ContributionGraphState extends State<_ContributionGraph> {
-  static const _weeks = 20;
   static const _maxWeeksBack = 260; // ~5 years
+
+  /// Width of one day box plus its 1.5px padding on either side.
+  static const _cellExtent = 17.0;
+  static const _minWeeks = 8;
 
   /// How many weeks the visible window is shifted into the past.
   int _weeksBack = 0;
+
+  /// Fits as many week columns as the card width allows, so the chart uses the
+  /// whole card instead of a fixed 20-week slice with dead space at the end.
+  static int _weeksForWidth(double width) =>
+      (width / _cellExtent).floor().clamp(_minWeeks, _maxWeeksBack);
 
   static String _fmt(DateTime dt) =>
       '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
@@ -371,188 +400,203 @@ class _ContributionGraphState extends State<_ContributionGraph> {
     final t = LumenColors.of(context);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final end = today.subtract(Duration(days: _weeksBack * 7));
-    final startDate = end.subtract(const Duration(days: _weeks * 7 - 1));
-    final aligned = DateTime(startDate.year, startDate.month, startDate.day)
-        .subtract(Duration(days: startDate.weekday - DateTime.monday));
-
-    final values = widget.dailyCounts.values.toList();
-    final maxWords = values.isEmpty ? 0 : values.reduce((a, b) => a > b ? a : b);
-
-    final cells = <Widget>[];
-    for (var row = 0; row < 7; row++) {
-      final rowWidgets = <Widget>[];
-      for (var week = 0; week < _weeks; week++) {
-        final day = aligned.add(Duration(days: week * 7 + row));
-        if (day.isAfter(end)) {
-          continue;
-        }
-        final iso = _fmt(day);
-        final words = widget.dailyCounts[iso] ?? 0;
-        double alpha = 0;
-        if (words > 0) {
-          if (maxWords == 0) {
-            alpha = 0.4;
-          } else {
-            final ratio = (words / maxWords).clamp(0.0, 1.0);
-            if (ratio <= 0.25) {
-              alpha = 0.35;
-            } else if (ratio <= 0.5) {
-              alpha = 0.55;
-            } else if (ratio <= 0.75) {
-              alpha = 0.8;
-            } else {
-              alpha = 1.0;
-            }
-          }
-        }
-        final color = alpha == 0
-            ? LumenColors.of(context).surfaceContainer
-            : LumenColors.of(context).primary.withValues(alpha: alpha);
-        final isToday =
-            day.year == now.year && day.month == now.month && day.day == now.day;
-        rowWidgets.add(Padding(
-          padding: const EdgeInsets.all(1.5),
-          child: Tooltip(
-            message: words == 0
-                ? '$iso — no words'
-                : '$iso — ${_formatNumber(words)} word${words == 1 ? '' : 's'}',
-            child: InkWell(
-              borderRadius: BorderRadius.circular(3),
-              onTap: () => widget.onDayTap(day),
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(3),
-                  border: isToday
-                      ? Border.all(color: t.primary, width: 1)
-                      : Border.all(
-                          color: t.outlineVariant.withValues(alpha: 0.6),
-                          width: 0.5,
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ));
-      }
-      if (rowWidgets.isNotEmpty) {
-        cells.add(Row(children: rowWidgets));
-      }
-    }
-
-    final rangeLabel = _weeksBack == 0
-        ? 'Last $_weeks weeks'
-        : '${_fmt(aligned)} → ${_fmt(end)}';
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.calendar_month_outlined, size: 18),
-                const SizedBox(width: 8),
-                Text('Writing activity', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    rangeLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
-                  ),
-                ),
-                const Spacer(),
-                if (widget.loading)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: SizedBox(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final weeks = _weeksForWidth(constraints.maxWidth - 32);
+          final end = today.subtract(Duration(days: _weeksBack * 7));
+          final startDate = end.subtract(Duration(days: weeks * 7 - 1));
+          final aligned = DateTime(startDate.year, startDate.month, startDate.day)
+              .subtract(Duration(days: startDate.weekday - DateTime.monday));
+
+          final values = widget.dailyCounts.values.toList();
+          final maxWords = values.isEmpty
+              ? 0
+              : values.reduce((a, b) => a > b ? a : b);
+
+          final cells = <Widget>[];
+          for (var row = 0; row < 7; row++) {
+            final rowWidgets = <Widget>[];
+            for (var week = 0; week < weeks; week++) {
+              final day = aligned.add(Duration(days: week * 7 + row));
+              if (day.isAfter(end)) {
+                continue;
+              }
+              final iso = _fmt(day);
+              final words = widget.dailyCounts[iso] ?? 0;
+              double alpha = 0;
+              if (words > 0) {
+                if (maxWords == 0) {
+                  alpha = 0.4;
+                } else {
+                  final ratio = (words / maxWords).clamp(0.0, 1.0);
+                  if (ratio <= 0.25) {
+                    alpha = 0.35;
+                  } else if (ratio <= 0.5) {
+                    alpha = 0.55;
+                  } else if (ratio <= 0.75) {
+                    alpha = 0.8;
+                  } else {
+                    alpha = 1.0;
+                  }
+                }
+              }
+              final color = alpha == 0
+                  ? LumenColors.of(context).surfaceContainer
+                  : LumenColors.of(context).primary.withValues(alpha: alpha);
+              final isToday = day.year == now.year &&
+                  day.month == now.month &&
+                  day.day == now.day;
+              rowWidgets.add(Padding(
+                padding: const EdgeInsets.all(1.5),
+                child: Tooltip(
+                  message: words == 0
+                      ? '$iso — no words'
+                      : '$iso — ${_formatNumber(words)} word${words == 1 ? '' : 's'}',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(3),
+                    onTap: () => widget.onDayTap(day),
+                    child: Container(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                IconButton(
-                  tooltip: 'Earlier',
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: _weeksBack >= _maxWeeksBack
-                      ? null
-                      : () => setState(() => _weeksBack += 12),
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                IconButton(
-                  tooltip: 'Later',
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: _weeksBack == 0
-                      ? null
-                      : () => setState(
-                          () => _weeksBack = (_weeksBack - 12).clamp(0, _maxWeeksBack),
-                        ),
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              maxWords == 0
-                  ? 'No words yet'
-                  : '${_formatNumber(maxWords)} words in your busiest day',
-              style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
-            ),
-            const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: cells,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text('Less', style: TextStyle(color: t.onSurfaceVariant, fontSize: 10)),
-                const SizedBox(width: 6),
-                for (final a in const [0.0, 0.35, 0.55, 0.8, 1.0])
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Container(
-                      width: 10,
-                      height: 10,
                       decoration: BoxDecoration(
-                        color: a == 0
-                            ? LumenColors.of(context).surfaceContainer
-                            : LumenColors.of(context).primary.withValues(alpha: a),
-                        borderRadius: BorderRadius.circular(2),
-                        border: Border.all(
-                          color: t.outlineVariant.withValues(alpha: 0.6),
-                          width: 0.5,
-                        ),
+                        color: color,
+                        borderRadius: BorderRadius.circular(3),
+                        border: isToday
+                            ? Border.all(color: t.primary, width: 1)
+                            : Border.all(
+                                color: t.outlineVariant.withValues(alpha: 0.6),
+                                width: 0.5,
+                              ),
                       ),
                     ),
                   ),
-                const SizedBox(width: 6),
-                Text('More', style: TextStyle(color: t.onSurfaceVariant, fontSize: 10)),
-                const Spacer(),
-                Flexible(
-                  child: Text(
-                    'Click a day to open or create it',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(color: t.onSurfaceVariant, fontSize: 10),
+                ),
+              ));
+            }
+            if (rowWidgets.isNotEmpty) {
+              cells.add(Row(children: rowWidgets));
+            }
+          }
+
+          final rangeLabel = _weeksBack == 0
+              ? 'Last $weeks weeks'
+              : '${_fmt(aligned)} → ${_fmt(end)}';
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_month_outlined, size: 18),
+                    const SizedBox(width: 8),
+                    Text('Writing activity', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        rangeLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (widget.loading)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    IconButton(
+                      tooltip: 'Earlier',
+                      iconSize: 18,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _weeksBack >= _maxWeeksBack
+                          ? null
+                          : () => setState(
+                              () => _weeksBack =
+                                  (_weeksBack + weeks).clamp(0, _maxWeeksBack),
+                            ),
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    IconButton(
+                      tooltip: 'Later',
+                      iconSize: 18,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _weeksBack == 0
+                          ? null
+                          : () => setState(
+                              () => _weeksBack =
+                                  (_weeksBack - weeks).clamp(0, _maxWeeksBack),
+                            ),
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  maxWords == 0
+                      ? 'No words yet'
+                      : '${_formatNumber(maxWords)} words in your busiest day',
+                  style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
+                ),
+                const SizedBox(height: 12),
+                // Safety net only: the column count is computed from this width,
+                // so the grid fits without scrolling.
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: cells,
                   ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text('Less', style: TextStyle(color: t.onSurfaceVariant, fontSize: 10)),
+                    const SizedBox(width: 6),
+                    for (final a in const [0.0, 0.35, 0.55, 0.8, 1.0])
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: a == 0
+                                ? LumenColors.of(context).surfaceContainer
+                                : LumenColors.of(context).primary.withValues(alpha: a),
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: t.outlineVariant.withValues(alpha: 0.6),
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 6),
+                    Text('More', style: TextStyle(color: t.onSurfaceVariant, fontSize: 10)),
+                    const Spacer(),
+                    Flexible(
+                      child: Text(
+                        'Click a day to open or create it',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(color: t.onSurfaceVariant, fontSize: 10),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

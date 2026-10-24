@@ -329,11 +329,21 @@ class DashboardPrefsNotifier extends Notifier<DashboardPrefs> {
     };
 
     final sourceIndex = prefs.getInt(_quoteSourceKey) ?? 0;
+    final stored =
+        QuoteSource.values[sourceIndex.clamp(
+          0,
+          QuoteSource.values.length - 1,
+        )];
     return DashboardPrefs(
       order: order,
       hidden: hidden,
-      quoteSource:
-          QuoteSource.values[sourceIndex.clamp(0, QuoteSource.values.length - 1)],
+      // Never restore a source the Settings UI cannot offer (an old build may
+      // have persisted apiNinjas/custom).
+      quoteSource: selectableQuoteSources.contains(stored)
+          ? stored
+          : QuoteSource.offline,
+      quoteApiKey: prefs.getString(_quoteApiKeyKey) ?? '',
+      quoteCustomUrl: prefs.getString(_quoteCustomUrlKey) ?? '',
     );
   }
 
@@ -378,8 +388,22 @@ class DashboardPrefsNotifier extends Notifier<DashboardPrefs> {
     _prefs?.setInt(_quoteSourceKey, source.index);
   }
 
+  void setQuoteApiKey(String key) {
+    state = state.copyWith(quoteApiKey: key);
+    _prefs?.setString(_quoteApiKeyKey, key);
+  }
+
+  void setQuoteCustomUrl(String url) {
+    state = state.copyWith(quoteCustomUrl: url);
+    _prefs?.setString(_quoteCustomUrlKey, url);
+  }
+
   void resetLayout() {
-    state = DashboardPrefs(quoteSource: state.quoteSource);
+    state = DashboardPrefs(
+      quoteSource: state.quoteSource,
+      quoteApiKey: state.quoteApiKey,
+      quoteCustomUrl: state.quoteCustomUrl,
+    );
     _prefs?.remove(_orderKey);
     _prefs?.remove(_hiddenKey);
   }

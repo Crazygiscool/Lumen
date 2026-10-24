@@ -129,7 +129,7 @@ class SettingsScreen extends ConsumerWidget {
                 DropdownButton<QuoteSource>(
                   value: ref.watch(dashboardPrefsProvider).quoteSource,
                   items: [
-                    for (final s in QuoteSource.values)
+                    for (final s in selectableQuoteSources)
                       DropdownMenuItem(value: s, child: Text(s.label)),
                   ],
                   onChanged: (v) {
