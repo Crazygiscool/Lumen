@@ -66,12 +66,7 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
                 ],
                 "fonts": [
                     { "family": "Lumen Theme", "path": "fonts/manager.ttf", "optional": true }
-                ],
-                "theme": {
-                    "applyByDefault": false,
-                    "primary": "#8B9CFF",
-                    "fontFamily": "Lumen Theme"
-                }
+                ]
             }),
             ..Default::default()
         },

@@ -74,7 +74,11 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   DropdownButton<String>(
-                    value: settings.activeThemePluginId ?? '',
+                    value: themes.any(
+                      (plugin) => plugin.id == settings.activeThemePluginId,
+                    )
+                        ? settings.activeThemePluginId!
+                        : '',
                     items: [
                       const DropdownMenuItem<String>(
                         value: '',
