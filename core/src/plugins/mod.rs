@@ -71,10 +71,6 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             priority: 10,
             plugin_id: Some("dashboard_entries".into()),
             contributes: serde_json::json!({
-                "sidebar": [
-                    { "id": "dashboard_entries.journal", "label": "Journal", "icon": "journal", "action": "section:journal", "priority": 10 },
-                    { "id": "dashboard_entries.dashboard", "label": "Dashboard", "icon": "dashboard", "action": "section:journal", "priority": 8 }
-                ],
                 "dashboardCards": [
                     { "id": "plugin.quick_entries", "title": "Quick entries", "subtitle": "Morning and evening templates", "icon": "edit", "priority": 20 },
                     { "id": "plugin.journal_activity", "title": "Journal activity", "subtitle": "Writing trends powered by plugins", "icon": "dashboard", "priority": 5 }
@@ -91,9 +87,6 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             priority: 5,
             plugin_id: Some("theme_manager".into()),
             contributes: serde_json::json!({
-                "sidebar": [
-                    { "id": "theme_manager.settings", "label": "Theme", "icon": "settings", "action": "section:settings", "priority": 9 }
-                ],
                 "dashboardCards": [
                     { "id": "plugin.theme", "title": "Theme manager", "subtitle": "Appearance and plugin themes", "icon": "settings", "priority": 15 }
                 ]
@@ -109,9 +102,6 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             priority: 7,
             plugin_id: Some("import_export".into()),
             contributes: serde_json::json!({
-                "sidebar": [
-                    { "id": "import_export.import", "label": "Import/Export", "icon": "import", "action": "section:import", "priority": 9 }
-                ],
                 "dashboardCards": [
                     { "id": "plugin.import_export", "title": "Import & export", "subtitle": "Stoic, JSON, and Markdown flows", "icon": "import", "priority": 12 }
                 ]
@@ -141,6 +131,12 @@ impl PluginManager {
                 Box::new(builtin::daily_summary::DailySummaryPlugin),
             ),
             ("wordcount", Box::new(builtin::wordcount::WordCountPlugin)),
+            (
+                "dashboard_entries",
+                Box::new(builtin::dashboard_entries::DashboardEntriesPlugin),
+            ),
+            ("theme_manager", Box::new(builtin::theme_manager::ThemeManagerPlugin)),
+            ("import_export", Box::new(builtin::import_export::ImportExportPlugin)),
         ];
 
         let plugins_dir = crate::paths::plugins_dir();

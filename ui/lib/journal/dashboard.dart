@@ -290,10 +290,14 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
             child: ListTile(
               leading: Icon(AppIcons.resolve(card.icon), color: t.primary),
               title: Text(card.title),
-              subtitle: card.subtitle == null ? null : Text(card.subtitle!),
+              subtitle:
+                  card.subtitle == null ? null : Text(card.subtitle!),
               trailing: Text(
                 card.pluginId,
-                style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
+                style: TextStyle(
+                  color: t.onSurfaceVariant,
+                  fontSize: 11,
+                ),
               ),
             ),
           ),

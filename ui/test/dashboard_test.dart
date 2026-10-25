@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lumen/ffi/lumen_ffi.dart';
+import 'package:lumen/ffi/plugin_service.dart';
 import 'package:lumen/ffi/vault_service.dart';
 import 'package:lumen/journal/dashboard.dart';
 import 'package:lumen/journal/journal_provider.dart';
@@ -280,6 +281,7 @@ void main() {
         journalNotesProvider.overrideWith(
           (ref) async => [_note('2026-10-22.md')],
         ),
+        pluginServiceProvider.overrideWithValue(PluginService(_FakeFfi({}))),
       ],
     );
     addTearDown(container.dispose);
