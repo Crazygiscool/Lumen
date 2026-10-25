@@ -63,12 +63,24 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       }
     });
 
-    if (!vault.unlocked) {
-      return _JournalGate(
-        defaultPath: ref.watch(settingsProvider).journalVaultPath,
-      );
-    }
-    return _buildJournal(context, ref, vault.root);
+    final Widget stage = vault.unlocked
+        ? _buildJournal(context, ref, vault.root)
+        : _JournalGate(
+            defaultPath: ref.watch(settingsProvider).journalVaultPath,
+          );
+
+    // Smooth fade between the unlock gate and the journal (and their async
+    // loading states), instead of an abrupt widget swap.
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: child,
+      ),
+      child: stage,
+    );
   }
 
   Widget _buildJournal(BuildContext context, WidgetRef ref, String? root) {
@@ -106,23 +118,33 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             ),
             VerticalDivider(width: 1, color: t.outlineVariant),
             Expanded(
-              child: _editing == null
-                  ? JournalDashboard(
-                      onOpenNote: (relPath) {
-                        setState(() => _openNow(relPath));
-                      },
-                    )
-                  : _NoteEditor(
-                      key: ValueKey(_editing),
-                      relPath: _editing!,
-                      preview: _preview,
-                      onTogglePreview: () =>
-                          setState(() => _preview = !_preview),
-                      onDirty: () => setState(() => _dirty = true),
-                      onSaved: _onSaved,
-                      onDelete: _delete,
-                      onClose: _closeEditor,
-                    ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: child,
+                ),
+                child: _editing == null
+                    ? JournalDashboard(
+                        key: const ValueKey('dashboard'),
+                        onOpenNote: (relPath) {
+                          setState(() => _openNow(relPath));
+                        },
+                      )
+                    : _NoteEditor(
+                        key: ValueKey(_editing),
+                        relPath: _editing!,
+                        preview: _preview,
+                        onTogglePreview: () =>
+                            setState(() => _preview = !_preview),
+                        onDirty: () => setState(() => _dirty = true),
+                        onSaved: _onSaved,
+                        onDelete: _delete,
+                        onClose: _closeEditor,
+                      ),
+              ),
             ),
           ],
         );
