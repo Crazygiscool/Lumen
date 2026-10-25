@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import 'ffi/plugin_service.dart';
 import 'shell/lumen_shell.dart';
 import 'state/providers.dart';
+import 'theme/app_icons.dart';
 import 'theme/app_theme.dart';
 import 'theme/lumen_colors.dart';
 import 'theme/plugin_theme.dart';
@@ -84,6 +85,22 @@ class LumenApp extends ConsumerWidget {
             (selectedTheme.contributions['theme'] as Map)
                 .cast<String, dynamic>(),
           );
+
+    final iconPlugins = themePlugins.isEmpty
+        ? const <PluginInfo>[]
+        : (plugins.maybeWhen(
+            data: (list) => list.all
+                .where((p) => p.enabled && p.contributions['icons'] is Map)
+                .toList(growable: false),
+            orElse: () => const <PluginInfo>[],
+          ))
+      ..sort((a, b) => b.priority.compareTo(a.priority));
+    AppIcons.setActivePack(
+      iconPlugins.isEmpty
+          ? null
+          : (iconPlugins.first.contributions['icons'] as Map)
+              .cast<String, dynamic>(),
+    );
     LumenColors.setActiveTheme(tokens);
     return MaterialApp(
       title: 'Lumen',

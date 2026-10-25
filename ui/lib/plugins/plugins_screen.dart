@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../ffi/plugin_service.dart';
 import '../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/lumen_colors.dart';
+import '../widgets/path_picker.dart';
 
 /// Shows the installed plugin inventory (built-in + on-disk external) and lets
 /// you toggle which plugins run. The listing reads `plugin.toml` manifests and
@@ -83,6 +87,43 @@ class PluginsScreen extends ConsumerWidget {
                   color: t.onSurfaceVariant,
                 ),
               ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => ref.invalidate(pluginsProvider),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reload plugins'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () async {
+                    final picked = await showPathPicker(
+                      context,
+                      mode: PathPickerMode.directory,
+                      title: 'Choose a plugin folder',
+                    );
+                    if (picked == null || !context.mounted) return;
+                    final ok = await _installPluginFromFolder(
+                      picked,
+                      list.dir.isEmpty ? null : list.dir,
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(ok
+                            ? 'Plugin installed. Reloaded plugin list.'
+                            : 'Plugin folder must contain plugin.toml.'),
+                      ),
+                    );
+                    ref.invalidate(pluginsProvider);
+                  },
+                  icon: const Icon(Icons.add_box_outlined, size: 18),
+                  label: const Text('Install from folder'),
+                ),
+              ],
             ),
           ],
         ),
@@ -234,8 +275,71 @@ class _PluginTile extends StatelessWidget {
               ],
             ),
           ],
+          if (plugin.contributions.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Wrap(
+              spacing: 5,
+              runSpacing: 3,
+              children: [
+                for (final key in plugin.contributions.keys)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.secondaryContainer.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      key,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: lumenMonoFont,
+                        color: t.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+}
+Future<bool> _installPluginFromFolder(String source, String? destRoot) async {
+  final sourceDir = Directory(source);
+  if (!await sourceDir.exists()) return false;
+  if (!await File(p.join(source, 'plugin.toml')).exists()) return false;
+
+  final root = destRoot == null || destRoot.isEmpty
+      ? Directory(p.join(
+          Platform.environment['HOME'] ?? Directory.current.path,
+          '.config',
+          'Lumen',
+          'plugins',
+        ))
+      : Directory(destRoot);
+  await root.create(recursive: true);
+
+  final target = Directory(p.join(root.path, p.basename(source)));
+  if (await target.exists()) {
+    await target.delete(recursive: true);
+  }
+  await target.create(recursive: true);
+  await _copyDirectory(sourceDir, target);
+  return true;
+}
+
+Future<void> _copyDirectory(Directory source, Directory target) async {
+  await for (final entity in source.list()) {
+    final destination = p.join(target.path, p.basename(entity.path));
+    if (entity is Directory) {
+      await _copyDirectory(entity, Directory(destination));
+    } else if (entity is File) {
+      await File(destination).parent.create(recursive: true);
+      await entity.copy(destination);
+    }
   }
 }

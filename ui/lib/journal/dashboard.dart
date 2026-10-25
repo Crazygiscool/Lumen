@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/providers.dart';
+import '../theme/app_icons.dart';
 import '../theme/lumen_colors.dart';
 import 'journal_provider.dart';
 import 'journal_service.dart';
@@ -272,8 +273,32 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
             ),
           ),
         ),
+        ..._pluginDashboardCards(context, ref),
       ],
     );
+  }
+
+  List<Widget> _pluginDashboardCards(BuildContext context, WidgetRef ref) {
+    final cards = ref.watch(pluginDashboardCardsProvider);
+    if (cards.isEmpty) return const [];
+    final t = LumenColors.of(context);
+    return [
+      for (final card in cards)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Card(
+            child: ListTile(
+              leading: Icon(AppIcons.resolve(card.icon), color: t.primary),
+              title: Text(card.title),
+              subtitle: card.subtitle == null ? null : Text(card.subtitle!),
+              trailing: Text(
+                card.pluginId,
+                style: TextStyle(color: t.onSurfaceVariant, fontSize: 11),
+              ),
+            ),
+          ),
+        ),
+    ];
   }
 
   Widget _cardFor(DashboardCard card) {

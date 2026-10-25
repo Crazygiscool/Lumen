@@ -7,6 +7,43 @@ import '../ffi/plugin_service.dart';
 import '../ffi/vault_service.dart';
 import '../journal/quotes.dart';
 
+/// A sidebar destination contributed by an enabled plugin.
+@immutable
+class PluginSidebarPin {
+  const PluginSidebarPin({
+    required this.id,
+    required this.pluginId,
+    required this.label,
+    this.icon = 'pin',
+    this.priority = 0,
+  });
+
+  final String id;
+  final String pluginId;
+  final String label;
+  final String icon;
+  final int priority;
+}
+
+@immutable
+class PluginDashboardCard {
+  const PluginDashboardCard({
+    required this.id,
+    required this.pluginId,
+    required this.title,
+    this.subtitle,
+    this.icon = 'dashboardCard',
+    this.priority = 0,
+  });
+
+  final String id;
+  final String pluginId;
+  final String title;
+  final String? subtitle;
+  final String icon;
+  final int priority;
+}
+
 final lumenFfiProvider = Provider<LumenFfi>((ref) {
   final ffi = LumenFfi.instance;
   ffi.init();
@@ -444,3 +481,66 @@ final dashboardPrefsProvider =
     NotifierProvider<DashboardPrefsNotifier, DashboardPrefs>(
       DashboardPrefsNotifier.new,
     );
+
+final pluginSidebarPinsProvider = Provider<List<PluginSidebarPin>>((ref) {
+  final plugins = ref.watch(pluginsProvider);
+  final pins = plugins.maybeWhen(
+    data: (list) {
+      final result = <PluginSidebarPin>[];
+      for (final plugin in list.all) {
+        if (!plugin.enabled) continue;
+        final contributions = plugin.contributions['sidebar'];
+        if (contributions is! List) continue;
+        for (final raw in contributions) {
+          if (raw is! Map) continue;
+          final map = raw.cast<String, dynamic>();
+          result.add(
+            PluginSidebarPin(
+              id: map['id']?.toString() ?? '${plugin.id}.${result.length}',
+              pluginId: plugin.id,
+              label: map['label']?.toString() ?? plugin.name,
+              icon: map['icon']?.toString() ?? 'pin',
+              priority: (map['priority'] as num?)?.toInt() ?? plugin.priority,
+            ),
+          );
+        }
+      }
+      result.sort((a, b) => b.priority.compareTo(a.priority));
+      return result;
+    },
+    orElse: () => const <PluginSidebarPin>[],
+  );
+  return pins;
+});
+
+final pluginDashboardCardsProvider = Provider<List<PluginDashboardCard>>((ref) {
+  final plugins = ref.watch(pluginsProvider);
+  final cards = plugins.maybeWhen(
+    data: (list) {
+      final result = <PluginDashboardCard>[];
+      for (final plugin in list.all) {
+        if (!plugin.enabled) continue;
+        final contributions = plugin.contributions['dashboardCards'];
+        if (contributions is! List) continue;
+        for (final raw in contributions) {
+          if (raw is! Map) continue;
+          final map = raw.cast<String, dynamic>();
+          result.add(
+            PluginDashboardCard(
+              id: map['id']?.toString() ?? '${plugin.id}.card.${result.length}',
+              pluginId: plugin.id,
+              title: map['title']?.toString() ?? plugin.name,
+              subtitle: map['subtitle']?.toString(),
+              icon: map['icon']?.toString() ?? 'dashboardCard',
+              priority: (map['priority'] as num?)?.toInt() ?? plugin.priority,
+            ),
+          );
+        }
+      }
+      result.sort((a, b) => b.priority.compareTo(a.priority));
+      return result;
+    },
+    orElse: () => const <PluginDashboardCard>[],
+  );
+  return cards;
+});
