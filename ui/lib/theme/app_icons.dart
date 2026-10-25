@@ -34,6 +34,9 @@ class AppIcons {
 
   static Map<String, String> _activePack = const <String, String>{};
 
+  static Map<String, IconData> get builtin => _builtin;
+  static List<String> get availableIconNames => _builtin.keys.toList(growable: false);
+
   static void setActivePack(Map<String, dynamic>? contributions) {
     final icons = contributions?['icons'];
     if (icons is Map) {

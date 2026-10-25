@@ -11,12 +11,12 @@ void main() {
   });
 
   test('sections map to labels and icons', () {
-    expect(LumenSection.values, hasLength(4));
+    expect(LumenSection.values, hasLength(3));
     for (final section in LumenSection.values) {
       expect(section.label, isNotEmpty);
     }
     expect(LumenSection.journal.label, 'Journal');
-    expect(LumenSection.import.label, 'Import');
+    expect(LumenSection.plugins.label, 'Plugins');
   });
 
   test('theme source resolves to a ThemeMode', () {

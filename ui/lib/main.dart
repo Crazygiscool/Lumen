@@ -57,6 +57,7 @@ class LumenApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final plugins = ref.watch(pluginsProvider);
+    ref.watch(pluginFontsProvider);
     final List<PluginInfo> themePlugins = plugins.maybeWhen(
       data: (list) => list.all
           .where((p) => p.enabled && p.contributions['theme'] is Map)

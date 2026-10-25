@@ -39,57 +39,36 @@ pub fn set_enabled(name: &str, enabled: bool) {
 pub fn builtins_metadata() -> Vec<PluginManifest> {
     vec![
         PluginManifest {
-            name: "export_md".into(),
-            version: "1.0.0".into(),
-            author: Some("Lumen".into()),
-            description: Some("Exports journal entries to Markdown.".into()),
-            hooks: ["on_export"].into_iter().map(String::from).collect(),
-            ..Default::default()
-        },
-        PluginManifest {
-            name: "daily_summary".into(),
-            version: "1.0.0".into(),
-            author: Some("Lumen".into()),
-            description: Some("Summarises saved notes with a word count.".into()),
-            hooks: ["on_note"].into_iter().map(String::from).collect(),
-            ..Default::default()
-        },
-        PluginManifest {
-            name: "wordcount".into(),
-            version: "1.0.0".into(),
-            author: Some("Lumen".into()),
-            description: Some("Counts words in saved notes.".into()),
-            hooks: ["on_note"].into_iter().map(String::from).collect(),
-            ..Default::default()
-        },
-        PluginManifest {
             name: "dashboard_entries".into(),
             version: "1.0.0".into(),
             author: Some("Lumen".into()),
-            description: Some("Built-in dashboard cards and quick journal actions.".into()),
+            description: Some("Built-in dashboard and journal presentation plugin.".into()),
             hooks: ["on_note"].into_iter().map(String::from).collect(),
             priority: 10,
             plugin_id: Some("dashboard_entries".into()),
-            contributes: serde_json::json!({
-                "dashboardCards": [
-                    { "id": "plugin.quick_entries", "title": "Quick entries", "subtitle": "Morning and evening templates", "icon": "edit", "priority": 20 },
-                    { "id": "plugin.journal_activity", "title": "Journal activity", "subtitle": "Writing trends powered by plugins", "icon": "dashboard", "priority": 5 }
-                ]
-            }),
+            contributes: serde_json::Value::Null,
             ..Default::default()
         },
         PluginManifest {
             name: "theme_manager".into(),
             version: "1.0.0".into(),
             author: Some("Lumen".into()),
-            description: Some("Built-in theme and appearance management.".into()),
+            description: Some("Built-in theme management plugin.".into()),
             hooks: ["on_settings"].into_iter().map(String::from).collect(),
             priority: 5,
             plugin_id: Some("theme_manager".into()),
             contributes: serde_json::json!({
-                "dashboardCards": [
-                    { "id": "plugin.theme", "title": "Theme manager", "subtitle": "Appearance and plugin themes", "icon": "settings", "priority": 15 }
-                ]
+                "screens": [
+                    { "id": "theme_manager", "label": "Theme manager", "icon": "settings", "template": "theme", "title": "Theme manager" }
+                ],
+                "fonts": [
+                    { "family": "Lumen Theme", "path": "fonts/manager.ttf", "optional": true }
+                ],
+                "theme": {
+                    "applyByDefault": false,
+                    "primary": "#8B9CFF",
+                    "fontFamily": "Lumen Theme"
+                }
             }),
             ..Default::default()
         },
@@ -97,13 +76,19 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             name: "import_export".into(),
             version: "1.0.0".into(),
             author: Some("Lumen".into()),
-            description: Some("Import and export journal data through plugins.".into()),
+            description: Some("Import and export journal data through a plugin-provided screen.".into()),
             hooks: ["on_export"].into_iter().map(String::from).collect(),
             priority: 7,
             plugin_id: Some("import_export".into()),
             contributes: serde_json::json!({
-                "dashboardCards": [
-                    { "id": "plugin.import_export", "title": "Import & export", "subtitle": "Stoic, JSON, and Markdown flows", "icon": "import", "priority": 12 }
+                "sidebar": [
+                    { "id": "import_export.import", "label": "Import/Export", "icon": "import", "action": "screen:import_export", "priority": 9 }
+                ],
+                "screens": [
+                    { "id": "import_export", "label": "Import & export", "icon": "import", "template": "import", "title": "Import & export" }
+                ],
+                "fonts": [
+                    { "family": "Import Mono", "path": "fonts/import-mono.ttf", "optional": true }
                 ]
             }),
             ..Default::default()
@@ -125,12 +110,6 @@ impl Default for PluginManager {
 impl PluginManager {
     pub fn new() -> Self {
         let builtins: Vec<(&'static str, Box<dyn Plugin>)> = vec![
-            ("export_md", Box::new(builtin::export_md::ExportMdPlugin)),
-            (
-                "daily_summary",
-                Box::new(builtin::daily_summary::DailySummaryPlugin),
-            ),
-            ("wordcount", Box::new(builtin::wordcount::WordCountPlugin)),
             (
                 "dashboard_entries",
                 Box::new(builtin::dashboard_entries::DashboardEntriesPlugin),

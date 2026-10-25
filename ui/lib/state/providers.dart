@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ffi/lumen_ffi.dart';
@@ -171,19 +175,17 @@ final pluginsProvider = AsyncNotifierProvider<PluginNotifier, PluginList>(
 // Sections
 // ---------------------------------------------------------------------------
 
-enum LumenSection { journal, import, plugins, settings }
+enum LumenSection { journal, plugins, settings }
 
 extension LumenSectionInfo on LumenSection {
   String get label => switch (this) {
     LumenSection.journal => 'Journal',
-    LumenSection.import => 'Import',
     LumenSection.plugins => 'Plugins',
     LumenSection.settings => 'Settings',
   };
 
   IconData get icon => switch (this) {
     LumenSection.journal => Icons.edit_note,
-    LumenSection.import => Icons.file_download_outlined,
     LumenSection.plugins => Icons.extension_outlined,
     LumenSection.settings => Icons.settings_outlined,
   };
@@ -553,5 +555,97 @@ final pluginDashboardCardsProvider = Provider<List<PluginDashboardCard>>((ref) {
     return cards;
   } catch (_) {
     return const <PluginDashboardCard>[];
+  }
+});
+
+@immutable
+class PluginScreen {
+  const PluginScreen({
+    required this.id,
+    required this.pluginId,
+    required this.label,
+    this.template = 'markdown',
+    this.title,
+    this.body,
+    this.icon = 'dashboard',
+    this.priority = 0,
+  });
+
+  final String id;
+  final String pluginId;
+  final String label;
+  final String template;
+  final String? title;
+  final String? body;
+  final String icon;
+  final int priority;
+}
+
+final pluginScreensProvider = Provider<List<PluginScreen>>((ref) {
+  try {
+    final plugins = ref.watch(pluginsProvider);
+    final screens = plugins.maybeWhen(
+      data: (list) {
+        final result = <PluginScreen>[];
+        for (final plugin in list.all) {
+          if (!plugin.enabled) continue;
+          final contributions = plugin.contributions['screens'];
+          if (contributions is! List) continue;
+          for (final raw in contributions) {
+            if (raw is! Map) continue;
+            final map = raw.cast<String, dynamic>();
+            result.add(
+              PluginScreen(
+                id: map['id']?.toString() ?? plugin.id,
+                pluginId: plugin.id,
+                label: map['label']?.toString() ?? plugin.name,
+                template: map['template']?.toString() ?? 'markdown',
+                title: map['title']?.toString() ?? map['label']?.toString(),
+                body: map['body']?.toString(),
+                icon: map['icon']?.toString() ?? 'dashboard',
+                priority: (map['priority'] as num?)?.toInt() ?? plugin.priority,
+              ),
+            );
+          }
+        }
+        result.sort((a, b) => b.priority.compareTo(a.priority));
+        return result;
+      },
+      orElse: () => const <PluginScreen>[],
+    );
+    return screens;
+  } catch (_) {
+    return const <PluginScreen>[];
+  }
+});
+
+final pluginFontsProvider = FutureProvider<void>((ref) async {
+  final plugins = await ref.watch(pluginsProvider.future);
+  final root = plugins.dir;
+  for (final plugin in plugins.all) {
+    if (!plugin.enabled) continue;
+    final contributions = plugin.contributions['fonts'];
+    if (contributions is! List) continue;
+    for (final raw in contributions) {
+      if (raw is! Map) continue;
+      final map = raw.cast<String, dynamic>();
+      final family = map['family']?.toString();
+      final relative = map['path']?.toString() ?? map['asset']?.toString();
+      if (family == null || relative == null) continue;
+
+      File? file;
+      for (final base in <String>[plugin.name, plugin.id]) {
+        final candidate = File(p.join(root, base, relative));
+        if (await candidate.exists()) {
+          file = candidate;
+          break;
+        }
+      }
+      if (file == null) continue;
+      final bytes = await file.readAsBytes();
+      final loader = FontLoader(family);
+      loader.addFont(Future.value(ByteData.sublistView(bytes)));
+      await loader.load();
+    }
   }
 });

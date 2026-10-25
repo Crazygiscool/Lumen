@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../ffi/plugin_service.dart';
 import '../import/import_screen.dart';
 import '../journal/journal_screen.dart';
 import '../plugins/plugins_screen.dart';
@@ -13,10 +15,6 @@ import '../theme/glass.dart';
 import '../theme/lumen_colors.dart';
 import 'top_bar.dart';
 
-/// Simplified single-window shell: Journal, Import, Plugins, Settings.
-///
-/// The native title bar is hidden, so [LumenTopBar] owns the window chrome and
-/// [DragToResizeArea] restores edge resizing for the frameless window.
 class LumenShell extends ConsumerStatefulWidget {
   const LumenShell({super.key});
 
@@ -27,6 +25,111 @@ class LumenShell extends ConsumerStatefulWidget {
 class _LumenShellState extends ConsumerState<LumenShell> {
   String? _selectedPinId;
   final Set<String> _hiddenSidebarPins = <String>{};
+  Map<String, String> _iconOverrides = <String, String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      final raw = prefs.getString('lumen.sidebarIconOverrides');
+      if (raw == null || raw.isEmpty) return;
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          final next = <String, String>{};
+          decoded.forEach((key, value) {
+            if (value is String) next[key.toString()] = value;
+          });
+          if (mounted) setState(() => _iconOverrides = next);
+        }
+      } catch (_) {
+        // Ignore malformed icon-preference data.
+      }
+    });
+  }
+
+  Future<void> _saveIconOverrides() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'lumen.sidebarIconOverrides',
+      jsonEncode(_iconOverrides),
+    );
+  }
+
+  String _iconKeyForCore(LumenSection section) => 'section:${section.name}';
+
+  String _iconKeyForPin(PluginSidebarPin pin) => 'pin:${pin.id}';
+
+  IconData _resolveIcon(String key, IconData fallback) {
+    final override = _iconOverrides[key];
+    if (override != null && AppIcons.builtin.containsKey(override)) {
+      return AppIcons.builtin[override]!;
+    }
+    return fallback;
+  }
+
+  Future<void> _persistIconOverride(String key, String iconName) async {
+    setState(() => _iconOverrides[key] = iconName);
+    await _saveIconOverrides();
+  }
+
+  Future<void> _showRailMenu(
+    Offset position,
+    String key, {
+    PluginSidebarPin? pin,
+  }) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        position & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Text(
+            'Choose icon',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ),
+        const PopupMenuDivider(),
+        for (final name in AppIcons.availableIconNames)
+          PopupMenuItem<String>(
+            value: 'icon:$name',
+            child: Row(
+              children: [
+                Icon(AppIcons.builtin[name], size: 18),
+                const SizedBox(width: 10),
+                Text(name),
+              ],
+            ),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'reset',
+          child: Text('Reset icon'),
+        ),
+        if (pin != null)
+          const PopupMenuItem<String>(value: 'hide', child: Text('Hide pin')),
+      ],
+    );
+
+    if (!mounted || selected == null) return;
+    if (selected == 'reset') {
+      setState(() => _iconOverrides.remove(key));
+      await _saveIconOverrides();
+      return;
+    }
+    if (selected == 'hide' && pin != null) {
+      setState(() => _hiddenSidebarPins.add(pin.id));
+      return;
+    }
+    if (selected.startsWith('icon:')) {
+      await _persistIconOverride(key, selected.substring('icon:'.length));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +147,10 @@ class _LumenShellState extends ConsumerState<LumenShell> {
     final coreCount = LumenSection.values.length;
     final total = coreCount + pins.length;
     final selectedIndex = _selectedPinId == null
-        ? LumenSection.values.indexOf(section).clamp(0, total - 1)
+        ? LumenSection.values.indexOf(section).clamp(0, total == 0 ? 1 : total - 1)
         : coreCount + pins.indexWhere((pin) => pin.id == _selectedPinId);
+
+    final screens = ref.watch(pluginScreensProvider);
 
     return AmbientBackground(
       child: Scaffold(
@@ -59,7 +164,9 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                 child: Row(
                   children: [
                     NavigationRail(
-                      selectedIndex: selectedIndex.clamp(0, total - 1),
+                      selectedIndex: total == 0
+                          ? 0
+                          : selectedIndex.clamp(0, total - 1),
                       onDestinationSelected: (index) {
                         if (index < coreCount) {
                           _selectedPinId = null;
@@ -69,18 +176,15 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                         } else {
                           final pin = pins[index - coreCount];
                           if (pin.action.startsWith('section:')) {
-                            final targetName = pin.action.substring('section:'.length);
-                            final target = LumenSection.values.firstWhere(
-                              (section) =>
-                                  section.name == targetName ||
-                                  section.label.toLowerCase() ==
-                                      targetName.toLowerCase(),
-                              orElse: () => LumenSection.journal,
+                            final target = _sectionFromName(
+                              pin.action.substring('section:'.length),
                             );
                             ref
                                 .read(selectedSectionProvider.notifier)
                                 .select(target);
                             setState(() => _selectedPinId = null);
+                          } else if (pin.action.startsWith('screen:')) {
+                            setState(() => _selectedPinId = pin.id);
                           } else {
                             setState(() => _selectedPinId = pin.id);
                           }
@@ -89,29 +193,53 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                       labelType: NavigationRailLabelType.all,
                       backgroundColor: t.surfaceContainer,
                       destinations: [
-                        for (final s in LumenSection.values)
+                        for (final value in LumenSection.values)
                           NavigationRailDestination(
                             icon: GestureDetector(
-                              onSecondaryTapDown: (details) => _showCoreMenu(
-                                details.globalPosition,
+                              onSecondaryTapDown: (details) =>
+                                  _showRailMenu(
+                                    details.globalPosition,
+                                    _iconKeyForCore(value),
+                                  ),
+                              child: Icon(
+                                _resolveIcon(
+                                  _iconKeyForCore(value),
+                                  value.icon,
+                                ),
+                                color: t.onSurface,
                               ),
-                              child: Icon(s.icon, color: t.onSurface),
                             ),
-                            selectedIcon: Icon(s.icon, color: t.primary),
-                            label: Text(s.label),
+                            selectedIcon: Icon(
+                              _resolveIcon(
+                                _iconKeyForCore(value),
+                                value.icon,
+                              ),
+                              color: t.primary,
+                            ),
+                            label: Text(value.label),
                           ),
                         for (final pin in pins)
                           NavigationRailDestination(
                             icon: GestureDetector(
                               onSecondaryTapDown: (details) =>
-                                  _showPinMenu(details.globalPosition, pin),
+                                  _showRailMenu(
+                                    details.globalPosition,
+                                    _iconKeyForPin(pin),
+                                    pin: pin,
+                                  ),
                               child: Icon(
-                                AppIcons.resolve(pin.icon),
+                                _resolveIcon(
+                                  _iconKeyForPin(pin),
+                                  AppIcons.resolve(pin.icon),
+                                ),
                                 color: t.onSurface,
                               ),
                             ),
                             selectedIcon: Icon(
-                              AppIcons.resolve(pin.icon),
+                              _resolveIcon(
+                                _iconKeyForPin(pin),
+                                AppIcons.resolve(pin.icon),
+                              ),
                               color: t.primary,
                             ),
                             label: Text(pin.label),
@@ -121,20 +249,21 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                     VerticalDivider(width: 1, color: t.outlineVariant),
                     Expanded(
                       child: IndexedStack(
-                        index: (_selectedPinId == null
-                                ? LumenSection.values.indexOf(section)
-                                : coreCount +
-                                    pins.indexWhere(
-                                      (pin) => pin.id == _selectedPinId,
-                                    ))
-                            .clamp(0, total - 1),
+                        index: _selectedPinId == null
+                            ? _sectionIndex(section)
+                            : coreCount +
+                                pins.indexWhere(
+                                  (pin) => pin.id == _selectedPinId,
+                                ),
                         children: [
                           const JournalScreen(),
-                          const ImportScreen(),
                           const PluginsScreen(),
                           const SettingsScreen(),
                           for (final pin in pins)
-                            _PluginPinPanel(pin: pin),
+                            _PluginScreenSurface(
+                              pin: pin,
+                              screen: _screenForPin(pin, screens),
+                            ),
                         ],
                       ),
                     ),
@@ -148,107 +277,78 @@ class _LumenShellState extends ConsumerState<LumenShell> {
     );
   }
 
-  Future<void> _showCoreMenu(Offset position) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        position & const Size(1, 1),
-        Offset.zero & overlay.size,
-      ),
-      items: const [
-        PopupMenuItem<String>(value: 'plugins', child: Text('Plugin manager')),
-      ],
-    );
-    if (!mounted) return;
-    if (selected == 'plugins') {
-      ref.read(selectedSectionProvider.notifier).select(LumenSection.plugins);
-      setState(() => _selectedPinId = null);
-    }
+  int _sectionIndex(LumenSection section) {
+    final index = LumenSection.values.indexOf(section);
+    return index < 0 ? 0 : index;
   }
 
-  Future<void> _showPinMenu(Offset position, PluginSidebarPin pin) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        position & const Size(1, 1),
-        Offset.zero & overlay.size,
-      ),
-      items: [
-        const PopupMenuItem<String>(value: 'open', child: Text('Open')),
-        const PopupMenuItem<String>(value: 'hide', child: Text('Hide pin')),
-        const PopupMenuItem<String>(
-          value: 'disable',
-          child: Text('Disable plugin'),
-        ),
-      ],
+  LumenSection _sectionFromName(String name) {
+    return LumenSection.values.firstWhere(
+      (value) => value.name == name || value.label.toLowerCase() == name.toLowerCase(),
+      orElse: () => LumenSection.journal,
     );
-    if (!mounted) return;
-    switch (selected) {
-      case 'open':
-        setState(() => _selectedPinId = pin.id);
-        break;
-      case 'hide':
-        setState(() => _hiddenSidebarPins.add(pin.id));
-        break;
-      case 'disable':
-        await ref.read(pluginServiceProvider).setEnabled(pin.pluginId, false);
-        ref.invalidate(pluginsProvider);
-        setState(() => _selectedPinId = null);
-        break;
+  }
+
+  PluginScreen? _screenForPin(PluginSidebarPin pin, List<PluginScreen> screens) {
+    for (final screen in screens) {
+      if (screen.id == pin.id) return screen;
+    }
+    for (final screen in screens) {
+      if (screen.pluginId == pin.pluginId) return screen;
+    }
+    return null;
+  }
+}
+
+class _PluginScreenSurface extends ConsumerWidget {
+  const _PluginScreenSurface({required this.pin, required this.screen});
+
+  final PluginSidebarPin pin;
+  final PluginScreen? screen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final template = screen?.template ?? 'markdown';
+    switch (template) {
+      case 'import':
+        return const ImportScreen();
+      case 'journal':
+        return const JournalScreen();
+      case 'plugins':
+        return const PluginsScreen();
+      case 'settings':
+      case 'theme':
+        return const SettingsScreen();
+      default:
+        return _MarkdownPluginScreen(
+          title: screen?.title ?? pin.label,
+          body: screen?.body ?? 'Plugin-contributed screen.',
+        );
     }
   }
 }
 
-class _PluginPinPanel extends ConsumerWidget {
-  const _PluginPinPanel({required this.pin});
+class _MarkdownPluginScreen extends StatelessWidget {
+  const _MarkdownPluginScreen({required this.title, required this.body});
 
-  final PluginSidebarPin pin;
+  final String title;
+  final String body;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = LumenColors.of(context);
-    final plugins = ref.watch(pluginsProvider);
-    return plugins.when(
-      loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      error: (e, _) => Center(child: Text('$e')),
-      data: (list) {
-        PluginInfo? plugin;
-        for (final candidate in list.all) {
-          if (candidate.id == pin.pluginId) {
-            plugin = candidate;
-            break;
-          }
-        }
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text(
-              pin.label,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              plugin?.description ?? 'Plugin-provided sidebar destination.',
-              style: TextStyle(color: t.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            if (plugin != null)
-              ListTile(
-                leading: const Icon(Icons.extension_outlined),
-                title: Text(plugin.name),
-                subtitle: Text('v${plugin.version}'),
-                trailing: Text(plugin.enabled ? 'Enabled' : 'Disabled'),
-              ),
-            const SizedBox(height: 12),
-            Text(
-              'Contributions are managed on the Plugins screen.',
-              style: TextStyle(color: t.onSurfaceVariant, fontSize: 12),
-            ),
-          ],
-        );
-      },
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Text(title, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 16),
+          Markdown(
+            data: body,
+            selectable: true,
+          ),
+        ],
+      ),
     );
   }
 }
