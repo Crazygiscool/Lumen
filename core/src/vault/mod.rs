@@ -24,6 +24,8 @@ use serde::{Deserialize, Serialize};
 
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
+use rand::rngs::OsRng;
+use rand::RngCore;
 
 pub const META_DIR: &str = ".lumen";
 pub const CONFIG_FILE: &str = "config.json";
@@ -38,10 +40,13 @@ pub const STORE_JOURNAL: &str = "journal";
 
 fn encrypt(data: &[u8], key: &[u8; 32]) -> (Vec<u8>, Vec<u8>) {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let nonce: [u8; 12] = rand::random();
+    // Rule 1: never derive nonces from counters/math; use the OS CSPRNG.
+    let mut nonce = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce);
     let ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), data)
         .expect("Encryption failed");
+    // Rule 2: callers prepend these 12 bytes to the file body.
     (ciphertext, nonce.to_vec())
 }
 
@@ -136,7 +141,8 @@ pub fn exists(root: &Path) -> bool {
 }
 
 pub fn create_with_passphrase(root: &str, passphrase: &str, store: &str) -> Result<(), String> {
-    let salt: [u8; 16] = rand::random();
+    let mut salt = [0u8; 16];
+    OsRng.fill_bytes(&mut salt);
     create(root, passphrase, &salt, store)
 }
 
@@ -176,7 +182,8 @@ fn create_with_params(
     };
 
     let master = derive_master(passphrase, salt, &cfg)?;
-    let data_key: [u8; 32] = rand::random();
+    let mut data_key = [0u8; 32];
+    OsRng.fill_bytes(&mut data_key);
 
     let (wrapped, nonce) = encrypt(&data_key, &master);
     let cfg = VaultConfig {

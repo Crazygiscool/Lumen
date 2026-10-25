@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ffi/vault_service.dart';
 import '../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/lumen_colors.dart';
@@ -675,6 +677,63 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
     return 'Note';
   }
 
+  Future<void> _attachImage() async {
+    final picked = await showPathPicker(
+      context,
+      mode: PathPickerMode.file,
+      initialPath: null,
+      title: 'Choose an image to attach',
+      extensions: const [
+        '.png',
+        '.jpg',
+        '.jpeg',
+        '.gif',
+        '.webp',
+        '.heic',
+      ],
+    );
+    if (picked == null || !mounted) return;
+
+    try {
+      final file = File(picked);
+      final bytes = await file.readAsBytes();
+      final rawName = file.uri.pathSegments.isEmpty
+          ? 'image'
+          : file.uri.pathSegments.last;
+      final safeName = rawName.replaceAll(
+        RegExp(r'[^A-Za-z0-9._-]'),
+        '_',
+      );
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final relPath = 'attachments/${stamp}_$safeName';
+      await ref.read(journalVaultServiceProvider).writeBytes(relPath, bytes);
+
+      final insertion = '![$safeName]($relPath)';
+      final selection = _ctl.selection;
+      if (selection.isValid && selection.start >= 0) {
+        final updated = _ctl.text.replaceRange(
+          selection.start,
+          selection.end,
+          insertion,
+        );
+        _ctl.value = TextEditingValue(
+          text: updated,
+          selection: TextSelection.collapsed(
+            offset: selection.start + insertion.length,
+          ),
+        );
+      } else {
+        final current = _ctl.text;
+        _ctl.text = current.isEmpty
+            ? insertion
+            : '$current\n\n$insertion';
+      }
+      widget.onDirty();
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = LumenColors.of(context);
@@ -710,6 +769,11 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
                 icon: const Icon(Icons.delete_outline),
               ),
               IconButton(
+                tooltip: 'Attach image',
+                onPressed: _attachImage,
+                icon: const Icon(Icons.image_outlined),
+              ),
+              IconButton(
                 tooltip: 'Close',
                 onPressed: widget.onClose,
                 icon: const Icon(Icons.close),
@@ -735,6 +799,21 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
                   child: Markdown(
                     data: _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
                     selectable: true,
+                    imageBuilder: (uri, title, alt) {
+                      final resolvedAlt = alt ?? title ?? 'image';
+                      final scheme = uri.scheme.toLowerCase();
+                      if (scheme == 'http' || scheme == 'https') {
+                        return Image.network(uri.toString(), semanticLabel: resolvedAlt);
+                      }
+                      if (scheme == 'data' && uri.data != null) {
+                        return Image.memory(uri.data!.contentAsBytes(), semanticLabel: resolvedAlt);
+                      }
+                      return _EncryptedVaultImage(
+                        vault: ref.read(journalVaultServiceProvider),
+                        path: uri.toString(),
+                        alt: resolvedAlt,
+                      );
+                    },
                   ),
                 )
               : Padding(
@@ -759,6 +838,37 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _EncryptedVaultImage extends StatelessWidget {
+  const _EncryptedVaultImage({
+    required this.vault,
+    required this.path,
+    required this.alt,
+  });
+
+  final VaultService vault;
+  final String path;
+  final String alt;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List>(
+      future: vault.readBytes(path),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox(
+            height: 120,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        if (snapshot.hasError || snapshot.data == null) {
+          return Text('Could not load $alt');
+        }
+        return Image.memory(snapshot.data!, semanticLabel: alt);
+      },
     );
   }
 }

@@ -3,9 +3,9 @@
 > Reverse-engineered from a real Stoic iOS app export (v2.x). The export is a `.zip` file containing JSON files and an `assets/` directory.
 >
 > Lumen's importer reads `journal-entries.json`, `routines.json`,
-> `answers.json`, `locations.json`, and `tags.json`. Media under `assets/` is
-> intentionally skipped (only text entries are imported). Zip imports extract
-> only the JSON files.
+> `answers.json`, `locations.json`, `tags.json`, and `assets.json`. Media under
+> `assets/` is copied into the encrypted vault and linked to its dated note.
+> Zip imports extract all files, including media.
 
 ## Overview
 

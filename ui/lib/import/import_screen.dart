@@ -113,7 +113,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             description:
                 'Import a Stoic journal export folder or .zip '
                 '(journal-entries.json, routines.json, answers.json). '
-                'Media attachments are skipped.',
+                'Media attachments are imported and encrypted.',
             busy: _busy == 'Stoic export',
             enabled: _busy == null,
             onPressed: () => _run(

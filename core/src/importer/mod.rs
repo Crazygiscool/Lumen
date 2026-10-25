@@ -3,12 +3,14 @@
 //! Imports write Markdown files through [`crate::vault`], so the journal store
 //! must be unlocked first. Nothing is ever written in plaintext.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
+use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -116,7 +118,9 @@ fn short_id(id: &str) -> String {
     let compact: String = id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
     let short: String = compact.chars().take(8).collect();
     if short.is_empty() {
-        format!("{:08x}", rand::random::<u32>())
+        let mut bytes = [0u8; 4];
+        OsRng.fill_bytes(&mut bytes);
+        format!("{:08x}", u32::from_le_bytes(bytes))
     } else {
         short
     }
@@ -433,6 +437,21 @@ fn tag_name(tag: &RawTag) -> String {
     }
 }
 
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAsset {
+    #[serde(default)]
+    relative_path: String,
+    #[serde(default)]
+    uuid: String,
+    #[serde(default)]
+    answer: Option<String>,
+    #[serde(default)]
+    journal_entry: Option<String>,
+    #[serde(default, rename = "type")]
+    asset_type: String,
+}
+
 fn format_context(context: &str) -> String {
     let known = match context {
         "routine-evening" => "Evening Routine",
@@ -531,13 +550,14 @@ fn extract_json_from_zip(zip_path: &Path) -> Result<TempDir, String> {
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let name = entry.name().to_string();
-        if !name.to_ascii_lowercase().ends_with(".json") {
+        if entry.is_dir() {
             continue;
         }
         let Some(rel) = entry.enclosed_name().map(|p| p.to_path_buf()) else {
             continue;
         };
+        // Extract every file, including media under assets/, so encrypted
+        // attachments can be imported and linked to their entries.
         let out = dir.join(rel);
         if let Some(parent) = out.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -632,6 +652,12 @@ fn stoic_entry_body(
     body
 }
 
+#[derive(Clone)]
+struct AssetTarget {
+    kind: String,
+    id: String,
+}
+
 fn import_stoic_dir(root: &Path, store: &str) -> Result<ImportResult, String> {
     let answers: std::collections::HashMap<String, RawAnswer> =
         read_json::<RawAnswer>(root, "answers.json")
@@ -653,14 +679,112 @@ fn import_stoic_dir(root: &Path, store: &str) -> Result<ImportResult, String> {
         .into_iter()
         .map(|t| (t.uuid.clone(), t))
         .collect();
+    let assets: Vec<RawAsset> = read_json(root, "assets.json");
 
     let entries: Vec<RawEntry> = read_json(root, "journal-entries.json");
     let mut result = ImportResult::default();
     let mut existing = existing_files(store)?;
 
+    // Map each answer UUID back to the journal entry/routine that owns it, so
+    // media attached to an answer can be linked to the right dated note.
+    let mut answer_owner: HashMap<String, AssetTarget> = HashMap::new();
+    for entry in &entries {
+        for answer_id in &entry.answers {
+            answer_owner
+                .entry(answer_id.clone())
+                .or_insert(AssetTarget {
+                    kind: "journal".to_string(),
+                    id: entry.uuid.clone(),
+                });
+        }
+    }
+    for routine in &routines {
+        for answer_id in &routine.answers {
+            answer_owner
+                .entry(answer_id.clone())
+                .or_insert(AssetTarget {
+                    kind: "routine".to_string(),
+                    id: routine.uuid.clone(),
+                });
+        }
+    }
+
+    // Copy every linked asset into the encrypted vault and collect Markdown
+    // references keyed by their owning entry/routine UUID.
+    let mut journal_asset_lines: HashMap<String, Vec<String>> = HashMap::new();
+    let mut routine_asset_lines: HashMap<String, Vec<String>> = HashMap::new();
+    for asset in &assets {
+        let rel = asset.relative_path.trim().replace('\\', "/");
+        if rel.is_empty()
+            || rel.starts_with('/')
+            || rel.split('/').any(|p| p == ".." || p.is_empty())
+        {
+            continue;
+        }
+        let source_path = root.join(&rel);
+        if !source_path.is_file() {
+            // Location/contact-style placeholders do not exist on disk.
+            continue;
+        }
+        let bytes = match fs::read(&source_path) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        if vault::write_bytes(&rel, &bytes, store).is_err() {
+            continue;
+        }
+
+        let name = if asset.uuid.trim().is_empty() {
+            rel.rsplit('/').next().unwrap_or("media").to_string()
+        } else {
+            asset.uuid.clone()
+        };
+        let link = if asset.asset_type.eq_ignore_ascii_case("image") {
+            format!("![{}]({})", name, rel)
+        } else {
+            format!("[{}]({})", name, rel)
+        };
+
+        if let Some(journal_entry) = asset
+            .journal_entry
+            .as_ref()
+            .filter(|s| !s.trim().is_empty())
+        {
+            journal_asset_lines
+                .entry(journal_entry.clone())
+                .or_default()
+                .push(link.clone());
+        }
+        if let Some(answer) = asset.answer.as_ref().filter(|s| !s.trim().is_empty()) {
+            if let Some(target) = answer_owner.get(answer) {
+                match target.kind.as_str() {
+                    "journal" => {
+                        journal_asset_lines
+                            .entry(target.id.clone())
+                            .or_default()
+                            .push(link.clone());
+                    }
+                    "routine" => {
+                        routine_asset_lines
+                            .entry(target.id.clone())
+                            .or_default()
+                            .push(link.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     for entry in &entries {
         let date = date_from_stoic(&entry.calendar_date, entry.timestamp);
-        let body = stoic_entry_body(entry, &answers, &routines_map, &locations, &tags, &date);
+        let mut body = stoic_entry_body(entry, &answers, &routines_map, &locations, &tags, &date);
+        if let Some(lines) = journal_asset_lines.get(&entry.uuid) {
+            if !lines.is_empty() {
+                body.push_str("\n\n**Attachments:**\n");
+                body.push_str(&lines.join("\n"));
+            }
+        }
         let desired = format!("{date}-stoic-{}.md", short_id(&entry.uuid));
         write_note(&mut existing, &desired, &body, store, &mut result)?;
     }
@@ -701,6 +825,14 @@ fn import_stoic_dir(root: &Path, store: &str) -> Result<ImportResult, String> {
                 format_context(&answer.context)
             };
             lines.push(format!("\n- **{label}:** {}", answer.text));
+        }
+        if let Some(asset_lines) = routine_asset_lines.get(&routine.uuid) {
+            if !asset_lines.is_empty() {
+                lines.push("\n\n**Attachments:**".to_string());
+                for line in asset_lines {
+                    lines.push(line.clone());
+                }
+            }
         }
         let desired = format!("{date}-routine-{}.md", short_id(&routine.uuid));
         write_note(&mut existing, &desired, &lines.join(""), store, &mut result)?;
