@@ -58,34 +58,34 @@ class LumenApp extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final plugins = ref.watch(pluginsProvider);
     ref.watch(pluginFontsProvider);
+    final activeThemeId =
+        settings.activeThemeId ?? settings.activeThemePluginId;
+
     final List<PluginInfo> themePlugins = plugins.maybeWhen(
       data: (list) => list.all
           .where((p) => p.enabled && p.contributions['theme'] is Map)
-          .toList(),
+          .toList(growable: true),
       orElse: () => const <PluginInfo>[],
     );
-    PluginInfo? selectedTheme;
-    if (settings.activeThemePluginId != null) {
+
+    PluginInfo? selectedThemePlugin;
+    if (activeThemeId != null) {
       for (final plugin in themePlugins) {
-        if (plugin.id == settings.activeThemePluginId) {
-          selectedTheme = plugin;
+        if (plugin.id == activeThemeId) {
+          selectedThemePlugin = plugin;
           break;
         }
       }
     }
-    if (selectedTheme == null && themePlugins.isNotEmpty) {
-      selectedTheme = themePlugins.fold<PluginInfo?>(
-        null,
-        (best, plugin) =>
-            best == null || plugin.priority > best.priority ? plugin : best,
-      );
-    }
-    final tokens = selectedTheme == null
-        ? null
-        : PluginThemeTokens.fromMap(
-            (selectedTheme.contributions['theme'] as Map)
-                .cast<String, dynamic>(),
-          );
+
+    final selectedBuiltinTheme = builtinThemeById(activeThemeId);
+    final tokens = selectedBuiltinTheme?.tokens ??
+        (selectedThemePlugin == null
+            ? null
+            : PluginThemeTokens.fromMap(
+                (selectedThemePlugin.contributions['theme'] as Map)
+                    .cast<String, dynamic>(),
+              ));
 
     final iconSource = plugins.maybeWhen(
       data: (list) => list.all
@@ -95,9 +95,9 @@ class LumenApp extends ConsumerWidget {
     );
     final iconPlugins = List<PluginInfo>.from(iconSource)
       ..sort((a, b) => b.priority.compareTo(a.priority));
-    final selectedIconPlugin = selectedTheme != null &&
-            selectedTheme.contributions['icons'] is Map
-        ? selectedTheme
+    final selectedIconPlugin = selectedThemePlugin != null &&
+            selectedThemePlugin.contributions['icons'] is Map
+        ? selectedThemePlugin
         : (iconPlugins.isEmpty ? null : iconPlugins.first);
     AppIcons.setActivePack(
       selectedIconPlugin == null

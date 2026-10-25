@@ -130,3 +130,101 @@ class PluginThemeTokens {
     );
   }
 }
+/// A theme that ships with Lumen itself, rather than arriving as a plugin.
+@immutable
+class BuiltinTheme {
+  const BuiltinTheme({
+    required this.id,
+    required this.name,
+    required this.tokens,
+  });
+
+  final String id;
+  final String name;
+  final PluginThemeTokens tokens;
+}
+
+const List<BuiltinTheme> builtinThemes = <BuiltinTheme>[
+  BuiltinTheme(
+    id: 'lumen',
+    name: 'Lumen default',
+    tokens: PluginThemeTokens(),
+  ),
+  BuiltinTheme(
+    id: 'aurora',
+    name: 'Aurora',
+    tokens: PluginThemeTokens(
+      primary: Color(0xFF9FD0FF),
+      primaryContainer: Color(0xFF1B3A6B),
+      onPrimaryContainer: Color(0xFFDCEBFF),
+      secondary: Color(0xFFBDA9FF),
+      background: Color(0xFF070B14),
+      surfaceLow: Color(0xFF101826),
+      surfaceContainer: Color(0xFF152033),
+      surfaceHigh: Color(0xFF1C2A42),
+      surfaceHighest: Color(0xFF243552),
+      onSurface: Color(0xFFEAF0FF),
+      onSurfaceVariant: Color(0xFFA9B7D5),
+      outline: Color(0xFF6B7FA8),
+      outlineVariant: Color(0xFF3A4B70),
+      success: Color(0xFF7DD8A4),
+      warning: Color(0xFFF5C877),
+      error: Color(0xFFFFB4AB),
+      fontFamily: 'Geist',
+    ),
+  ),
+  BuiltinTheme(
+    id: 'ember',
+    name: 'Ember',
+    tokens: PluginThemeTokens(
+      primary: Color(0xFFFFB47A),
+      primaryContainer: Color(0xFF6B2E12),
+      onPrimaryContainer: Color(0xFFFFE0C7),
+      secondary: Color(0xFFFFD45A),
+      background: Color(0xFF120A06),
+      surfaceLow: Color(0xFF1F120B),
+      surfaceContainer: Color(0xFF2A1810),
+      surfaceHigh: Color(0xFF3A2317),
+      surfaceHighest: Color(0xFF4A2F1F),
+      onSurface: Color(0xFFF6ECE3),
+      onSurfaceVariant: Color(0xFFCDB7A6),
+      outline: Color(0xFF8A6F5D),
+      outlineVariant: Color(0xFF5A4031),
+      success: Color(0xFF9ED6A8),
+      warning: Color(0xFFF0C16C),
+      error: Color(0xFFFFB4AB),
+      fontFamily: 'Geist',
+    ),
+  ),
+  BuiltinTheme(
+    id: 'forest',
+    name: 'Forest',
+    tokens: PluginThemeTokens(
+      primary: Color(0xFF7FD6A6),
+      primaryContainer: Color(0xFF17422D),
+      onPrimaryContainer: Color(0xFFD8F7E6),
+      secondary: Color(0xFF8BD3FF),
+      background: Color(0xFF06110C),
+      surfaceLow: Color(0xFF0E1C16),
+      surfaceContainer: Color(0xFF14261E),
+      surfaceHigh: Color(0xFF1B3328),
+      surfaceHighest: Color(0xFF244234),
+      onSurface: Color(0xFFE6F2EC),
+      onSurfaceVariant: Color(0xFFA6C0B4),
+      outline: Color(0xFF6F9082),
+      outlineVariant: Color(0xFF3D574B),
+      success: Color(0xFF8BE0B0),
+      warning: Color(0xFFF2D38B),
+      error: Color(0xFFFFB4AB),
+      fontFamily: 'Geist',
+    ),
+  ),
+];
+
+BuiltinTheme? builtinThemeById(String? id) {
+  if (id == null) return null;
+  for (final theme in builtinThemes) {
+    if (theme.id == id) return theme;
+  }
+  return null;
+}

@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../ffi/plugin_service.dart';
 import '../state/providers.dart';
 import 'lumen_colors.dart';
+import 'plugin_theme.dart';
 
-/// A dedicated screen for selecting and applying Lumen themes live.
 class ThemeManagerScreen extends ConsumerWidget {
   const ThemeManagerScreen({super.key});
 
@@ -16,12 +16,22 @@ class ThemeManagerScreen extends ConsumerWidget {
     final notifier = ref.read(settingsProvider.notifier);
     final plugins = ref.watch(pluginsProvider);
 
-    final themes = plugins.maybeWhen(
+    final pluginThemes = plugins.maybeWhen(
       data: (list) => list.all
           .where((plugin) => plugin.enabled && plugin.contributions['theme'] is Map)
           .toList(growable: false),
       orElse: () => const <PluginInfo>[],
     );
+
+    final activeId = settings.activeThemeId ?? settings.activeThemePluginId;
+    final dropdownItems = <DropdownMenuItem<String?>>[
+      const DropdownMenuItem<String?>(value: null, child: Text('Lumen default')),
+      for (final theme in builtinThemes)
+        if (theme.id != 'lumen')
+          DropdownMenuItem<String?>(value: theme.id, child: Text(theme.name)),
+      for (final plugin in pluginThemes)
+        DropdownMenuItem<String?>(value: plugin.id, child: Text(plugin.name)),
+    ];
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -29,34 +39,50 @@ class ThemeManagerScreen extends ConsumerWidget {
         Text('Theme manager', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
         Text(
-          'Select a Lumen theme and apply it live. Themes may contribute '
-          'colors, fonts, icons, and other presentation tokens.',
+          'Select a Lumen theme and apply it live, including colors, fonts, '
+          'and icon variants when provided.',
           style: TextStyle(color: t.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
-        _ThemeOptionTile(
-          title: 'Lumen default',
-          subtitle: 'The built-in midnight/daylight appearance.',
-          selected: settings.activeThemePluginId == null,
-          onTap: () => notifier.setActiveThemePluginId(null),
+        DropdownButton<String?>(
+          value: activeId,
+          isExpanded: true,
+          items: dropdownItems,
+          onChanged: (value) {
+            final builtin = builtinThemeById(value);
+            if (value == 'lumen' || builtin != null && value == 'lumen') {
+              notifier.setActiveThemeId(null);
+              return;
+            }
+            notifier.setActiveThemeId(value);
+          },
         ),
-        for (final plugin in themes)
-          _ThemeOptionTile(
-            title: plugin.name,
-            subtitle: plugin.description ?? 'Plugin-contributed theme.',
-            selected: settings.activeThemePluginId == plugin.id,
-            onTap: () => notifier.setActiveThemePluginId(plugin.id),
-          ),
-        if (themes.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              'No plugin themes are enabled. Enable one on the Plugins screen.',
-              style: TextStyle(color: t.onSurfaceVariant),
+        const SizedBox(height: 12),
+        ...dropdownItems
+            .where((item) => item.value != null)
+            .map(
+              (item) => _ThemeOptionTile(
+                title: item.child is Text
+                    ? (item.child as Text).data ?? ''
+                    : '',
+                subtitle: item.value == null
+                    ? 'Built-in theme'
+                    : _subtitleFor(item.value!, pluginThemes),
+                selected: activeId == item.value,
+                onTap: () => notifier.setActiveThemeId(item.value),
+              ),
             ),
-          ),
       ],
     );
+  }
+
+  String _subtitleFor(String id, List<PluginInfo> pluginThemes) {
+    for (final plugin in pluginThemes) {
+      if (plugin.id == id) return plugin.description ?? 'Plugin-contributed theme.';
+    }
+    final builtin = builtinThemeById(id);
+    if (builtin != null) return 'Built-in theme.';
+    return 'Theme';
   }
 }
 

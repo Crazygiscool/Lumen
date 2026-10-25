@@ -225,6 +225,7 @@ class AppSettings {
     this.themeSource = ThemeSource.system,
     this.journalVaultPath,
     this.activeThemePluginId,
+    this.activeThemeId,
   });
   final ThemeSource themeSource;
 
@@ -234,11 +235,17 @@ class AppSettings {
   /// Enabled plugin theme id to apply, or `null` for the default Lumen theme.
   final String? activeThemePluginId;
 
+  /// General active theme id (`null` means Lumen default). Built-in theme ids
+  /// and plugin ids are both allowed.
+  final String? activeThemeId;
+
   AppSettings copyWith({
     ThemeSource? themeSource,
     String? journalVaultPath,
     String? activeThemePluginId,
     bool clearActiveThemePluginId = false,
+    String? activeThemeId,
+    bool clearActiveThemeId = false,
   }) =>
       AppSettings(
         themeSource: themeSource ?? this.themeSource,
@@ -246,6 +253,9 @@ class AppSettings {
         activeThemePluginId: clearActiveThemePluginId
             ? null
             : (activeThemePluginId ?? this.activeThemePluginId),
+        activeThemeId: clearActiveThemeId
+            ? null
+            : (activeThemeId ?? this.activeThemeId),
       );
 }
 
@@ -265,6 +275,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
       )],
       journalVaultPath: prefs.getString('journalVaultPath'),
       activeThemePluginId: prefs.getString('activeThemePluginId'),
+      activeThemeId: prefs.getString('activeThemeId'),
     );
   }
 
@@ -285,6 +296,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
     } else {
       state = state.copyWith(activeThemePluginId: id);
       _prefs?.setString('activeThemePluginId', id);
+    }
+  }
+
+  void setActiveThemeId(String? id) {
+    if (id == null || id.isEmpty) {
+      state = state.copyWith(clearActiveThemeId: true);
+      _prefs?.remove('activeThemeId');
+    } else {
+      state = state.copyWith(activeThemeId: id);
+      _prefs?.setString('activeThemeId', id);
     }
   }
 }
