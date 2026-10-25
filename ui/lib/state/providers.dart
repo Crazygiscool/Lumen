@@ -226,6 +226,8 @@ class AppSettings {
     this.journalVaultPath,
     this.activeThemePluginId,
     this.activeThemeId,
+    this.activeFontFamily,
+    this.activeIconPackId,
   });
   final ThemeSource themeSource;
 
@@ -238,6 +240,8 @@ class AppSettings {
   /// General active theme id (`null` means Lumen default). Built-in theme ids
   /// and plugin ids are both allowed.
   final String? activeThemeId;
+  final String? activeFontFamily;
+  final String? activeIconPackId;
 
   AppSettings copyWith({
     ThemeSource? themeSource,
@@ -246,6 +250,10 @@ class AppSettings {
     bool clearActiveThemePluginId = false,
     String? activeThemeId,
     bool clearActiveThemeId = false,
+    String? activeFontFamily,
+    bool clearActiveFontFamily = false,
+    String? activeIconPackId,
+    bool clearActiveIconPackId = false,
   }) =>
       AppSettings(
         themeSource: themeSource ?? this.themeSource,
@@ -256,6 +264,12 @@ class AppSettings {
         activeThemeId: clearActiveThemeId
             ? null
             : (activeThemeId ?? this.activeThemeId),
+        activeFontFamily: clearActiveFontFamily
+            ? null
+            : (activeFontFamily ?? this.activeFontFamily),
+        activeIconPackId: clearActiveIconPackId
+            ? null
+            : (activeIconPackId ?? this.activeIconPackId),
       );
 }
 
@@ -276,6 +290,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
       journalVaultPath: prefs.getString('journalVaultPath'),
       activeThemePluginId: prefs.getString('activeThemePluginId'),
       activeThemeId: prefs.getString('activeThemeId'),
+      activeFontFamily: prefs.getString('activeFontFamily'),
+      activeIconPackId: prefs.getString('activeIconPackId'),
     );
   }
 
@@ -306,6 +322,26 @@ class SettingsNotifier extends Notifier<AppSettings> {
     } else {
       state = state.copyWith(activeThemeId: id);
       _prefs?.setString('activeThemeId', id);
+    }
+  }
+
+  void setActiveFontFamily(String? family) {
+    if (family == null || family.isEmpty || family == 'Geist') {
+      state = state.copyWith(clearActiveFontFamily: true);
+      _prefs?.remove('activeFontFamily');
+    } else {
+      state = state.copyWith(activeFontFamily: family);
+      _prefs?.setString('activeFontFamily', family);
+    }
+  }
+
+  void setActiveIconPackId(String? id) {
+    if (id == null || id.isEmpty) {
+      state = state.copyWith(clearActiveIconPackId: true);
+      _prefs?.remove('activeIconPackId');
+    } else {
+      state = state.copyWith(activeIconPackId: id);
+      _prefs?.setString('activeIconPackId', id);
     }
   }
 }

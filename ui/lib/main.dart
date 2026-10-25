@@ -86,6 +86,10 @@ class LumenApp extends ConsumerWidget {
                 (selectedThemePlugin.contributions['theme'] as Map)
                     .cast<String, dynamic>(),
               ));
+    final effectiveTokens = settings.activeFontFamily == null
+        ? tokens
+        : (tokens ?? const PluginThemeTokens())
+            .copyWith(fontFamily: settings.activeFontFamily);
 
     final iconSource = plugins.maybeWhen(
       data: (list) => list.all
@@ -95,7 +99,16 @@ class LumenApp extends ConsumerWidget {
     );
     final iconPlugins = List<PluginInfo>.from(iconSource)
       ..sort((a, b) => b.priority.compareTo(a.priority));
-    final selectedIconPlugin = selectedThemePlugin != null &&
+    PluginInfo? selectedIconPlugin;
+    if (settings.activeIconPackId != null) {
+      for (final plugin in iconPlugins) {
+        if (plugin.id == settings.activeIconPackId) {
+          selectedIconPlugin = plugin;
+          break;
+        }
+      }
+    }
+    selectedIconPlugin ??= selectedThemePlugin != null &&
             selectedThemePlugin.contributions['icons'] is Map
         ? selectedThemePlugin
         : (iconPlugins.isEmpty ? null : iconPlugins.first);
@@ -105,12 +118,12 @@ class LumenApp extends ConsumerWidget {
           : (selectedIconPlugin.contributions['icons'] as Map)
               .cast<String, dynamic>(),
     );
-    LumenColors.setActiveTheme(tokens);
+    LumenColors.setActiveTheme(effectiveTokens);
     return MaterialApp(
       title: 'Lumen',
       debugShowCheckedModeBanner: false,
-      theme: buildLumenTheme(dark: false, tokens: tokens),
-      darkTheme: buildLumenTheme(dark: true, tokens: tokens),
+      theme: buildLumenTheme(dark: false, tokens: effectiveTokens),
+      darkTheme: buildLumenTheme(dark: true, tokens: effectiveTokens),
       themeMode: resolveThemeMode(settings.themeSource),
       home: const LumenShell(),
     );

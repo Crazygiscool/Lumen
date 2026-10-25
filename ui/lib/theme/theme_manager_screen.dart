@@ -18,20 +18,50 @@ class ThemeManagerScreen extends ConsumerWidget {
 
     final pluginThemes = plugins.maybeWhen(
       data: (list) => list.all
-          .where((plugin) => plugin.enabled && plugin.contributions['theme'] is Map)
+          .where(
+            (plugin) =>
+                plugin.id != 'theme_manager' &&
+                plugin.enabled &&
+                plugin.contributions['theme'] is Map,
+          )
           .toList(growable: false),
       orElse: () => const <PluginInfo>[],
     );
 
-    final activeId = settings.activeThemeId ?? settings.activeThemePluginId;
-    final dropdownItems = <DropdownMenuItem<String?>>[
-      const DropdownMenuItem<String?>(value: null, child: Text('Lumen default')),
+    final allThemes = <_ThemeChoice>[
+      const _ThemeChoice(id: null, label: 'Lumen default', tokens: null),
       for (final theme in builtinThemes)
         if (theme.id != 'lumen')
-          DropdownMenuItem<String?>(value: theme.id, child: Text(theme.name)),
+          _ThemeChoice(id: theme.id, label: theme.name, tokens: theme.tokens),
       for (final plugin in pluginThemes)
-        DropdownMenuItem<String?>(value: plugin.id, child: Text(plugin.name)),
+        _ThemeChoice(
+          id: plugin.id,
+          label: plugin.name,
+          tokens: PluginThemeTokens.fromMap(
+            (plugin.contributions['theme'] as Map).cast<String, dynamic>(),
+          ),
+        ),
     ];
+
+    final activeId = settings.activeThemeId ?? settings.activeThemePluginId;
+    final availableFonts = <String>{'Geist'};
+    if (settings.activeFontFamily != null &&
+        settings.activeFontFamily!.isNotEmpty) {
+      availableFonts.add(settings.activeFontFamily!);
+    }
+    for (final plugin in pluginThemes) {
+      final family =
+          ((plugin.contributions['theme'] as Map?)?['fontFamily'] as String?);
+      if (family != null && family.isNotEmpty) availableFonts.add(family);
+    }
+    final fontList = availableFonts.toList(growable: true)..sort();
+
+    final iconPlugins = plugins.maybeWhen(
+      data: (list) => list.all
+          .where((plugin) => plugin.enabled && plugin.contributions['icons'] is Map)
+          .toList(growable: false),
+      orElse: () => const <PluginInfo>[],
+    );
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -39,80 +69,151 @@ class ThemeManagerScreen extends ConsumerWidget {
         Text('Theme manager', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
         Text(
-          'Select a Lumen theme and apply it live, including colors, fonts, '
-          'and icon variants when provided.',
+          'Choose a theme card, then customize fonts and icons. Changes are '
+          'applied live.',
           style: TextStyle(color: t.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
-        DropdownButton<String?>(
-          value: activeId,
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (final choice in allThemes)
+              _ThemeCard(
+                choice: choice,
+                selected: activeId == choice.id,
+                onApply: () => notifier.setActiveThemeId(choice.id),
+              ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        Text('Font customization', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        DropdownButton<String>(
+          value: settings.activeFontFamily ?? 'Geist',
           isExpanded: true,
-          items: dropdownItems,
+          items: [
+            for (final font in fontList)
+              DropdownMenuItem<String>(value: font, child: Text(font)),
+          ],
           onChanged: (value) {
-            final builtin = builtinThemeById(value);
-            if (value == 'lumen' || builtin != null && value == 'lumen') {
-              notifier.setActiveThemeId(null);
-              return;
-            }
-            notifier.setActiveThemeId(value);
+            if (value == null) return;
+            notifier.setActiveFontFamily(value == 'Geist' ? null : value);
           },
         ),
-        const SizedBox(height: 12),
-        ...dropdownItems
-            .where((item) => item.value != null)
-            .map(
-              (item) => _ThemeOptionTile(
-                title: item.child is Text
-                    ? (item.child as Text).data ?? ''
-                    : '',
-                subtitle: item.value == null
-                    ? 'Built-in theme'
-                    : _subtitleFor(item.value!, pluginThemes),
-                selected: activeId == item.value,
-                onTap: () => notifier.setActiveThemeId(item.value),
+        const SizedBox(height: 28),
+        Text('Icon customization', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        DropdownButton<String>(
+          value: settings.activeIconPackId ?? '',
+          isExpanded: true,
+          items: [
+            const DropdownMenuItem<String>(value: '', child: Text('Default Lumen')),
+            for (final plugin in iconPlugins)
+              DropdownMenuItem<String>(
+                value: plugin.id,
+                child: Text(plugin.name),
               ),
-            ),
+          ],
+          onChanged: (value) {
+            if (value == null || value.isEmpty) {
+              notifier.setActiveIconPackId(null);
+            } else {
+              notifier.setActiveIconPackId(value);
+            }
+          },
+        ),
       ],
     );
   }
-
-  String _subtitleFor(String id, List<PluginInfo> pluginThemes) {
-    for (final plugin in pluginThemes) {
-      if (plugin.id == id) return plugin.description ?? 'Plugin-contributed theme.';
-    }
-    final builtin = builtinThemeById(id);
-    if (builtin != null) return 'Built-in theme.';
-    return 'Theme';
-  }
 }
 
-class _ThemeOptionTile extends StatelessWidget {
-  const _ThemeOptionTile({
-    required this.title,
-    required this.subtitle,
-    required this.selected,
-    required this.onTap,
+class _ThemeChoice {
+  const _ThemeChoice({
+    required this.id,
+    required this.label,
+    required this.tokens,
   });
 
-  final String title;
-  final String subtitle;
+  final String? id;
+  final String label;
+  final PluginThemeTokens? tokens;
+}
+
+class _ThemeCard extends StatelessWidget {
+  const _ThemeCard({
+    required this.choice,
+    required this.selected,
+    required this.onApply,
+  });
+
+  final _ThemeChoice choice;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback onApply;
 
   @override
   Widget build(BuildContext context) {
     final t = LumenColors.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Icon(
-          selected ? Icons.check_circle : Icons.palette_outlined,
-          color: selected ? t.primary : t.onSurfaceVariant,
+    final palette = (choice.tokens ?? const PluginThemeTokens()).applyTo(lumenPaletteDark);
+
+    return SizedBox(
+      width: 220,
+      child: Card(
+        color: palette.surfaceHigh,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      choice.label,
+                      style: TextStyle(
+                        color: palette.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    Icon(Icons.check_circle, color: palette.primary, size: 18),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final color in <Color>[
+                    palette.primary,
+                    palette.secondary,
+                    palette.background,
+                    palette.surfaceContainer,
+                    palette.onSurface,
+                  ])
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: t.outlineVariant),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: selected ? null : onApply,
+                  child: Text(selected ? 'Active' : 'Apply'),
+                ),
+              ),
+            ],
+          ),
         ),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: selected ? const Text('Active') : null,
-        onTap: onTap,
       ),
     );
   }

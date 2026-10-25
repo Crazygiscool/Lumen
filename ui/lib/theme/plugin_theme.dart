@@ -52,6 +52,50 @@ class PluginThemeTokens {
   final String? fontFamily;
   final double? radiusMultiplier;
 
+  PluginThemeTokens copyWith({
+    Color? primary,
+    Color? onPrimary,
+    Color? primaryContainer,
+    Color? onPrimaryContainer,
+    Color? secondary,
+    Color? background,
+    Color? surfaceLow,
+    Color? surfaceContainer,
+    Color? surfaceHigh,
+    Color? surfaceHighest,
+    Color? onSurface,
+    Color? onSurfaceVariant,
+    Color? outline,
+    Color? outlineVariant,
+    Color? error,
+    Color? success,
+    Color? warning,
+    Color? info,
+    String? fontFamily,
+    double? radiusMultiplier,
+  }) => PluginThemeTokens(
+    primary: primary ?? this.primary,
+    onPrimary: onPrimary ?? this.onPrimary,
+    primaryContainer: primaryContainer ?? this.primaryContainer,
+    onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
+    secondary: secondary ?? this.secondary,
+    background: background ?? this.background,
+    surfaceLow: surfaceLow ?? this.surfaceLow,
+    surfaceContainer: surfaceContainer ?? this.surfaceContainer,
+    surfaceHigh: surfaceHigh ?? this.surfaceHigh,
+    surfaceHighest: surfaceHighest ?? this.surfaceHighest,
+    onSurface: onSurface ?? this.onSurface,
+    onSurfaceVariant: onSurfaceVariant ?? this.onSurfaceVariant,
+    outline: outline ?? this.outline,
+    outlineVariant: outlineVariant ?? this.outlineVariant,
+    error: error ?? this.error,
+    success: success ?? this.success,
+    warning: warning ?? this.warning,
+    info: info ?? this.info,
+    fontFamily: fontFamily ?? this.fontFamily,
+    radiusMultiplier: radiusMultiplier ?? this.radiusMultiplier,
+  );
+
   static Color? _color(Object? value) {
     if (value is String && value.startsWith('#')) {
       final hex = value.substring(1);
