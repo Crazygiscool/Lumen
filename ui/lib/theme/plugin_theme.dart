@@ -117,7 +117,7 @@ class PluginThemeTokens {
   static PluginThemeTokens? resolveFromPlugins(List<PluginInfo> plugins) {
     final candidates = plugins
         .where((p) => p.enabled && p.contributions['theme'] is Map)
-        .toList(growable: false)
+        .toList()
       ..sort((a, b) => b.priority.compareTo(a.priority));
     if (candidates.isEmpty) return null;
     return PluginThemeTokens.fromMap(

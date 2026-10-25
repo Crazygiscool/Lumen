@@ -60,7 +60,7 @@ class LumenApp extends ConsumerWidget {
     final List<PluginInfo> themePlugins = plugins.maybeWhen(
       data: (list) => list.all
           .where((p) => p.enabled && p.contributions['theme'] is Map)
-          .toList(growable: false),
+          .toList(),
       orElse: () => const <PluginInfo>[],
     );
     PluginInfo? selectedTheme;
@@ -91,7 +91,7 @@ class LumenApp extends ConsumerWidget {
         : (plugins.maybeWhen(
             data: (list) => list.all
                 .where((p) => p.enabled && p.contributions['icons'] is Map)
-                .toList(growable: false),
+                .toList(),
             orElse: () => const <PluginInfo>[],
           ))
       ..sort((a, b) => b.priority.compareTo(a.priority));
