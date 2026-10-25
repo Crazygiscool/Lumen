@@ -47,7 +47,13 @@ class ThemeManagerScreen extends ConsumerWidget {
     final activeId = allThemes.any((choice) => choice.id == requestedActiveId)
         ? requestedActiveId
         : null;
-    final availableFonts = <String>{'Geist'};
+    final availableFonts = <String>{
+      'Geist',
+      'serif',
+      'sans-serif',
+      'monospace',
+      'cursive',
+    };
     if (settings.activeFontFamily != null &&
         settings.activeFontFamily!.isNotEmpty) {
       availableFonts.add(settings.activeFontFamily!);
