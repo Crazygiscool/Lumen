@@ -4,6 +4,9 @@
 #   macOS   -> .app zip
 #   Windows -> portable zip, Inno Setup installer (.exe)
 #
+# After publishing the GitHub Release, the AUR package (lumen-journal) is
+# bumped to the same tag using the AUR_SSH_PRIVATE_KEY repository secret.
+#
 # Pushing a v* tag (or running this workflow against a tag) builds all three
 # platforms and publishes the artifacts to a GitHub Release.
 name: Release
@@ -180,3 +183,23 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-aur:
+    name: Update AUR package
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update lumen-journal on the AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_KNOWN_HOSTS: ${{ secrets.AUR_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "ERROR: AUR_SSH_PRIVATE_KEY repository secret is not set." >&2
+            exit 1
+          fi
+          chmod +x scripts/update_aur.sh
+          ./scripts/update_aur.sh "${GITHUB_REF_NAME}"
