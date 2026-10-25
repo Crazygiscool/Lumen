@@ -180,16 +180,31 @@ ThemeMode resolveThemeMode(ThemeSource source) => switch (source) {
 // ---------------------------------------------------------------------------
 
 class AppSettings {
-  const AppSettings({this.themeSource = ThemeSource.system, this.journalVaultPath});
+  const AppSettings({
+    this.themeSource = ThemeSource.system,
+    this.journalVaultPath,
+    this.activeThemePluginId,
+  });
   final ThemeSource themeSource;
 
   /// Folder holding the encrypted journal (`.lumen/journal.json`).
   final String? journalVaultPath;
 
-  AppSettings copyWith({ThemeSource? themeSource, String? journalVaultPath}) =>
+  /// Enabled plugin theme id to apply, or `null` for the default Lumen theme.
+  final String? activeThemePluginId;
+
+  AppSettings copyWith({
+    ThemeSource? themeSource,
+    String? journalVaultPath,
+    String? activeThemePluginId,
+    bool clearActiveThemePluginId = false,
+  }) =>
       AppSettings(
         themeSource: themeSource ?? this.themeSource,
         journalVaultPath: journalVaultPath ?? this.journalVaultPath,
+        activeThemePluginId: clearActiveThemePluginId
+            ? null
+            : (activeThemePluginId ?? this.activeThemePluginId),
       );
 }
 
@@ -208,6 +223,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         ThemeSource.values.length - 1,
       )],
       journalVaultPath: prefs.getString('journalVaultPath'),
+      activeThemePluginId: prefs.getString('activeThemePluginId'),
     );
   }
 
@@ -219,6 +235,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void setJournalVaultPath(String path) {
     state = state.copyWith(journalVaultPath: path);
     _prefs?.setString('journalVaultPath', path);
+  }
+
+  void setActiveThemePluginId(String? id) {
+    if (id == null || id.isEmpty) {
+      state = state.copyWith(clearActiveThemePluginId: true);
+      _prefs?.remove('activeThemePluginId');
+    } else {
+      state = state.copyWith(activeThemePluginId: id);
+      _prefs?.setString('activeThemePluginId', id);
+    }
   }
 }
 

@@ -46,6 +46,55 @@ class SettingsScreen extends ConsumerWidget {
               selected: {settings.themeSource},
               onSelectionChanged: (s) => notifier.setThemeSource(s.first),
             ),
+            const SizedBox(height: 16),
+            Builder(builder: (context) {
+              final plugins = ref.watch(pluginsProvider);
+              final themes = plugins.maybeWhen(
+                data: (list) => list.all
+                    .where(
+                      (p) => p.enabled && p.contributions['theme'] is Map,
+                    )
+                    .toList(growable: false),
+                orElse: () => const [],
+              );
+              return Row(
+                children: [
+                  const Icon(Icons.palette_outlined, size: 18),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Plugin theme'),
+                        Text(
+                          'Choose an installed plugin theme or restore Lumen default.',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  DropdownButton<String>(
+                    value: settings.activeThemePluginId ?? '',
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('Lumen default'),
+                      ),
+                      for (final plugin in themes)
+                        DropdownMenuItem<String>(
+                          value: plugin.id,
+                          child: Text(plugin.name),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      notifier.setActiveThemePluginId(
+                        (value == null || value.isEmpty) ? null : value,
+                      );
+                    },
+                  ),
+                ],
+              );
+            }),
           ],
         ),
 

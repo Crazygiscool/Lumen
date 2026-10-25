@@ -5,9 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'ffi/plugin_service.dart';
 import 'shell/lumen_shell.dart';
 import 'state/providers.dart';
 import 'theme/app_theme.dart';
+import 'theme/lumen_colors.dart';
+import 'theme/plugin_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,11 +55,41 @@ class LumenApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final plugins = ref.watch(pluginsProvider);
+    final List<PluginInfo> themePlugins = plugins.maybeWhen(
+      data: (list) => list.all
+          .where((p) => p.enabled && p.contributions['theme'] is Map)
+          .toList(growable: false),
+      orElse: () => const <PluginInfo>[],
+    );
+    PluginInfo? selectedTheme;
+    if (settings.activeThemePluginId != null) {
+      for (final plugin in themePlugins) {
+        if (plugin.id == settings.activeThemePluginId) {
+          selectedTheme = plugin;
+          break;
+        }
+      }
+    }
+    if (selectedTheme == null && themePlugins.isNotEmpty) {
+      selectedTheme = themePlugins.fold<PluginInfo?>(
+        null,
+        (best, plugin) =>
+            best == null || plugin.priority > best.priority ? plugin : best,
+      );
+    }
+    final tokens = selectedTheme == null
+        ? null
+        : PluginThemeTokens.fromMap(
+            (selectedTheme.contributions['theme'] as Map)
+                .cast<String, dynamic>(),
+          );
+    LumenColors.setActiveTheme(tokens);
     return MaterialApp(
       title: 'Lumen',
       debugShowCheckedModeBanner: false,
-      theme: buildLumenTheme(dark: false),
-      darkTheme: buildLumenTheme(dark: true),
+      theme: buildLumenTheme(dark: false, tokens: tokens),
+      darkTheme: buildLumenTheme(dark: true, tokens: tokens),
       themeMode: resolveThemeMode(settings.themeSource),
       home: const LumenShell(),
     );

@@ -72,9 +72,18 @@ abstract final class LumenColors {
   static const radiusXl = 18.0;
 
   /// Resolves the palette for the currently active brightness.
+  static dynamic _activePluginTheme;
+
+  static void setActiveTheme(dynamic tokens) {
+    _activePluginTheme = tokens;
+  }
+
   static LumenPalette of(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return dark ? lumenPaletteDark : lumenPaletteLight;
+    final base = dark ? lumenPaletteDark : lumenPaletteLight;
+    final tokens = _activePluginTheme;
+    if (tokens == null) return base;
+    return tokens.applyTo(base) as LumenPalette;
   }
 }
 
@@ -154,6 +163,80 @@ class LumenPalette {
   final Color info;
   final Color success;
   final Color warning;
+
+  LumenPalette copyWith({
+    Color? background,
+    Color? glowIndigo,
+    Color? glowViolet,
+    Color? glowDeep,
+    Color? glass,
+    Color? glassStrong,
+    Color? glassFloat,
+    Color? glassHover,
+    Color? glassSelected,
+    Color? surfaceLow,
+    Color? surfaceContainer,
+    Color? surfaceHigh,
+    Color? surfaceHighest,
+    Color? hairline,
+    Color? hairlineStrong,
+    Color? onSurface,
+    Color? onSurfaceVariant,
+    Color? outline,
+    Color? outlineVariant,
+    Color? primary,
+    Color? onPrimary,
+    Color? primaryContainer,
+    Color? onPrimaryContainer,
+    Color? secondary,
+    Color? onSecondary,
+    Color? secondaryContainer,
+    Color? onSecondaryContainer,
+    Color? tertiary,
+    Color? tertiaryContainer,
+    Color? error,
+    Color? onError,
+    Color? errorContainer,
+    Color? info,
+    Color? success,
+    Color? warning,
+  }) => LumenPalette(
+    background: background ?? this.background,
+    glowIndigo: glowIndigo ?? this.glowIndigo,
+    glowViolet: glowViolet ?? this.glowViolet,
+    glowDeep: glowDeep ?? this.glowDeep,
+    glass: glass ?? this.glass,
+    glassStrong: glassStrong ?? this.glassStrong,
+    glassFloat: glassFloat ?? this.glassFloat,
+    glassHover: glassHover ?? this.glassHover,
+    glassSelected: glassSelected ?? this.glassSelected,
+    surfaceLow: surfaceLow ?? this.surfaceLow,
+    surfaceContainer: surfaceContainer ?? this.surfaceContainer,
+    surfaceHigh: surfaceHigh ?? this.surfaceHigh,
+    surfaceHighest: surfaceHighest ?? this.surfaceHighest,
+    hairline: hairline ?? this.hairline,
+    hairlineStrong: hairlineStrong ?? this.hairlineStrong,
+    onSurface: onSurface ?? this.onSurface,
+    onSurfaceVariant: onSurfaceVariant ?? this.onSurfaceVariant,
+    outline: outline ?? this.outline,
+    outlineVariant: outlineVariant ?? this.outlineVariant,
+    primary: primary ?? this.primary,
+    onPrimary: onPrimary ?? this.onPrimary,
+    primaryContainer: primaryContainer ?? this.primaryContainer,
+    onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
+    secondary: secondary ?? this.secondary,
+    onSecondary: onSecondary ?? this.onSecondary,
+    secondaryContainer: secondaryContainer ?? this.secondaryContainer,
+    onSecondaryContainer: onSecondaryContainer ?? this.onSecondaryContainer,
+    tertiary: tertiary ?? this.tertiary,
+    tertiaryContainer: tertiaryContainer ?? this.tertiaryContainer,
+    error: error ?? this.error,
+    onError: onError ?? this.onError,
+    errorContainer: errorContainer ?? this.errorContainer,
+    info: info ?? this.info,
+    success: success ?? this.success,
+    warning: warning ?? this.warning,
+  );
 }
 
 const lumenPaletteDark = LumenPalette(

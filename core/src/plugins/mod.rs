@@ -44,6 +44,7 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             author: Some("Lumen".into()),
             description: Some("Exports journal entries to Markdown.".into()),
             hooks: ["on_export"].into_iter().map(String::from).collect(),
+            ..Default::default()
         },
         PluginManifest {
             name: "daily_summary".into(),
@@ -51,6 +52,7 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             author: Some("Lumen".into()),
             description: Some("Summarises saved notes with a word count.".into()),
             hooks: ["on_note"].into_iter().map(String::from).collect(),
+            ..Default::default()
         },
         PluginManifest {
             name: "wordcount".into(),
@@ -58,6 +60,7 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             author: Some("Lumen".into()),
             description: Some("Counts words in saved notes.".into()),
             hooks: ["on_note"].into_iter().map(String::from).collect(),
+            ..Default::default()
         },
     ]
 }

@@ -56,12 +56,15 @@ fn manifest_json(m: &PluginManifest, builtin: bool, enabled: bool) -> serde_json
         .collect();
     serde_json::json!({
         "name": m.name,
+        "id": m.id(),
         "version": m.version,
         "author": m.author,
         "description": m.description,
         "hooks": sorted,
         "builtin": builtin,
         "enabled": enabled,
+        "priority": m.priority,
+        "contributes": m.contributes,
     })
 }
 

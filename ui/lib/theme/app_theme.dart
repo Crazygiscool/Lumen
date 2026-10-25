@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'lumen_colors.dart';
+import 'plugin_theme.dart';
 
 /// Builds Lumen's complete Material 3 theme for a given brightness.
 ///
@@ -12,9 +13,14 @@ import 'lumen_colors.dart';
 ///  - GTK systems may override the primary with the desktop accent colour.
 ///  - Every interactive component theme is provided: menus, dropdowns,
 ///    tooltips, scrollbars, chips, dialogs, text fields.
-ThemeData buildLumenTheme({required bool dark, Color? accentPrimary}) {
-  final t = dark ? lumenPaletteDark : lumenPaletteLight;
-  final accent = accentPrimary ?? t.primary;
+ThemeData buildLumenTheme({
+  required bool dark,
+  Color? accentPrimary,
+  PluginThemeTokens? tokens,
+}) {
+  final paletteBase = dark ? lumenPaletteDark : lumenPaletteLight;
+  final t = tokens?.applyTo(paletteBase, accentPrimary: accentPrimary) ?? paletteBase;
+  final accent = accentPrimary ?? tokens?.primary ?? t.primary;
   final accentOn = t.onPrimary;
   final accentContainer = dark ? const Color(0xFF1E2EBD) : t.primaryContainer;
   final accentOnContainer = dark
@@ -98,7 +104,7 @@ ThemeData buildLumenTheme({required bool dark, Color? accentPrimary}) {
     brightness: dark ? Brightness.dark : Brightness.light,
     colorScheme: scheme,
     scaffoldBackgroundColor: t.background,
-    fontFamily: 'Geist',
+    fontFamily: tokens?.fontFamily ?? 'Geist',
     // Never leave icon colour to chance: unpainted icons inherit this and the
     // navigation rail's own icon theme below, both of which must stay legible
     // on the pitch-black backdrop.
