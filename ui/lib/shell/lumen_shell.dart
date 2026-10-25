@@ -12,6 +12,7 @@ import '../settings/settings_screen.dart';
 import '../state/providers.dart';
 import '../theme/app_icons.dart';
 import '../theme/glass.dart';
+import '../theme/theme_manager_screen.dart';
 import '../theme/lumen_colors.dart';
 import 'top_bar.dart';
 
@@ -317,8 +318,9 @@ class _PluginScreenSurface extends ConsumerWidget {
       case 'plugins':
         return const PluginsScreen();
       case 'settings':
-      case 'theme':
         return const SettingsScreen();
+      case 'theme':
+        return const ThemeManagerScreen();
       default:
         return _MarkdownPluginScreen(
           title: screen?.title ?? pin.label,

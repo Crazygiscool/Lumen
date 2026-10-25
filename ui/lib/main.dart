@@ -95,10 +95,14 @@ class LumenApp extends ConsumerWidget {
     );
     final iconPlugins = List<PluginInfo>.from(iconSource)
       ..sort((a, b) => b.priority.compareTo(a.priority));
+    final selectedIconPlugin = selectedTheme != null &&
+            selectedTheme.contributions['icons'] is Map
+        ? selectedTheme
+        : (iconPlugins.isEmpty ? null : iconPlugins.first);
     AppIcons.setActivePack(
-      iconPlugins.isEmpty
+      selectedIconPlugin == null
           ? null
-          : (iconPlugins.first.contributions['icons'] as Map)
+          : (selectedIconPlugin.contributions['icons'] as Map)
               .cast<String, dynamic>(),
     );
     LumenColors.setActiveTheme(tokens);

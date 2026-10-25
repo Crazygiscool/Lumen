@@ -58,6 +58,9 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             priority: 5,
             plugin_id: Some("theme_manager".into()),
             contributes: serde_json::json!({
+                "sidebar": [
+                    { "id": "theme_manager.themes", "label": "Themes", "icon": "dashboard", "action": "screen:theme_manager", "priority": 9 }
+                ],
                 "screens": [
                     { "id": "theme_manager", "label": "Theme manager", "icon": "settings", "template": "theme", "title": "Theme manager" }
                 ],
