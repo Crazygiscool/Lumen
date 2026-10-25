@@ -15,6 +15,7 @@ class PluginSidebarPin {
     required this.pluginId,
     required this.label,
     this.icon = 'pin',
+    this.action = 'plugin',
     this.priority = 0,
   });
 
@@ -22,6 +23,7 @@ class PluginSidebarPin {
   final String pluginId;
   final String label;
   final String icon;
+  final String action;
   final int priority;
 }
 
@@ -500,6 +502,7 @@ final pluginSidebarPinsProvider = Provider<List<PluginSidebarPin>>((ref) {
               pluginId: plugin.id,
               label: map['label']?.toString() ?? plugin.name,
               icon: map['icon']?.toString() ?? 'pin',
+              action: map['action']?.toString() ?? 'plugin',
               priority: (map['priority'] as num?)?.toInt() ?? plugin.priority,
             ),
           );

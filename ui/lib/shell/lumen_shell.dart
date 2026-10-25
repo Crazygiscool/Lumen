@@ -67,7 +67,23 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                               .read(selectedSectionProvider.notifier)
                               .select(LumenSection.values[index]);
                         } else {
-                          setState(() => _selectedPinId = pins[index - coreCount].id);
+                          final pin = pins[index - coreCount];
+                          if (pin.action.startsWith('section:')) {
+                            final targetName = pin.action.substring('section:'.length);
+                            final target = LumenSection.values.firstWhere(
+                              (section) =>
+                                  section.name == targetName ||
+                                  section.label.toLowerCase() ==
+                                      targetName.toLowerCase(),
+                              orElse: () => LumenSection.journal,
+                            );
+                            ref
+                                .read(selectedSectionProvider.notifier)
+                                .select(target);
+                            setState(() => _selectedPinId = null);
+                          } else {
+                            setState(() => _selectedPinId = pin.id);
+                          }
                         }
                       },
                       labelType: NavigationRailLabelType.all,

@@ -62,6 +62,62 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
             hooks: ["on_note"].into_iter().map(String::from).collect(),
             ..Default::default()
         },
+        PluginManifest {
+            name: "dashboard_entries".into(),
+            version: "1.0.0".into(),
+            author: Some("Lumen".into()),
+            description: Some("Built-in dashboard cards and quick journal actions.".into()),
+            hooks: ["on_note"].into_iter().map(String::from).collect(),
+            priority: 10,
+            plugin_id: Some("dashboard_entries".into()),
+            contributes: serde_json::json!({
+                "sidebar": [
+                    { "id": "dashboard_entries.journal", "label": "Journal", "icon": "journal", "action": "section:journal", "priority": 10 },
+                    { "id": "dashboard_entries.dashboard", "label": "Dashboard", "icon": "dashboard", "action": "section:journal", "priority": 8 }
+                ],
+                "dashboardCards": [
+                    { "id": "plugin.quick_entries", "title": "Quick entries", "subtitle": "Morning and evening templates", "icon": "edit", "priority": 20 },
+                    { "id": "plugin.journal_activity", "title": "Journal activity", "subtitle": "Writing trends powered by plugins", "icon": "dashboard", "priority": 5 }
+                ]
+            }),
+            ..Default::default()
+        },
+        PluginManifest {
+            name: "theme_manager".into(),
+            version: "1.0.0".into(),
+            author: Some("Lumen".into()),
+            description: Some("Built-in theme and appearance management.".into()),
+            hooks: ["on_settings"].into_iter().map(String::from).collect(),
+            priority: 5,
+            plugin_id: Some("theme_manager".into()),
+            contributes: serde_json::json!({
+                "sidebar": [
+                    { "id": "theme_manager.settings", "label": "Theme", "icon": "settings", "action": "section:settings", "priority": 9 }
+                ],
+                "dashboardCards": [
+                    { "id": "plugin.theme", "title": "Theme manager", "subtitle": "Appearance and plugin themes", "icon": "settings", "priority": 15 }
+                ]
+            }),
+            ..Default::default()
+        },
+        PluginManifest {
+            name: "import_export".into(),
+            version: "1.0.0".into(),
+            author: Some("Lumen".into()),
+            description: Some("Import and export journal data through plugins.".into()),
+            hooks: ["on_export"].into_iter().map(String::from).collect(),
+            priority: 7,
+            plugin_id: Some("import_export".into()),
+            contributes: serde_json::json!({
+                "sidebar": [
+                    { "id": "import_export.import", "label": "Import/Export", "icon": "import", "action": "section:import", "priority": 9 }
+                ],
+                "dashboardCards": [
+                    { "id": "plugin.import_export", "title": "Import & export", "subtitle": "Stoic, JSON, and Markdown flows", "icon": "import", "priority": 12 }
+                ]
+            }),
+            ..Default::default()
+        },
     ]
 }
 
