@@ -22,10 +22,8 @@ ThemeData buildLumenTheme({
   final t = tokens?.applyTo(paletteBase, accentPrimary: accentPrimary) ?? paletteBase;
   final accent = accentPrimary ?? tokens?.primary ?? t.primary;
   final accentOn = t.onPrimary;
-  final accentContainer = dark ? const Color(0xFF1E2EBD) : t.primaryContainer;
-  final accentOnContainer = dark
-      ? const Color(0xFFA4ACFF)
-      : t.onPrimaryContainer;
+  final accentContainer = t.primaryContainer;
+  final accentOnContainer = t.onPrimaryContainer;
 
   final scheme = dark
       ? ColorScheme.dark(
@@ -163,7 +161,11 @@ ThemeData buildLumenTheme({
         fontWeight: FontWeight.w500,
         color: t.onSurfaceVariant,
       ),
-    ).apply(bodyColor: t.onSurface, displayColor: t.onSurface),
+    ).apply(
+      bodyColor: t.onSurface,
+      displayColor: t.onSurface,
+      fontFamily: tokens?.fontFamily ?? 'Geist',
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: t.onSurface,
