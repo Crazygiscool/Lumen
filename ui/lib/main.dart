@@ -86,14 +86,13 @@ class LumenApp extends ConsumerWidget {
                 .cast<String, dynamic>(),
           );
 
-    final iconPlugins = themePlugins.isEmpty
-        ? const <PluginInfo>[]
-        : (plugins.maybeWhen(
-            data: (list) => list.all
-                .where((p) => p.enabled && p.contributions['icons'] is Map)
-                .toList(),
-            orElse: () => const <PluginInfo>[],
-          ))
+    final iconSource = plugins.maybeWhen(
+      data: (list) => list.all
+          .where((p) => p.enabled && p.contributions['icons'] is Map)
+          .toList(growable: true),
+      orElse: () => const <PluginInfo>[],
+    );
+    final iconPlugins = List<PluginInfo>.from(iconSource)
       ..sort((a, b) => b.priority.compareTo(a.priority));
     AppIcons.setActivePack(
       iconPlugins.isEmpty
