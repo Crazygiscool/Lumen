@@ -58,6 +58,36 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     }
   }
 
+  Future<void> _export() async {
+    final dest = await showPathPicker(
+      context,
+      mode: PathPickerMode.directory,
+      title: 'Export destination folder',
+    );
+    if (dest == null) return;
+    setState(() {
+      _busy = 'Export journal';
+      _message = null;
+      _failed = false;
+    });
+    try {
+      final count = await ref.read(journalVaultServiceProvider).export(dest);
+      if (!mounted) return;
+      setState(() {
+        _busy = null;
+        _failed = false;
+        _message = 'Exported $count ${count == 1 ? 'file' : 'files'}.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = null;
+        _failed = true;
+        _message = 'Export failed: $e';
+      });
+    }
+  }
+
   String _noun(int n) => n == 1 ? 'note' : 'notes';
 
   @override
@@ -163,6 +193,16 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               PathPickerMode.directory,
               const [],
             ),
+          ),
+          _ImportCard(
+            icon: Icons.lock_open_outlined,
+            title: 'Export journal',
+            description:
+                'Decrypt and export every file in the journal store to a '
+                'folder for backup or interoperability.',
+            busy: _busy == 'Export journal',
+            enabled: _busy == null,
+            onPressed: () => _export(),
           ),
           if (_message != null)
             Padding(
