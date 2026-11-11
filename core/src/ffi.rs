@@ -196,6 +196,32 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             };
             ok(serde_json::json!({ "paths": results }))
         }
+        // Parsing and serializing work on a body rather than a file, so the
+        // editor can edit the metadata of the note it is holding in memory
+        // instead of rewriting the file behind the user's back.
+        "kb.frontmatter.parse" => {
+            #[derive(Deserialize)]
+            struct ParseArgs {
+                body: String,
+            }
+            let a = parse!(ParseArgs);
+            let (fm, body) = frontmatter::parse_frontmatter(&a.body);
+            ok(serde_json::json!({
+                "frontmatter": serde_json::to_value(fm).unwrap_or_default(),
+                "body": body,
+            }))
+        }
+        "kb.frontmatter.serialize" => {
+            #[derive(Deserialize)]
+            struct SerializeArgs {
+                frontmatter: Frontmatter,
+                body: String,
+            }
+            let a = parse!(SerializeArgs);
+            ok(serde_json::json!({
+                "text": frontmatter::serialize_frontmatter(&a.frontmatter, &a.body),
+            }))
+        }
 
         // Daily Templates
         "kb.template.daily_path" => {
@@ -557,6 +583,28 @@ mod tests {
         // --- Frontmatter ----------------------------------------------------
         let fm = call("kb.frontmatter.get", json!({ "path": "beta.md" }));
         assert_eq!(fm["tags"][0], "work");
+
+        // Parsing and serializing work on a body, not a file.
+        let parsed = call(
+            "kb.frontmatter.parse",
+            json!({ "body": "---\ntags: [work]\n---\n\n# Beta\n" }),
+        );
+        assert_eq!(parsed["frontmatter"]["tags"][0], "work");
+        assert_eq!(parsed["body"], "# Beta\n");
+
+        let serialized = call(
+            "kb.frontmatter.serialize",
+            json!({
+                "frontmatter": { "tags": ["work"] },
+                "body": "# Beta\n",
+            }),
+        );
+        let text = serialized["text"].as_str().unwrap();
+        assert!(text.starts_with("---\n"));
+        assert!(text.contains("tags:"));
+        // The block must be readable again.
+        let reparsed = call("kb.frontmatter.parse", json!({ "body": text }));
+        assert_eq!(reparsed["frontmatter"]["tags"][0], "work");
 
         let mut updated = fm.clone();
         updated["tags"] = json!(["work", "urgent"]);
