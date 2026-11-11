@@ -91,13 +91,52 @@ pub fn resolve_wikilink(store: &str, target: &str) -> String {
     // Try case-insensitive match by listing entries
     if let Ok(entries) = vault::list("", store) {
         let target_lower = normalized.to_lowercase();
-        for entry in entries {
-            if !entry.is_dir && entry.name.to_lowercase() == target_lower {
-                return entry.rel_path;
+        let target_slug = slugify(&normalized);
+        for entry in &entries {
+            if entry.is_dir {
+                continue;
+            }
+            if entry.name.to_lowercase() == target_lower {
+                return entry.rel_path.clone();
+            }
+        }
+        // Fall back to comparing the folded names, so `[[My Note]]` finds
+        // `My Note.md` and `my-note.md` alike. Without this, a note whose
+        // name contains a space could not be linked to at all.
+        for entry in &entries {
+            if entry.is_dir {
+                continue;
+            }
+            if slugify(&entry.name) == target_slug {
+                return entry.rel_path.clone();
             }
         }
     }
     normalized
+}
+
+/// Fold a name into a comparable form.
+///
+/// The name is lower-cased and every run of characters that is not a letter
+/// or a digit becomes a single hyphen, so `My Note.md` and `my-note.md`
+/// fold to the same thing.
+fn slugify(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut pending_separator = false;
+
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            if pending_separator && !out.is_empty() {
+                out.push('-');
+            }
+            pending_separator = false;
+            out.push(c.to_ascii_lowercase());
+        } else {
+            pending_separator = true;
+        }
+    }
+
+    out
 }
 
 /// Update the backlink index for a note that was just written.
@@ -210,5 +249,48 @@ mod tests {
     fn test_resolve_wikilink() {
         // Just test normalization since we can't easily test vault
         assert_eq!(resolve_wikilink("", "My Note"), "my-note.md");
+    }
+
+    #[test]
+    fn test_slugify_folds_names_together() {
+        assert_eq!(slugify("My Note.md"), "my-note-md");
+        assert_eq!(slugify("my-note.md"), "my-note-md");
+        assert_eq!(slugify("My_Note.md"), "my-note-md");
+        assert_eq!(slugify("My  Note.md"), "my-note-md");
+    }
+
+    /// A note whose name contains a space must still be linkable.
+    #[test]
+    fn test_resolve_wikilink_across_naming_styles() {
+        let _guard = crate::testutil::TestGuard::new();
+        let temp = tempfile::tempdir().unwrap();
+        let vault_path = temp.path().to_string_lossy().to_string();
+
+        crate::vault::create_with_passphrase(
+            &vault_path,
+            "testpass123",
+            crate::vault::STORE_JOURNAL,
+        )
+        .unwrap();
+        crate::vault::unlock(&vault_path, "testpass123", crate::vault::STORE_JOURNAL).unwrap();
+
+        crate::vault::write_text("My Note.md", "# My Note", crate::vault::STORE_JOURNAL).unwrap();
+        crate::vault::write_text("other.md", "# Other", crate::vault::STORE_JOURNAL).unwrap();
+
+        // The exact name resolves.
+        assert_eq!(
+            resolve_wikilink(crate::vault::STORE_JOURNAL, "My Note.md"),
+            "My Note.md"
+        );
+        // So does the folded form the parser produces.
+        assert_eq!(
+            resolve_wikilink(crate::vault::STORE_JOURNAL, "my-note.md"),
+            "My Note.md"
+        );
+        // A note that does not exist keeps its normalized target.
+        assert_eq!(
+            resolve_wikilink(crate::vault::STORE_JOURNAL, "missing note"),
+            "missing-note.md"
+        );
     }
 }
