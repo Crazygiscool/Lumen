@@ -241,6 +241,13 @@ pub fn unlock(root: &str, passphrase: &str, store: &str) -> Result<(), String> {
         .lock()
         .unwrap()
         .insert(store.to_string(), root_path.to_path_buf());
+
+    // Bring the search index up to date and invalidate the backlink index.
+    // The backlink index is rebuilt lazily on first use, because scanning
+    // every note is too slow to do on every unlock.
+    let _ = crate::search::init_search_index(store);
+    crate::wikilinks::init_backlink_index(store);
+
     Ok(())
 }
 
@@ -292,6 +299,17 @@ fn state_clone(store: &str) -> Result<VaultState, String> {
         .get(&(root.clone(), store.to_string()))
         .ok_or_else(|| "Vault is locked".to_string())?;
     Ok(st.clone())
+}
+
+/// Get the vault root path for a store.
+pub fn get_vault_root(store: &str) -> Result<String, String> {
+    let root = ACTIVE
+        .lock()
+        .unwrap()
+        .get(store)
+        .cloned()
+        .ok_or_else(|| "Vault is locked".to_string())?;
+    Ok(root.to_string_lossy().to_string())
 }
 
 /// Resolve a user-supplied path (absolute or vault-relative) to a path under the vault root.
@@ -368,7 +386,15 @@ pub fn write_bytes(input: &str, data: &[u8], store: &str) -> Result<(), String> 
 }
 
 pub fn write_text(input: &str, text: &str, store: &str) -> Result<(), String> {
-    write_bytes(input, text.as_bytes(), store)
+    write_bytes(input, text.as_bytes(), store)?;
+
+    // Keep the knowledge-base indexes in step with the vault. These are
+    // secondary indexes, so a failure here must not fail the write.
+    let _ = crate::search::index_entry_on_write(store, input, text);
+    let links = crate::wikilinks::parse_wikilinks(text);
+    crate::wikilinks::update_backlinks(store, input, &links);
+
+    Ok(())
 }
 
 pub fn mkdir(input: &str, store: &str) -> Result<(), String> {
@@ -381,11 +407,19 @@ pub fn delete(input: &str, store: &str) -> Result<(), String> {
     let st = state_clone(store)?;
     let full = resolve_under_root(&st.root, input)?;
 
-    if full.is_dir() {
+    let result = if full.is_dir() {
         fs::remove_dir_all(&full).map_err(|e| e.to_string())
     } else {
         fs::remove_file(&full).map_err(|e| e.to_string())
+    };
+
+    // Drop the note from the search index. A failure here must not turn a
+    // successful delete into an error.
+    if result.is_ok() {
+        let _ = crate::search::remove_entry_from_index(store, input);
     }
+
+    result
 }
 
 pub fn rename(from: &str, to: &str, store: &str) -> Result<(), String> {
@@ -544,16 +578,16 @@ mod tests {
 
     // The store map is process-global; serializing vault tests avoids
     // cross-test contamination while running cheap KDF parameters.
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
     const M: u32 = 8 * 1024;
     const T: u32 = 1;
     const P: u32 = 1;
 
     /// Serializes vault tests and starts each from a clean store map.
-    fn test_lock() -> std::sync::MutexGuard<'static, ()> {
-        let g = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        lock_all();
-        g
+    ///
+    /// Shares its lock with every other vault-touching unit test, so the two
+    /// groups can never hold different journal roots at the same time.
+    fn test_lock() -> crate::testutil::TestGuard {
+        crate::testutil::TestGuard::new()
     }
 
     fn temp_vault(name: &str) -> PathBuf {

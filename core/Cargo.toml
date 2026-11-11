@@ -20,3 +20,12 @@ dirs = "6.0"
 libloading = "0.8"
 toml = "0.8"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Phase 1: Knowledge Base
+tantivy = "0.22"
+serde_yaml = "0.9"
+regex = "1.10"
+walkdir = "2.5"
+shellexpand = "2.1"
+
+[dev-dependencies]
+tempfile = "3.27"

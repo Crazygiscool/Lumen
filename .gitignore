@@ -48,3 +48,10 @@ stoic
 ui/linux/lib/*.so
 ui/macos/Runner/*.dylib
 ui/windows/lib/*.dll
+
+# Lumen vault data and the local Tantivy search index.
+# A vault folder holds the encrypted journal plus its `.lumen/` metadata; the
+# search index is rebuilt per device and must never be synced or committed.
+.lumen/
+/core/journal/
+
