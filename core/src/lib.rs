@@ -2,6 +2,7 @@
 pub type Result<T> = std::result::Result<T, String>;
 
 pub mod config;
+pub mod ffi;
 pub mod frontmatter;
 pub mod graph;
 pub mod importer;
