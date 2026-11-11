@@ -26,6 +26,7 @@ use ratatui::{
 use termimad::MadSkin;
 
 use lumen_core::vault::{self, STORE_JOURNAL};
+use lumen_core::sync::{get_sync_status, init_sync, resolve_conflict, generate_syncthing_config, create_backup_bundle, restore_backup_bundle};
 
 #[derive(Parser)]
 #[command(author, version, about = "Lumen journal (terminal)", long_about = None)]
@@ -65,6 +66,47 @@ enum Commands {
     Edit { path: String },
     /// Consecutive days written, counting back from today.
     Streak,
+    /// Sync management.
+    Sync {
+        #[command(subcommand)]
+        command: SyncCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum SyncCommands {
+    /// Show sync status.
+    Status,
+    /// List detected conflicts.
+    Conflicts,
+    /// Resolve a conflict.
+    Resolve {
+        /// Path of the conflicted file.
+        path: String,
+        /// Keep local version (default: remote).
+        #[arg(long)]
+        keep_local: bool,
+    },
+    /// Generate Syncthing folder configuration XML.
+    GenSyncthingConfig,
+    /// Create encrypted backup bundle.
+    BackupCreate {
+        /// Output path for the backup bundle.
+        output: String,
+        /// Passphrase for backup encryption.
+        #[arg(short, long)]
+        passphrase: Option<String>,
+    },
+    /// Restore encrypted backup bundle.
+    BackupRestore {
+        /// Path to the backup bundle.
+        bundle: String,
+        /// Target directory to restore to.
+        target: String,
+        /// Passphrase for backup decryption.
+        #[arg(short, long)]
+        passphrase: Option<String>,
+    },
 }
 
 fn default_vault() -> PathBuf {
@@ -303,6 +345,62 @@ fn cmd_streak(cli: &Cli) -> color_eyre::Result<()> {
     Ok(())
 }
 
+fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
+    let root = unlock(cli)?;
+    let root_str = root.to_string_lossy().to_string();
+
+    match cmd {
+        SyncCommands::Status => {
+            init_sync(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            let status = get_sync_status().map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("Sync Status:");
+            println!("  Enabled:  {}", if status.enabled { "yes" } else { "no" });
+            println!("  Method:   {:?}", status.method);
+            println!("  Last sync: {}", status.last_sync.map(|d| d.to_rfc3339()).unwrap_or_else(|| "never".into()));
+            println!("  Pending:  {}", status.pending_changes);
+            println!("  Conflicts: {}", status.conflicts.len());
+            println!("  Devices:   {}", status.device_status.len());
+        }
+        SyncCommands::Conflicts => {
+            init_sync(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            let status = get_sync_status().map_err(|e| color_eyre::eyre::eyre!(e))?;
+            if status.conflicts.is_empty() {
+                println!("No conflicts detected.");
+            } else {
+                println!("Conflicts ({}):", status.conflicts.len());
+                for c in &status.conflicts {
+                    println!("  {}", c.path);
+                    println!("    Local:  {}  ({})", c.local_modified, c.local_hash);
+                    println!("    Remote: {}  ({})", c.remote_modified, c.remote_hash);
+                }
+            }
+        }
+        SyncCommands::Resolve { path, keep_local } => {
+            init_sync(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            resolve_conflict(path, *keep_local).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("Resolved conflict for {} (kept {})", path, if *keep_local { "local" } else { "remote" });
+        }
+        SyncCommands::GenSyncthingConfig => {
+            let xml = generate_syncthing_config(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("{}", xml);
+        }
+        SyncCommands::BackupCreate { output, passphrase } => {
+            let pass = passphrase.clone().unwrap_or_else(prompt_password_hidden);
+            let out_path = std::path::Path::new(output);
+            create_backup_bundle(&root_str, &pass, out_path).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("Backup created at {}", output);
+        }
+        SyncCommands::BackupRestore { bundle, target, passphrase } => {
+            let pass = passphrase.clone().unwrap_or_else(prompt_password_hidden);
+            let bundle_path = std::path::Path::new(bundle);
+            let target_path = std::path::Path::new(target);
+            restore_backup_bundle(bundle_path, &pass, target_path).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("Backup restored to {}", target);
+        }
+    }
+    Ok(())
+}
+
 struct App {
     entries: Vec<vault::VaultEntry>,
     titles: Vec<String>,
@@ -502,5 +600,6 @@ fn main() -> color_eyre::Result<()> {
         Some(Commands::Today) => cmd_today(&cli),
         Some(Commands::Edit { path }) => cmd_writer(&cli, path),
         Some(Commands::Streak) => cmd_streak(&cli),
+        Some(Commands::Sync { command }) => cmd_sync(&cli, command),
     }
 }
