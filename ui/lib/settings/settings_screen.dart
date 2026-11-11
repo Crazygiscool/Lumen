@@ -5,9 +5,27 @@ import '../journal/quotes.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 import '../widgets/path_picker.dart';
+import '../sync/syncthing_wizard.dart';
+import 'sync_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  void _openSyncSettings(BuildContext context, WidgetRef ref) {
+    final vault = ref.read(journalVaultProvider);
+    final root = vault.root ?? '';
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => SyncSettingsScreen(vaultPath: root)),
+    );
+  }
+
+  void _openSyncthingWizard(BuildContext context, WidgetRef ref) {
+    final vault = ref.read(journalVaultProvider);
+    final root = vault.root ?? '';
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => SyncthingWizardScreen(vaultPath: root)),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -183,6 +201,33 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => ref
                   .read(selectedSectionProvider.notifier)
                   .select(LumenSection.plugins),
+            ),
+          ],
+        ),
+
+        _Section(
+          title: 'Sync',
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.sync_outlined),
+              title: const Text('Sync Settings'),
+              subtitle: const Text(
+                'Configure Syncthing, WebDAV, view status and resolve conflicts.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openSyncSettings(context, ref),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.settings_suggest_outlined),
+              title: const Text('Syncthing Setup Wizard'),
+              subtitle: const Text(
+                'Step-by-step guide to install and configure Syncthing for journal sync.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openSyncthingWizard(context, ref),
             ),
           ],
         ),

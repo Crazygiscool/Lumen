@@ -48,6 +48,10 @@ class _FakeFfi implements LumenFfi {
   @override
   Object? plugins(String method, [Map<String, Object?> args = const {}]) =>
       <String, Object?>{};
+
+  @override
+  Object? kb(String method, [Map<String, Object?> args = const {}]) =>
+      <String, Object?>{};
 }
 
 void main() {

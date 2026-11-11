@@ -114,6 +114,26 @@ class LumenFfi {
     return _invoke(call, free, method, args);
   }
 
+  /// Invokes a knowledge-base method (`lumen_kb_call`).
+  ///
+  /// The knowledge-base API is a separate entry point from the vault API, so
+  /// it needs its own binding. Routing `kb.*` through [core] would reach the
+  /// vault dispatcher, which does not know those methods and would fail with
+  /// "unknown method".
+  Object? kb(String method, [Map<String, Object?> args = const {}]) {
+    final lib = _core;
+    if (lib == null) throw FfiException(_initError ?? 'lumen_core not loaded');
+    final call = lib.lookupFunction<
+      Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>),
+      Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>)
+    >('lumen_kb_call');
+    final free = lib.lookupFunction<
+      Void Function(Pointer<Utf8>),
+      void Function(Pointer<Utf8>)
+    >('lumen_kb_free');
+    return _invoke(call, free, method, args);
+  }
+
   Object? _invoke(
     Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>) call,
     void Function(Pointer<Utf8>) free,
