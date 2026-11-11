@@ -11,11 +11,13 @@ void main() {
   });
 
   test('sections map to labels and icons', () {
-    expect(LumenSection.values, hasLength(3));
+    expect(LumenSection.values, hasLength(5));
     for (final section in LumenSection.values) {
       expect(section.label, isNotEmpty);
     }
     expect(LumenSection.journal.label, 'Journal');
+    expect(LumenSection.search.label, 'Search');
+    expect(LumenSection.graph.label, 'Graph');
     expect(LumenSection.plugins.label, 'Plugins');
   });
 

@@ -7,6 +7,8 @@ import 'package:window_manager/window_manager.dart';
 
 import '../import/import_screen.dart';
 import '../journal/journal_screen.dart';
+import '../knowledge/graph_screen.dart';
+import '../knowledge/search_screen.dart';
 import '../plugins/plugins_screen.dart';
 import '../settings/settings_screen.dart';
 import '../state/providers.dart';
@@ -258,6 +260,8 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                                 ),
                         children: [
                           const JournalScreen(),
+                          const KnowledgeSearchScreen(),
+                          const GraphScreen(),
                           const PluginsScreen(),
                           const SettingsScreen(),
                           for (final pin in pins)

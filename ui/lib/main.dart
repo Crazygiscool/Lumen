@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
@@ -125,7 +126,46 @@ class LumenApp extends ConsumerWidget {
       theme: buildLumenTheme(dark: false, tokens: effectiveTokens),
       darkTheme: buildLumenTheme(dark: true, tokens: effectiveTokens),
       themeMode: resolveThemeMode(settings.themeSource),
+      builder: (context, child) => _AppShortcuts(child: child),
       home: const LumenShell(),
     );
   }
+}
+
+/// The app-wide keyboard shortcuts.
+///
+/// `Ctrl+K` (or `Cmd+K` on macOS) jumps to the search screen from anywhere.
+class _AppShortcuts extends ConsumerWidget {
+  const _AppShortcuts({required this.child});
+
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Shortcuts(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            _OpenSearchIntent(),
+        SingleActivator(LogicalKeyboardKey.keyK, meta: true): _OpenSearchIntent(),
+      },
+      child: Actions(
+        actions: {
+          _OpenSearchIntent: CallbackAction<_OpenSearchIntent>(
+            onInvoke: (intent) {
+              ref
+                  .read(selectedSectionProvider.notifier)
+                  .select(LumenSection.search);
+              return null;
+            },
+          ),
+        },
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+/// The intent behind the search shortcut.
+class _OpenSearchIntent extends Intent {
+  const _OpenSearchIntent();
 }

@@ -175,17 +175,21 @@ final pluginsProvider = AsyncNotifierProvider<PluginNotifier, PluginList>(
 // Sections
 // ---------------------------------------------------------------------------
 
-enum LumenSection { journal, plugins, settings }
+enum LumenSection { journal, search, graph, plugins, settings }
 
 extension LumenSectionInfo on LumenSection {
   String get label => switch (this) {
     LumenSection.journal => 'Journal',
+    LumenSection.search => 'Search',
+    LumenSection.graph => 'Graph',
     LumenSection.plugins => 'Plugins',
     LumenSection.settings => 'Settings',
   };
 
   IconData get icon => switch (this) {
     LumenSection.journal => Icons.edit_note,
+    LumenSection.search => Icons.search,
+    LumenSection.graph => Icons.hub_outlined,
     LumenSection.plugins => Icons.extension_outlined,
     LumenSection.settings => Icons.settings_outlined,
   };
@@ -201,6 +205,28 @@ class SectionNotifier extends Notifier<LumenSection> {
 
 final selectedSectionProvider = NotifierProvider<SectionNotifier, LumenSection>(
   SectionNotifier.new,
+);
+
+// ---------------------------------------------------------------------------
+// Cross-screen navigation
+// ---------------------------------------------------------------------------
+
+/// The note another screen asked the journal to open.
+///
+/// Search, the graph and the backlinks panel all navigate by setting this;
+/// the journal screen listens for it and opens the note.
+class OpenNoteNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void open(String relPath) => state = relPath;
+
+  /// Clears the request once the journal has acted on it.
+  void consume() => state = null;
+}
+
+final openNoteProvider = NotifierProvider<OpenNoteNotifier, String?>(
+  OpenNoteNotifier.new,
 );
 
 // ---------------------------------------------------------------------------
