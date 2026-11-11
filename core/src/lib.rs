@@ -8,6 +8,7 @@ pub mod importer;
 pub mod paths;
 pub mod plugins;
 pub mod search;
+pub mod sync;
 pub mod template;
 pub mod vault;
 pub mod wikilinks;
