@@ -58,7 +58,12 @@ pub struct SearchConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
 
-    /// Path to Tantivy index.
+    /// The folder holding the Tantivy indexes.
+    ///
+    /// The index holds the plain text of the notes, so it is kept out of the
+    /// vault: the vault is what the user syncs and backs up, and everything
+    /// in it is meant to be encrypted. A relative path is taken from the
+    /// configuration folder.
     #[serde(default = "default_index_path")]
     pub index_path: String,
 
@@ -72,7 +77,7 @@ fn default_true() -> bool {
 }
 
 fn default_index_path() -> String {
-    ".lumen/search".to_string()
+    config_dir().join("search").to_string_lossy().to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

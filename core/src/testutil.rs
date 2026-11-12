@@ -34,5 +34,8 @@ impl Drop for TestGuard {
         // Tantivy writer can commit before the directory disappears.
         crate::search::clear_search_indexes();
         crate::wikilinks::clear_backlink_index();
+        // The configuration folder is process-global too, so a test that
+        // pointed it somewhere does not leave it there for the next one.
+        crate::config::set_config_dir(None);
     }
 }

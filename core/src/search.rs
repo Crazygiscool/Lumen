@@ -18,9 +18,46 @@ use crate::vault::{self, VaultEntry};
 use crate::frontmatter::Frontmatter;
 use crate::config;
 use chrono::{Utc};
+use sha2::{Digest, Sha256};
 
 lazy_static! {
     static ref SEARCH_INDEXES: Mutex<HashMap<String, Arc<SearchIndex>>> = Mutex::new(HashMap::new());
+}
+
+/// The folder holding the search index of a vault.
+///
+/// The index holds the plain text of the notes, so it is kept out of the
+/// vault: the vault is what the user syncs, shares and backs up, and
+/// everything in it is meant to be encrypted.
+///
+/// Each vault gets its own folder under the configured base, named after a
+/// fingerprint of the store and its path, so two journals never share an
+/// index.
+fn index_dir(store: &str, vault_path: &str) -> PathBuf {
+    let config = config::get_config();
+    let base = Path::new(&config.search.index_path);
+    let base = if base.is_absolute() {
+        base.to_path_buf()
+    } else {
+        config::config_dir().join(base)
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(store.as_bytes());
+    hasher.update([0]);
+    hasher.update(vault_path.as_bytes());
+    let fingerprint = hex::encode(&hasher.finalize()[..8]);
+
+    base.join(format!("{store}-{fingerprint}"))
+}
+
+/// The place the index used to live, inside the vault.
+///
+/// The index holds the plain text of the notes, so it was moved out of the
+/// vault. An old one is removed, so that it cannot be synced or backed up
+/// along with the notes.
+fn legacy_index_dir(vault_path: &str) -> PathBuf {
+    Path::new(vault_path).join(".lumen").join("search")
 }
 
 /// Search result hit.
@@ -64,9 +101,8 @@ struct SearchSchema {
 
 impl SearchIndex {
     /// Open or create the search index for a vault.
-    pub fn open_or_create(vault_path: &str) -> crate::Result<Arc<Self>> {
-        let config = config::get_config();
-        let index_path = Path::new(vault_path).join(&config.search.index_path);
+    pub fn open_or_create(store: &str, vault_path: &str) -> crate::Result<Arc<Self>> {
+        let index_path = index_dir(store, vault_path);
         std::fs::create_dir_all(&index_path).map_err(|e| e.to_string())?;
 
         let schema = Self::build_schema();
@@ -130,7 +166,7 @@ impl SearchIndex {
 
         // Resolve store name to vault path for index directory
         let vault_path = crate::vault::get_vault_root(store)?;
-        let idx = Self::open_or_create(&vault_path)?;
+        let idx = Self::open_or_create(store, &vault_path)?;
         guard.insert(store.to_string(), idx.clone());
         Ok(idx)
     }
@@ -370,6 +406,16 @@ pub fn init_search_index(store: &str) -> crate::Result<()> {
         return Ok(());
     }
 
+    // The index used to live in the vault, where it held the plain text of
+    // the notes. It lives outside the vault now, and an old one is removed
+    // so it cannot be synced or backed up along with the notes.
+    if let Ok(vault_path) = crate::vault::get_vault_root(store) {
+        let legacy = legacy_index_dir(&vault_path);
+        if legacy.exists() {
+            let _ = std::fs::remove_dir_all(&legacy);
+        }
+    }
+
     let index = SearchIndex::global(store)?;
 
     // An incremental sync only touches the notes that changed, so it stays
@@ -452,7 +498,12 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    fn setup_test_vault() -> (tempfile::TempDir, String, crate::testutil::TestGuard) {
+    fn setup_test_vault() -> (
+        tempfile::TempDir,
+        tempfile::TempDir,
+        String,
+        crate::testutil::TestGuard,
+    ) {
         // The vault registry is process-global, so hold the shared lock for
         // the duration of the test.
         let guard = crate::testutil::TestGuard::new();
@@ -461,11 +512,13 @@ mod tests {
         clear_search_indexes();
 
         let temp = tempfile::tempdir().unwrap();
+        let config_temp = tempfile::tempdir().unwrap();
         let vault_path = temp.path().to_string_lossy().to_string();
 
-        // Remove any existing search index directory
-        let index_path = Path::new(&vault_path).join(".lumen/search");
-        let _ = std::fs::remove_dir_all(&index_path);
+        // The index lives outside the vault, so the configuration is pointed
+        // at a temporary folder of its own — a test must not write to the
+        // user's own configuration.
+        config::set_config_dir(Some(config_temp.path().to_path_buf()));
 
         vault::create_with_passphrase(&vault_path, "testpass123", STORE_JOURNAL).unwrap();
         vault::unlock(&vault_path, "testpass123", STORE_JOURNAL).unwrap();
@@ -474,17 +527,17 @@ mod tests {
         let mut cfg = config::get_config();
         cfg.search = SearchConfig {
             enabled: true,
-            index_path: ".lumen/search".to_string(),
+            index_path: "search".to_string(),
             auto_reindex: true,
         };
         config::set_config(cfg);
 
-        (temp, vault_path, guard)
+        (temp, config_temp, vault_path, guard)
     }
 
     #[test]
     fn test_search_index_basic() {
-        let (_temp, _vault_path, _guard) = setup_test_vault();
+        let (_temp, _config, _vault_path, _guard) = setup_test_vault();
 
         // Write test entries
         vault::write_text("2026-01-01.md", "# Day One\n\nFirst day of the year.", STORE_JOURNAL).unwrap();
@@ -509,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_search_with_frontmatter() {
-        let (_temp, _vault_path, _guard) = setup_test_vault();
+        let (_temp, _config, _vault_path, _guard) = setup_test_vault();
 
         let body = r#"---
 tags: [work, important]
@@ -525,5 +578,50 @@ This is tagged."#;
         let results = search_entries(STORE_JOURNAL, "tags:work", 10).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].path.contains("tagged"));
+    }
+
+    /// The index holds the plain text of the notes, so it must not sit in
+    /// the vault: the vault is synced and backed up, and everything in it
+    /// is meant to be encrypted.
+    #[test]
+    fn test_the_index_stays_out_of_the_vault() {
+        let (_temp, _config, vault_path, _guard) = setup_test_vault();
+
+        vault::write_text(
+            "2026-01-01.md",
+            "# Day One\n\nFirst day of the year.",
+            STORE_JOURNAL,
+        )
+        .unwrap();
+        init_search_index(STORE_JOURNAL).unwrap();
+
+        let index = index_dir(STORE_JOURNAL, &vault_path);
+        assert!(!index.starts_with(Path::new(&vault_path)));
+        assert!(index.exists());
+
+        // Nothing in the vault holds the plain text of the note.
+        for entry in walkdir::WalkDir::new(&vault_path) {
+            let entry = entry.unwrap();
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let bytes = std::fs::read(entry.path()).unwrap();
+            assert!(!String::from_utf8_lossy(&bytes).contains("First day of the year"));
+        }
+    }
+
+    /// An index left in the vault by an older version is removed, so it
+    /// cannot be synced or backed up along with the notes.
+    #[test]
+    fn test_an_old_index_in_the_vault_is_removed() {
+        let (_temp, _config, vault_path, _guard) = setup_test_vault();
+
+        let legacy = legacy_index_dir(&vault_path);
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("old-index"), "plain text of the notes").unwrap();
+
+        init_search_index(STORE_JOURNAL).unwrap();
+
+        assert!(!legacy.exists());
     }
 }
