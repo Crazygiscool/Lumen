@@ -246,6 +246,39 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             }
             ok(serde_json::json!({ "ensured": true }))
         }
+        // The template's own path, content and saving all live in the core,
+        // so the editor does not have to re-derive where the file lives.
+        "kb.template.get" => {
+            if let Err(e) = ensure_template_exists() {
+                return err(e);
+            }
+            let path = config::daily_template_path();
+            let content = std::fs::read_to_string(&path).unwrap_or_default();
+            ok(serde_json::json!({
+                "path": path.to_string_lossy(),
+                "content": content,
+            }))
+        }
+        "kb.template.save" => {
+            #[derive(Deserialize)]
+            struct SaveArgs {
+                content: String,
+            }
+            let a = parse!(SaveArgs);
+            let path = config::daily_template_path();
+            if let Some(parent) = path.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    return err(e.to_string());
+                }
+            }
+            if let Err(e) = std::fs::write(&path, a.content) {
+                return err(e.to_string());
+            }
+            ok(serde_json::json!({
+                "path": path.to_string_lossy(),
+                "saved": true,
+            }))
+        }
         // Rendering a template that is passed in, rather than read from disk,
         // lets the editor preview what the user is typing before saving it.
         "kb.template.render" => {
@@ -652,6 +685,21 @@ mod tests {
         assert_eq!(from_text["content"], "# 2026-02-02");
 
         call("kb.template.ensure", json!({}));
+
+        // The template editor reads and writes the template through the
+        // core, so it does not have to know where the file lives.
+        let template = call("kb.template.get", json!({}));
+        let template_path = template["path"].as_str().unwrap().to_string();
+        assert!(!template_path.is_empty());
+        assert!(template["content"].as_str().unwrap().contains("{{date}}"));
+
+        let saved = call(
+            "kb.template.save",
+            json!({ "content": "# {{date}}\n\ncustom\n" }),
+        );
+        assert_eq!(saved["path"].as_str().unwrap(), template_path);
+        let reread = call("kb.template.get", json!({}));
+        assert_eq!(reread["content"].as_str().unwrap(), "# {{date}}\n\ncustom\n");
 
         // --- Search ---------------------------------------------------------
         call("kb.search.init", json!({}));
