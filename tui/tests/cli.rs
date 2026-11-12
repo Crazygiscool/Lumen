@@ -8,7 +8,9 @@ use std::sync::Mutex;
 use clap::Parser;
 
 use lumen_core::vault::{self, STORE_JOURNAL};
-use lumen_tui::cli::{listed_entries, queried_entries, Cli, Commands};
+use lumen_tui::cli::{
+    conflict_diff, listed_entries, queried_entries, sync_status_lines, Cli, Commands,
+};
 
 /// The vault registry is process-global, so the tests that touch it take
 /// turns.
@@ -89,7 +91,7 @@ fn test_parses_a_daily_date() {
 
 #[test]
 fn test_lists_every_note() {
-    let _lock = LOCK.lock().unwrap();
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (_temp, cli) = journal();
 
     let list = listed_entries(&cli, None).unwrap();
@@ -105,7 +107,7 @@ fn test_lists_every_note() {
 
 #[test]
 fn test_lists_only_the_tagged_notes() {
-    let _lock = LOCK.lock().unwrap();
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (_temp, cli) = journal();
 
     let list = listed_entries(&cli, Some("work")).unwrap();
@@ -116,7 +118,7 @@ fn test_lists_only_the_tagged_notes() {
 
 #[test]
 fn test_queries_by_tag_and_date() {
-    let _lock = LOCK.lock().unwrap();
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (_temp, cli) = journal();
 
     let found = queried_entries(&cli, "tag:meeting date:2026-02").unwrap();
@@ -127,7 +129,7 @@ fn test_queries_by_tag_and_date() {
 
 #[test]
 fn test_queries_by_free_text() {
-    let _lock = LOCK.lock().unwrap();
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (_temp, cli) = journal();
 
     let found = queried_entries(&cli, "groceries").unwrap();
@@ -138,10 +140,87 @@ fn test_queries_by_free_text() {
 
 #[test]
 fn test_a_query_that_matches_nothing_is_empty() {
-    let _lock = LOCK.lock().unwrap();
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let (_temp, cli) = journal();
 
     let found = queried_entries(&cli, "tag:missing").unwrap();
 
     assert!(found.is_empty());
+}
+
+/// A journal with a note that has a version Syncthing kept.
+fn conflicted_journal() -> (tempfile::TempDir, String) {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().to_string_lossy().to_string();
+
+    vault::create_with_passphrase(&path, "testpass123", STORE_JOURNAL).unwrap();
+    vault::unlock(&path, "testpass123", STORE_JOURNAL).unwrap();
+
+    // The version the other device sent.
+    vault::write_text("gamma.md", "# Gamma\n\nthe remote line\n", STORE_JOURNAL).unwrap();
+    let versions = std::path::Path::new(&path)
+        .join(".stversions")
+        .join("gamma.md");
+    std::fs::create_dir_all(&versions).unwrap();
+    std::fs::copy(
+        std::path::Path::new(&path).join("gamma.md"),
+        versions.join("gamma.md.20260101-120000.md"),
+    )
+    .unwrap();
+
+    // The note as it stands now.
+    vault::write_text("gamma.md", "# Gamma\n\nthe local line\n", STORE_JOURNAL).unwrap();
+
+    (temp, path)
+}
+
+#[test]
+fn test_the_difference_between_two_versions_is_shown() {
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (_temp, path) = conflicted_journal();
+
+    let lines = conflict_diff(&path, "gamma.md").unwrap();
+
+    assert_eq!(lines.len(), 4);
+    assert_eq!(lines[0].text, "# Gamma");
+    assert_eq!(lines[2].text, "the local line");
+    assert_eq!(lines[3].text, "the remote line");
+}
+
+#[test]
+fn test_the_status_says_why_the_devices_are_not_there() {
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (temp, path) = conflicted_journal();
+
+    // Syncthing is asked about the devices only when it is the method
+    // Lumen syncs with. Its configuration is pointed at a file that is
+    // not there, so the reason is the same everywhere.
+    let mut config = lumen_core::config::load_config();
+    let previous = config.clone();
+    config.sync.method = "syncthing".to_string();
+    config.sync.syncthing.config_path = temp
+        .path()
+        .join("syncthing")
+        .join("config.xml")
+        .to_string_lossy()
+        .to_string();
+    lumen_core::config::set_config(config);
+
+    let lines = sync_status_lines(&path).unwrap();
+    lumen_core::config::set_config(previous);
+
+    // Syncthing not running is not a failure, but the reason is said
+    // rather than leaving an empty list of devices with no explanation.
+    assert!(lines.iter().any(|line| line.starts_with("  Note:")));
+}
+
+#[test]
+fn test_the_status_shows_the_number_of_conflicts() {
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (_temp, path) = conflicted_journal();
+
+    let lines = sync_status_lines(&path).unwrap();
+
+    assert!(lines.iter().any(|line| line.contains("Enabled:")));
+    assert!(lines.iter().any(|line| line.contains("Devices:")));
 }

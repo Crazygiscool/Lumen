@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 use termimad::MadSkin;
 
 use lumen_core::config;
+use lumen_core::diff::DiffLine;
 use lumen_core::query;
 use lumen_core::search;
 use lumen_core::template;
@@ -90,7 +91,11 @@ pub enum SyncCommands {
     /// Show sync status.
     Status,
     /// List detected conflicts.
-    Conflicts,
+    Conflicts {
+        /// Show what changed between the two versions of each conflict.
+        #[arg(long)]
+        diff: bool,
+    },
     /// Resolve a conflict.
     Resolve {
         /// Path of the conflicted file.
@@ -531,23 +536,11 @@ fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
 
     match cmd {
         SyncCommands::Status => {
-            init_sync(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
-            let status = get_sync_status().map_err(|e| color_eyre::eyre::eyre!(e))?;
-            println!("Sync Status:");
-            println!("  Enabled:  {}", if status.enabled { "yes" } else { "no" });
-            println!("  Method:   {:?}", status.method);
-            println!(
-                "  Last sync: {}",
-                status
-                    .last_sync
-                    .map(|d| d.to_rfc3339())
-                    .unwrap_or_else(|| "never".into())
-            );
-            println!("  Pending:  {}", status.pending_changes);
-            println!("  Conflicts: {}", status.conflicts.len());
-            println!("  Devices:   {}", status.device_status.len());
+            for line in sync_status_lines(&root_str)? {
+                println!("{line}");
+            }
         }
-        SyncCommands::Conflicts => {
+        SyncCommands::Conflicts { diff } => {
             init_sync(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
             let status = get_sync_status().map_err(|e| color_eyre::eyre::eyre!(e))?;
             if status.conflicts.is_empty() {
@@ -558,6 +551,9 @@ fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
                     println!("  {}", c.path);
                     println!("    Local:  {}  ({})", c.local_modified, c.local_hash);
                     println!("    Remote: {}  ({})", c.remote_modified, c.remote_hash);
+                    if *diff {
+                        print_difference(&root_str, &c.path);
+                    }
                 }
             }
         }
@@ -596,4 +592,73 @@ fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
         }
     }
     Ok(())
+}
+
+/// The lines `lumen sync status` prints.
+///
+/// Syncthing not running is not a failure — the journal works either way
+/// — but the reason is worth saying, so it is a line of its own.
+pub fn sync_status_lines(vault_path: &str) -> color_eyre::Result<Vec<String>> {
+    use lumen_core::sync::{get_sync_status, init_sync};
+
+    init_sync(vault_path).map_err(|e| color_eyre::eyre::eyre!(e))?;
+    let status = get_sync_status().map_err(|e| color_eyre::eyre::eyre!(e))?;
+
+    let mut lines = vec![
+        "Sync Status:".to_string(),
+        format!("  Enabled:  {}", if status.enabled { "yes" } else { "no" }),
+        format!("  Method:   {:?}", status.method),
+        format!(
+            "  Last sync: {}",
+            status
+                .last_sync
+                .map(|d| d.to_rfc3339())
+                .unwrap_or_else(|| "never".into())
+        ),
+        format!("  Pending:  {}", status.pending_changes),
+        format!("  Conflicts: {}", status.conflicts.len()),
+        format!("  Devices:   {}", status.device_status.len()),
+    ];
+
+    if let Some(reason) = &status.device_error {
+        lines.push(format!("  Note:      {reason}"));
+    }
+
+    Ok(lines)
+}
+
+/// The difference between the two versions of a conflicted note.
+///
+/// Both versions are read through the vault, which is the only place that
+/// can read them: the version the other device sent is an encrypted file
+/// inside the vault.
+pub fn conflict_diff(vault_path: &str, path: &str) -> color_eyre::Result<Vec<DiffLine>> {
+    use lumen_core::sync::conflict_versions;
+
+    let (local, remote) = conflict_versions(STORE_JOURNAL, vault_path, path)
+        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+    Ok(lumen_core::diff::diff(&local, &remote))
+}
+
+/// Print what changed between the two versions of a conflicted note.
+fn print_difference(vault_path: &str, path: &str) {
+    use lumen_core::diff::DiffKind;
+
+    let lines = match conflict_diff(vault_path, path) {
+        Ok(lines) => lines,
+        Err(e) => {
+            println!("    Difference: could not be shown ({e})");
+            return;
+        }
+    };
+
+    println!("    Difference:");
+    for line in lines {
+        let marker = match line.kind {
+            DiffKind::Added => '+',
+            DiffKind::Removed => '-',
+            DiffKind::Same => ' ',
+        };
+        println!("      {marker} {}", line.text);
+    }
 }
