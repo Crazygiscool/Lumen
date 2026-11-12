@@ -29,7 +29,15 @@ pub fn render_daily_template(date: NaiveDate) -> String {
 
     let template = fs::read_to_string(&template_path).unwrap_or_else(|_| default_template());
 
-    let mut result = template;
+    render_template(&template, date)
+}
+
+/// Render a template for a given date.
+///
+/// The template text is passed in rather than read from disk, so a preview
+/// can render what the user is typing before it is saved.
+pub fn render_template(template: &str, date: NaiveDate) -> String {
+    let mut result = template.to_string();
 
     // Simple placeholders
     for (key, func) in PLACEHOLDERS {
@@ -108,19 +116,21 @@ mod tests {
 
     // Helper for testing with custom template
     fn render_daily_template_for_test(date: NaiveDate, template: &str) -> String {
-        let mut result = template.to_string();
-        for (key, func) in PLACEHOLDERS {
-            let value = func(date);
-            result = result.replace(key, &value);
-        }
-        let date_format_regex = regex::Regex::new(r"\{\{date:([^}]+)\}\}").unwrap();
-        result = date_format_regex
-            .replace_all(&result, |caps: &regex::Captures| {
-                let format_str = &caps[1];
-                date.format(format_str).to_string()
-            })
-            .to_string();
-        result
+        render_template(template, date)
+    }
+
+    /// A template rendered from a string must match the one on disk.
+    #[test]
+    fn test_render_template_matches_the_file() {
+        let date = NaiveDate::from_ymd_opt(2026, 2, 3).unwrap();
+        let template = "# {{date}}\n\n{{yesterday}} -> {{tomorrow}}\nWeek: {{week}}";
+
+        let result = render_template(template, date);
+
+        assert!(result.contains("2026-02-03"));
+        assert!(result.contains("2026-02-02"));
+        assert!(result.contains("2026-02-04"));
+        assert!(result.contains("2026-W"));
     }
 
     #[test]

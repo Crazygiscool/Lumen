@@ -246,6 +246,22 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             }
             ok(serde_json::json!({ "ensured": true }))
         }
+        // Rendering a template that is passed in, rather than read from disk,
+        // lets the editor preview what the user is typing before saving it.
+        "kb.template.render" => {
+            #[derive(Deserialize)]
+            struct RenderArgs {
+                template: String,
+                date_ms: i64,
+            }
+            let a = parse!(RenderArgs);
+            let date = chrono::DateTime::from_timestamp_millis(a.date_ms)
+                .map(|dt| dt.date_naive())
+                .unwrap_or_else(|| chrono::Local::now().date_naive());
+            ok(serde_json::json!({
+                "content": crate::template::render_template(&a.template, date),
+            }))
+        }
 
         // Search
         //
@@ -627,6 +643,13 @@ mod tests {
 
         let rendered = call("kb.template.daily_render", json!({ "date_ms": date_ms }));
         assert!(rendered["content"].is_string());
+
+        // A template passed in is rendered the same way as the one on disk.
+        let from_text = call(
+            "kb.template.render",
+            json!({ "template": "# {{date}}", "date_ms": date_ms }),
+        );
+        assert_eq!(from_text["content"], "# 2026-02-02");
 
         call("kb.template.ensure", json!({}));
 
