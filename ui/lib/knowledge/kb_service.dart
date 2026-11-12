@@ -288,6 +288,34 @@ class KbService {
     );
   }
 
+  /// Splits a body into its frontmatter and the rest.
+  ///
+  /// This works on a body rather than a file, so an editor can read the
+  /// metadata of the note it is holding in memory.
+  Future<(KbFrontmatter, String)> parseFrontmatter(String body) async {
+    final data = _map(_ffi.kb('kb.frontmatter.parse', {'body': body}));
+    return (
+      KbFrontmatter.fromJson(
+        _map(data['frontmatter']).cast<String, dynamic>(),
+      ),
+      data['body'] as String? ?? '',
+    );
+  }
+
+  /// Builds a body with the frontmatter in front of it.
+  Future<String> serializeFrontmatter(
+    KbFrontmatter frontmatter,
+    String body,
+  ) async {
+    final data = _map(
+      _ffi.kb(
+        'kb.frontmatter.serialize',
+        {'frontmatter': frontmatter.toJson(), 'body': body},
+      ),
+    );
+    return data['text'] as String? ?? body;
+  }
+
   /// Paths of the notes matching a frontmatter filter.
   ///
   /// [tag] matches any of a note's tags; [key] and [value] match a custom

@@ -6,6 +6,12 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ffi/vault_service.dart';
+import '../knowledge/backlinks_panel.dart';
+import '../knowledge/frontmatter_editor.dart';
+import '../knowledge/kb_provider.dart';
+import '../knowledge/kb_service.dart';
+import '../knowledge/wikilink_completion.dart';
+import '../knowledge/wikilinks.dart';
 import '../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../theme/lumen_colors.dart';
@@ -61,6 +67,17 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           _preview = false;
         });
       }
+    });
+
+    // Another screen — the search results, the graph, the backlinks panel —
+    // can ask for a note to be opened.
+    ref.listen<String?>(openNoteProvider, (previous, next) {
+      if (next == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _open(next);
+        ref.read(openNoteProvider.notifier).consume();
+      });
     });
 
     final Widget stage = vault.unlocked
@@ -622,9 +639,14 @@ class _NoteEditor extends ConsumerStatefulWidget {
 }
 
 class _NoteEditorState extends ConsumerState<_NoteEditor> {
+  /// The body of the note. The frontmatter lives beside it, in
+  /// [_frontmatter], and the two are joined when the note is saved.
   final _ctl = TextEditingController();
+
+  KbFrontmatter _frontmatter = const KbFrontmatter();
   bool _loading = true;
   bool _saving = false;
+  bool _showFrontmatter = false;
   String? _error;
 
   @override
@@ -642,8 +664,14 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
   Future<void> _load() async {
     try {
       final text = await ref.read(journalServiceProvider).read(widget.relPath);
+      // The metadata is split off the body, so the editor and the metadata
+      // panel never fight over the same text.
+      final (fm, body) = await ref
+          .read(kbServiceProvider)
+          .parseFrontmatter(text);
       if (!mounted) return;
-      _ctl.text = text;
+      _frontmatter = fm;
+      _ctl.text = body;
       setState(() => _loading = false);
     } catch (e) {
       if (mounted) {
@@ -655,23 +683,28 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
     }
   }
 
+  /// The text that is written to the vault: the metadata, then the body.
+  Future<String> _compose() async {
+    return ref
+        .read(kbServiceProvider)
+        .serializeFrontmatter(_frontmatter, _ctl.text);
+  }
+
   Future<void> _save() async {
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final body = _ctl.text;
-      await ref
-          .read(journalServiceProvider)
-          .write(widget.relPath, body);
+      final text = await _compose();
+      await ref.read(journalServiceProvider).write(widget.relPath, text);
       String message = 'Saved';
       try {
-        final title = _titleOf(body);
+        final title = _titleOf(_ctl.text);
         final feedback = await ref
             .read(pluginServiceProvider)
-            .run(widget.relPath, title, body);
-        if (feedback.isNotEmpty) message = 'Saved — ${feedback.join(' · ')}';
+            .run(widget.relPath, title, _ctl.text);
+        if (feedback.isNotEmpty) message = 'Saved \u2014 ${feedback.join(' \u00b7 ')}';
       } catch (_) {
         // Plugins are optional; never block saving a note.
       }
@@ -697,6 +730,62 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
       }
     }
     return 'Note';
+  }
+
+  /// Opens the note a wikilink points at, creating it if it is missing.
+  Future<void> _openWikilink(String target) async {
+    final service = ref.read(kbServiceProvider);
+    final path = await service.resolveWikilink(target);
+    if (path == null || !mounted) return;
+
+    final notes =
+        ref.read(journalNotesProvider).asData?.value ?? const <JournalNote>[];
+    final exists = notes.any((note) => note.relPath == path);
+    if (!exists) {
+      final create = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Create this note?'),
+          content: Text('\u201c${prettifyTarget(target)}\u201d does not exist yet.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      );
+      if (create != true) return;
+      await ref.read(journalServiceProvider).write(path, '');
+      ref.invalidate(journalNotesProvider);
+    }
+
+    if (!mounted) return;
+    openJournalNote(ref, path);
+  }
+
+  /// Inserts the note chosen from the completion list.
+  void _insertWikilink(JournalNote note, ActiveWikilink active) {
+    final name = note.name.endsWith('.md')
+        ? note.name.substring(0, note.name.length - 3)
+        : note.name;
+    final display = note.displayTitle == name ? null : note.displayTitle;
+
+    final text = insertWikilink(
+      _ctl.text,
+      active,
+      target: name,
+      display: display,
+    );
+    _ctl.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    widget.onDirty();
   }
 
   Future<void> _attachImage() async {
@@ -777,6 +866,24 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
                 ),
               ),
               IconButton(
+                tooltip: _showFrontmatter ? 'Hide metadata' : 'Edit metadata',
+                onPressed: () =>
+                    setState(() => _showFrontmatter = !_showFrontmatter),
+                icon: Icon(
+                  _showFrontmatter
+                      ? Icons.label_off_outlined
+                      : Icons.label_outline,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Backlinks',
+                onPressed: () => showBacklinksPanel(
+                  context,
+                  relPath: widget.relPath,
+                ),
+                icon: const Icon(Icons.link),
+              ),
+              IconButton(
                 tooltip: widget.preview ? 'Edit' : 'Preview',
                 onPressed: widget.onTogglePreview,
                 icon: Icon(
@@ -814,50 +921,106 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(_error!, style: TextStyle(color: t.error)),
           ),
+        if (_showFrontmatter)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: SingleChildScrollView(
+              child: FrontmatterEditor(
+                frontmatter: _frontmatter,
+                availableTags:
+                    ref.watch(kbTagsProvider).asData?.value ?? const <String>[],
+                onChanged: (fm) => setState(() => _frontmatter = fm),
+              ),
+            ),
+          ),
         Expanded(
           child: widget.preview
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Markdown(
-                    data: _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
-                    selectable: true,
-                    imageBuilder: (uri, title, alt) {
-                      final resolvedAlt = alt ?? title ?? 'image';
-                      final scheme = uri.scheme.toLowerCase();
-                      if (scheme == 'http' || scheme == 'https') {
-                        return Image.network(uri.toString(), semanticLabel: resolvedAlt);
-                      }
-                      if (scheme == 'data' && uri.data != null) {
-                        return Image.memory(uri.data!.contentAsBytes(), semanticLabel: resolvedAlt);
-                      }
-                      return _EncryptedVaultImage(
-                        vault: ref.read(journalVaultServiceProvider),
-                        path: uri.toString(),
-                        alt: resolvedAlt,
-                      );
-                    },
-                  ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: TextField(
-                    controller: _ctl,
-                    onChanged: (_) => widget.onDirty(),
-                    expands: true,
-                    maxLines: null,
-                    minLines: null,
-                    textAlignVertical: TextAlignVertical.top,
-                    style: const TextStyle(
-                      fontFamily: lumenMonoFont,
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: '# Start writing…',
+              ? _buildPreview(context)
+              : WikilinkCompletionHost(
+                  controller: _ctl,
+                  onInsert: _insertWikilink,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: TextField(
+                      controller: _ctl,
+                      onChanged: (_) => widget.onDirty(),
+                      expands: true,
+                      maxLines: null,
+                      minLines: null,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: const TextStyle(
+                        fontFamily: lumenMonoFont,
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '# Start writing\u2026',
+                      ),
                     ),
                   ),
                 ),
+        ),
+      ],
+    );
+  }
+
+  /// The rendered note, with its wikilinks turned into tappable links.
+  Widget _buildPreview(BuildContext context) {
+    final t = LumenColors.of(context);
+    final fm = _frontmatter;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      children: [
+        if (fm.tags.isNotEmpty || fm.aliases.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final tag in fm.tags)
+                  Chip(
+                    label: Text(tag),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: t.primary.withValues(alpha: 0.15),
+                  ),
+                for (final alias in fm.aliases)
+                  Chip(
+                    label: Text(alias),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ),
+        Markdown(
+          data: rewriteWikilinks(
+            _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
+          ),
+          selectable: true,
+          onTapLink: (text, href, title) {
+            final target = wikilinkTargetFromUri(href);
+            if (target != null) _openWikilink(target);
+          },
+          imageBuilder: (uri, title, alt) {
+            final resolvedAlt = alt ?? title ?? 'image';
+            final scheme = uri.scheme.toLowerCase();
+            if (scheme == 'http' || scheme == 'https') {
+              return Image.network(uri.toString(), semanticLabel: resolvedAlt);
+            }
+            if (scheme == 'data' && uri.data != null) {
+              return Image.memory(
+                uri.data!.contentAsBytes(),
+                semanticLabel: resolvedAlt,
+              );
+            }
+            return _EncryptedVaultImage(
+              vault: ref.read(journalVaultServiceProvider),
+              path: uri.toString(),
+              alt: resolvedAlt,
+            );
+          },
         ),
       ],
     );

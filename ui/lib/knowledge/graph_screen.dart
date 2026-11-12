@@ -290,8 +290,7 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
                     size: _size,
                     focus: _focus,
                     onNodeTap: (id) => setState(() => _focus = id),
-                    onOpen: (id) =>
-                        ref.read(openNoteProvider.notifier).open(id),
+                    onOpen: (id) => openJournalNote(ref, id),
                   );
                 },
               );

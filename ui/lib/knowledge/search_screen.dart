@@ -229,9 +229,7 @@ class _KnowledgeSearchScreenState extends ConsumerState<KnowledgeSearchScreen> {
                           ),
                         ],
                       ),
-                      onTap: () => ref
-                          .read(openNoteProvider.notifier)
-                          .open(hit.path),
+                      onTap: () => openJournalNote(ref, hit.path),
                     );
                   },
                 );

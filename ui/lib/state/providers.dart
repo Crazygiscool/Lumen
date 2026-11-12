@@ -229,6 +229,15 @@ final openNoteProvider = NotifierProvider<OpenNoteNotifier, String?>(
   OpenNoteNotifier.new,
 );
 
+/// Opens a note in the journal, from wherever the app is.
+///
+/// The search screen, the graph and the backlinks panel all navigate this
+/// way: the section switches to the journal and the note is opened there.
+void openJournalNote(WidgetRef ref, String relPath) {
+  ref.read(selectedSectionProvider.notifier).select(LumenSection.journal);
+  ref.read(openNoteProvider.notifier).open(relPath);
+}
+
 // ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------

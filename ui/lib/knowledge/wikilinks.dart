@@ -155,3 +155,54 @@ String prettifyTarget(String target) {
       .map((part) => part[0].toUpperCase() + part.substring(1))
       .join(' ');
 }
+
+/// Folds a link target into a comparable form.
+///
+/// The name is lower-cased, the `.md` suffix is dropped and every run of
+/// characters that is not a letter or a digit becomes a single hyphen, so
+/// `My Note.md`, `my-note.md` and `my note` all fold to the same thing. This
+/// mirrors the way the core resolves a link.
+String wikilinkSlug(String target) {
+  var s = target.trim().toLowerCase();
+  if (s.endsWith('.md')) {
+    s = s.substring(0, s.length - 3);
+  }
+
+  final out = StringBuffer();
+  var pendingSeparator = false;
+  for (final unit in s.codeUnits) {
+    final isDigit = unit >= 0x30 && unit <= 0x39;
+    final isLower = unit >= 0x61 && unit <= 0x7a;
+    if (isDigit || isLower) {
+      if (pendingSeparator && out.isNotEmpty) out.write('-');
+      pendingSeparator = false;
+      out.writeCharCode(unit);
+    } else {
+      pendingSeparator = true;
+    }
+  }
+  return out.toString();
+}
+
+/// The text around the link in [body] that points at [target].
+///
+/// The snippet is what the backlinks panel shows, so a link is readable in
+/// place rather than as a bare path.
+String wikilinkContext(String body, String target, {int radius = 70}) {
+  final wanted = wikilinkSlug(target);
+  if (wanted.isEmpty) return '';
+
+  for (final match in _wikilinkPattern.allMatches(body)) {
+    final linkTarget = match.group(1)!.trim();
+    if (wikilinkSlug(linkTarget) != wanted) continue;
+
+    final from = match.start - radius < 0 ? 0 : match.start - radius;
+    final to = match.end + radius > body.length ? body.length : match.end + radius;
+    final prefix = from > 0 ? '…' : '';
+    final suffix = to < body.length ? '…' : '';
+    final snippet = body.substring(from, to).replaceAll(RegExp(r'\s+'), ' ');
+    return '$prefix$snippet$suffix';
+  }
+
+  return '';
+}

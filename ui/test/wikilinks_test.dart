@@ -12,7 +12,7 @@ void main() {
         'See [my note](${wikilinkUri('my note')}) for details.\n',
       );
       expect(
-        wikilinkTargetFromUri('${wikilinkUri('my note')}'),
+        wikilinkTargetFromUri(wikilinkUri('my note')),
         'my note',
       );
     });
@@ -80,6 +80,34 @@ Inline `[[also not a link]]` stays.
     test('prettifies a normalized target', () {
       expect(prettifyTarget('my-note.md'), 'My Note');
       expect(prettifyTarget('my-note'), 'My Note');
+    });
+
+    test('folds link targets together', () {
+      expect(wikilinkSlug('My Note.md'), 'my-note');
+      expect(wikilinkSlug('my-note'), 'my-note');
+      expect(wikilinkSlug('my note'), 'my-note');
+      expect(wikilinkSlug('My_Note.md'), 'my-note');
+      expect(wikilinkSlug('my note.md'), 'my-note');
+    });
+
+    test('finds the text around a link', () {
+      const body = 'A first line that runs on for a while.\n'
+          'Then a link to [[other-note]] in the middle.\n'
+          'And a last line that also runs on for a while.';
+
+      final context = wikilinkContext(body, 'other-note.md', radius: 20);
+
+      expect(context, contains('a link to'));
+      expect(context, contains('in the middle'));
+      // The snippet is trimmed around the link, not the whole note.
+      expect(context, isNot(contains('A first line')));
+      expect(context, isNot(contains('a last line')));
+    });
+
+    test('finds no context for an unrelated target', () {
+      const body = 'A link to [[other-note]] here.';
+
+      expect(wikilinkContext(body, 'unrelated.md'), isEmpty);
     });
   });
 
