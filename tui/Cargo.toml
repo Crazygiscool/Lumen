@@ -3,6 +3,10 @@ name = "lumen-tui"
 version = "3.2.1"
 edition = "2021"
 
+[lib]
+name = "lumen_tui"
+path = "src/lib.rs"
+
 [[bin]]
 name = "lumen"
 path = "src/main.rs"
@@ -16,3 +20,6 @@ ratatui = "0.26"
 crossterm = { version = "0.28", features = ["events"] }
 color-eyre = "0.6"
 termimad = "0.30"
+
+[dev-dependencies]
+tempfile = "3.27"
