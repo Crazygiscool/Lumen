@@ -425,6 +425,51 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             }
             ok(serde_json::json!({ "resolved": a.path }))
         }
+        // The two versions of a conflicted note, and the difference between
+        // them, so the user can see what changed before choosing.
+        "kb.sync.conflict_versions" => {
+            #[derive(Deserialize)]
+            struct ConflictVersionsArgs {
+                vault_path: String,
+                path: String,
+                #[serde(default = "default_store")]
+                store: String,
+            }
+            let a = parse!(ConflictVersionsArgs);
+            match crate::sync::conflict_versions(&a.store, &a.vault_path, &a.path) {
+                Ok((local, remote)) => ok(serde_json::json!({
+                    "local": local,
+                    "remote": remote,
+                })),
+                Err(e) => err(e),
+            }
+        }
+        "kb.sync.conflict_diff" => {
+            #[derive(Deserialize)]
+            struct ConflictDiffArgs {
+                vault_path: String,
+                path: String,
+                #[serde(default = "default_store")]
+                store: String,
+            }
+            let a = parse!(ConflictDiffArgs);
+            let (local, remote) =
+                match crate::sync::conflict_versions(&a.store, &a.vault_path, &a.path) {
+                    Ok(versions) => versions,
+                    Err(e) => return err(e),
+                };
+            ok(serde_json::json!({ "lines": crate::diff::diff(&local, &remote) }))
+        }
+        // A difference between two texts, for anything that needs one.
+        "kb.diff.lines" => {
+            #[derive(Deserialize)]
+            struct DiffArgs {
+                old: String,
+                new: String,
+            }
+            let a = parse!(DiffArgs);
+            ok(serde_json::json!({ "lines": crate::diff::diff(&a.old, &a.new) }))
+        }
         "kb.sync.generate_syncthing_config" => {
             #[derive(Deserialize)]
             struct GenConfigArgs {
@@ -815,6 +860,52 @@ mod tests {
 
         let conflicts = call("kb.sync.conflicts", json!({}));
         assert!(conflicts["conflicts"].is_array());
+
+        // --- Conflicts ------------------------------------------------------
+        //
+        // A note with a version Syncthing kept, so the two versions can be
+        // asked for and compared.
+        vault::write_text("gamma.md", "# Gamma\n\nremote\n", STORE_JOURNAL).unwrap();
+        let versions = std::path::Path::new(&vault_path)
+            .join(".stversions")
+            .join("gamma.md");
+        std::fs::create_dir_all(&versions).unwrap();
+        std::fs::copy(
+            std::path::Path::new(&vault_path).join("gamma.md"),
+            versions.join("gamma.md.20260101-120000.md"),
+        )
+        .unwrap();
+        vault::write_text("gamma.md", "# Gamma\n\nlocal\n", STORE_JOURNAL).unwrap();
+
+        let versions = call(
+            "kb.sync.conflict_versions",
+            json!({ "vault_path": vault_path, "path": "gamma.md" }),
+        );
+        assert_eq!(versions["local"], "# Gamma\n\nlocal\n");
+        assert_eq!(versions["remote"], "# Gamma\n\nremote\n");
+
+        let difference = call(
+            "kb.sync.conflict_diff",
+            json!({ "vault_path": vault_path, "path": "gamma.md" }),
+        );
+        let lines = difference["lines"].as_array().unwrap();
+        assert!(lines
+            .iter()
+            .any(|line| line["kind"] == "removed" && line["text"] == "local"));
+        assert!(lines
+            .iter()
+            .any(|line| line["kind"] == "added" && line["text"] == "remote"));
+
+        // A difference between two texts, for anything else that needs one.
+        let lines = call(
+            "kb.diff.lines",
+            json!({ "old": "one\ntwo\n", "new": "one\nthree\n" }),
+        );
+        let lines = lines["lines"].as_array().unwrap();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0]["kind"], "same");
+        assert_eq!(lines[1]["kind"], "removed");
+        assert_eq!(lines[2]["kind"], "added");
 
         call(
             "kb.sync.resolve_conflict",

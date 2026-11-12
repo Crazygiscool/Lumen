@@ -244,6 +244,47 @@ fn detect_conflicts(state: &SyncState) -> crate::Result<Vec<SyncConflict>> {
     Ok(conflicts)
 }
 
+/// The two versions of a conflicted note, decrypted.
+///
+/// The note and the version Syncthing kept are both encrypted with the
+/// vault's key, so both are read through the vault and come back as text.
+/// The difference between them is what the user is asked to look at.
+pub fn conflict_versions(
+    store: &str,
+    vault_path: &str,
+    path: &str,
+) -> crate::Result<(String, String)> {
+    let local = crate::vault::read_text(path, store)?;
+
+    let stversions_path = Path::new(vault_path).join(".stversions").join(path);
+    let mut latest: Option<(DateTime<Utc>, PathBuf)> = None;
+    if stversions_path.exists() {
+        for entry in fs::read_dir(&stversions_path).map_err(|e| e.to_string())?.flatten() {
+            if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                let mtime = file_modified(&entry.path())?;
+                if latest.is_none() || mtime > latest.as_ref().unwrap().0 {
+                    latest = Some((mtime, entry.path()));
+                }
+            }
+        }
+    }
+
+    let Some((_, latest_path)) = latest else {
+        return Err("there is no remote version of this note".into());
+    };
+
+    // The version sits inside the vault, so it is read through the vault
+    // and comes back decrypted.
+    let relative = latest_path
+        .strip_prefix(vault_path)
+        .map_err(|_| "the remote version is not in the vault")?
+        .to_string_lossy()
+        .to_string();
+    let remote = crate::vault::read_text(&relative, store)?;
+
+    Ok((local, remote))
+}
+
 /// Resolve a conflict by choosing local or remote version.
 pub fn resolve_conflict(path: &str, keep_local: bool) -> crate::Result<()> {
     let state_guard = SYNC_STATE.lock().unwrap();
@@ -618,15 +659,23 @@ mod tests {
         (temp, vault_path, guard)
     }
 
-    #[test]
-    fn test_init_sync() {
-        // Set sync method to syncthing for this test
-        let config = config::load_config();
-        let mut config = config;
+    /// Turn the sync on, the way the configuration does.
+    ///
+    /// The configuration is process-global, so this is done while the test
+    /// holds the lock.
+    fn use_syncthing() {
+        let mut config = config::load_config();
         config.sync.method = "syncthing".to_string();
         config::set_config(config);
+    }
 
+    #[test]
+    fn test_init_sync() {
         let (_temp, vault_path, _guard) = setup_test_vault();
+
+        // Set sync method to syncthing for this test
+        use_syncthing();
+
         vault::write_text("2026-01-01.md", "# Day One", STORE_JOURNAL).unwrap();
         vault::write_text("2026-01-02.md", "# Day Two", STORE_JOURNAL).unwrap();
 
@@ -652,5 +701,43 @@ mod tests {
         restore_backup_bundle(&backup_path, "testpass123", &restore_dir).unwrap();
 
         assert!(restore_dir.join("2026-01-01.md").exists());
+    }
+
+    /// The version Syncthing kept is encrypted like the note itself, so
+    /// both versions come back as text.
+    #[test]
+    fn test_the_two_versions_of_a_conflict_are_read_decrypted() {
+        let (_temp, vault_path, _guard) = setup_test_vault();
+
+        // The version Syncthing would have kept.
+        vault::write_text("2026-01-01.md", "# Remote version\n\nchanged", STORE_JOURNAL).unwrap();
+        let versions = Path::new(&vault_path).join(".stversions").join("2026-01-01.md");
+        fs::create_dir_all(&versions).unwrap();
+        fs::copy(
+            Path::new(&vault_path).join("2026-01-01.md"),
+            versions.join("2026-01-01.md.20260101-120000.md"),
+        )
+        .unwrap();
+
+        // The note as it stands now.
+        vault::write_text("2026-01-01.md", "# Local version\n\noriginal", STORE_JOURNAL).unwrap();
+
+        init_sync(&vault_path).unwrap();
+
+        let (local, remote) =
+            conflict_versions(STORE_JOURNAL, &vault_path, "2026-01-01.md").unwrap();
+
+        assert_eq!(local, "# Local version\n\noriginal");
+        assert_eq!(remote, "# Remote version\n\nchanged");
+    }
+
+    /// A note without a remote version has nothing to compare with.
+    #[test]
+    fn test_a_note_without_a_remote_version() {
+        let (_temp, vault_path, _guard) = setup_test_vault();
+        vault::write_text("2026-01-01.md", "# Day One", STORE_JOURNAL).unwrap();
+        init_sync(&vault_path).unwrap();
+
+        assert!(conflict_versions(STORE_JOURNAL, &vault_path, "2026-01-01.md").is_err());
     }
 }
