@@ -381,6 +381,12 @@ pub mod webdav {
         /// Never serialized — the password lives in the OS keyring.
         #[serde(skip_serializing)]
         pub password: Option<String>,
+        /// Never serialized — the passphrase lives in the OS keyring.
+        ///
+        /// It is not the password of the account: the server knows that one,
+        /// and a server that could read the notes would know too much.
+        #[serde(skip_serializing)]
+        pub encryption_passphrase: Option<String>,
         pub encrypt: bool,
     }
 
@@ -408,7 +414,7 @@ pub mod webdav {
             let data = fs::read(local_path).map_err(|e| e.to_string())?;
 
             let (data, remote_path) = if self.config.encrypt {
-                let passphrase = self.config.password.as_deref().unwrap_or("");
+                let passphrase = self.encryption_passphrase()?;
                 (
                     encrypt_with_age(&data, passphrase)?,
                     format!("{}.age", remote_path),
@@ -447,7 +453,7 @@ pub mod webdav {
             stream.finish().await.map_err(|e| e.to_string())?;
 
             let data = if self.config.encrypt {
-                let passphrase = self.config.password.as_deref().unwrap_or("");
+                let passphrase = self.encryption_passphrase()?;
                 decrypt_with_age(&data, passphrase)?
             } else {
                 data
@@ -455,6 +461,22 @@ pub mod webdav {
 
             fs::write(local_path, data).map_err(|e| e.to_string())?;
             Ok(())
+        }
+
+        /// The passphrase that encrypts the uploads.
+        ///
+        /// Without one the uploads cannot be encrypted, and saying so is
+        /// better than sending the notes in the clear.
+        fn encryption_passphrase(&self) -> crate::Result<&str> {
+            self.config
+                .encryption_passphrase
+                .as_deref()
+                .filter(|passphrase| !passphrase.is_empty())
+                .ok_or_else(|| {
+                    "the uploads are encrypted, so a passphrase is needed; \
+                     keep one in the keyring"
+                        .to_string()
+                })
         }
 
         /// List the names of the files directly under `remote_path`.

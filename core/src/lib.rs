@@ -10,6 +10,7 @@ pub mod paths;
 pub mod plugins;
 pub mod query;
 pub mod search;
+pub mod secrets;
 pub mod sync;
 pub mod template;
 pub mod vault;

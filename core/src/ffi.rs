@@ -12,6 +12,7 @@ use crate::config;
 use crate::frontmatter::{self, Frontmatter};
 use crate::graph::{build_graph_data, filter_graph_data, get_note_neighborhood};
 use crate::search::{init_search_index, search_entries};
+use crate::secrets;
 use crate::sync::{
     create_backup_bundle,
     generate_syncthing_config,
@@ -466,19 +467,65 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
         }
 
         // WebDAV
+        //
+        // The password and the encryption passphrase live in the keyring,
+        // so they are set once and never travel through the app again.
+        "kb.sync.credentials.set" => {
+            #[derive(Deserialize)]
+            struct CredentialsArgs {
+                password: Option<String>,
+                passphrase: Option<String>,
+            }
+            let a = parse!(CredentialsArgs);
+            if let Some(password) = a.password {
+                if let Err(e) = secrets::set_webdav_password(&password) {
+                    return err(e);
+                }
+            }
+            if let Some(passphrase) = a.passphrase {
+                if let Err(e) = secrets::set_webdav_passphrase(&passphrase) {
+                    return err(e);
+                }
+            }
+            ok(serde_json::json!({ "saved": true }))
+        }
+        "kb.sync.credentials.status" => {
+            // A keyring that cannot be reached is reported, not hidden: the
+            // user is told why the secrets are not there.
+            let available = secrets::keyring_available();
+            let password = secrets::webdav_password().ok().flatten();
+            let passphrase = secrets::webdav_passphrase().ok().flatten();
+            ok(serde_json::json!({
+                "available": available,
+                "password": password.is_some(),
+                "passphrase": passphrase.is_some(),
+            }))
+        }
+        "kb.sync.credentials.clear" => {
+            if let Err(e) = secrets::clear_webdav_secrets() {
+                return err(e);
+            }
+            ok(serde_json::json!({ "cleared": true }))
+        }
         "kb.sync.webdav.connect" => {
             #[derive(Deserialize)]
             struct WebDAVConnectArgs {
                 url: String,
                 username: String,
-                password: String,
                 encrypt: bool,
             }
             let a = parse!(WebDAVConnectArgs);
+            let password = match secrets::webdav_password() {
+                Ok(Some(password)) => password,
+                Ok(None) => return err("the WebDAV password has not been kept in the keyring"),
+                Err(e) => return err(e),
+            };
+            let passphrase = secrets::webdav_passphrase().ok().flatten();
             let config = WebDAVConfig {
                 url: a.url,
                 username: a.username,
-                password: Some(a.password),
+                password: Some(password),
+                encryption_passphrase: passphrase,
                 encrypt: a.encrypt,
             };
             // Store the config for later use (in a real app, this would be persisted)
@@ -498,14 +545,20 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 vault_path: String,
                 url: String,
                 username: String,
-                password: String,
                 encrypt: bool,
             }
             let a = parse!(WebDAVSyncArgs);
+            let password = match secrets::webdav_password() {
+                Ok(Some(password)) => password,
+                Ok(None) => return err("the WebDAV password has not been kept in the keyring"),
+                Err(e) => return err(e),
+            };
+            let passphrase = secrets::webdav_passphrase().ok().flatten();
             let config = WebDAVConfig {
                 url: a.url,
                 username: a.username,
-                password: Some(a.password),
+                password: Some(password),
+                encryption_passphrase: passphrase,
                 encrypt: a.encrypt,
             };
             let rt = match runtime() {
@@ -795,6 +848,33 @@ mod tests {
             }),
         );
         assert!(restored.join("alpha.md").exists());
+
+        // --- Credentials -----------------------------------------------------
+        //
+        // The secrets are kept in a store of the test's own, so the test
+        // never touches the keyring of the machine it runs on.
+        let store = std::sync::Arc::new(crate::secrets::MemoryStore::new());
+        crate::secrets::set_store(Some(store.clone()));
+
+        let before = call("kb.sync.credentials.status", json!({}));
+        assert_eq!(before["password"], json!(false));
+        assert_eq!(before["passphrase"], json!(false));
+
+        call(
+            "kb.sync.credentials.set",
+            json!({ "password": "hunter2", "passphrase": "a different secret" }),
+        );
+
+        let after = call("kb.sync.credentials.status", json!({}));
+        assert_eq!(after["password"], json!(true));
+        assert_eq!(after["passphrase"], json!(true));
+
+        call("kb.sync.credentials.clear", json!({}));
+        let cleared = call("kb.sync.credentials.status", json!({}));
+        assert_eq!(cleared["password"], json!(false));
+        assert_eq!(cleared["passphrase"], json!(false));
+
+        crate::secrets::set_store(None);
 
         // Restore the default configuration location.
         crate::config::set_config_dir(None);
