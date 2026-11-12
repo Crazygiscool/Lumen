@@ -134,6 +134,23 @@ class KbFrontmatter {
       custom.isEmpty;
 }
 
+/// The daily note template: the file it lives in and what it holds.
+@immutable
+class KbTemplate {
+  const KbTemplate({required this.path, required this.content});
+
+  /// Where the template file lives.
+  final String path;
+
+  /// The template text.
+  final String content;
+
+  factory KbTemplate.fromJson(Map<String, dynamic> j) => KbTemplate(
+    path: j['path'] as String? ?? '',
+    content: j['content'] as String? ?? '',
+  );
+}
+
 /// The kind of connection between two graph nodes.
 enum KbEdgeType { wikilink, backlink, tag, temporal }
 
@@ -363,6 +380,42 @@ class KbService {
   /// Write the default daily template if none exists yet.
   Future<void> ensureTemplate() async {
     _ffi.kb('kb.template.ensure');
+  }
+
+  /// The daily template: where it lives and what it holds.
+  ///
+  /// The core owns the path, so the editor does not have to re-derive it.
+  Future<KbTemplate> template() async {
+    final data = _map(_ffi.kb('kb.template.get'));
+    return KbTemplate(
+      path: data['path'] as String? ?? '',
+      content: data['content'] as String? ?? '',
+    );
+  }
+
+  /// Save the daily template.
+  Future<String> saveTemplate(String content) async {
+    final data = _map(
+      _ffi.kb('kb.template.save', {'content': content}),
+    );
+    return data['path'] as String? ?? '';
+  }
+
+  /// Render a template for a date.
+  ///
+  /// The template is passed in rather than read from disk, so the editor can
+  /// preview what the user is typing before saving it.
+  Future<String> renderTemplate(String template, DateTime date) async {
+    final data = _map(
+      _ffi.kb(
+        'kb.template.render',
+        {
+          'template': template,
+          'date_ms': date.millisecondsSinceEpoch,
+        },
+      ),
+    );
+    return data['content'] as String? ?? '';
   }
 
   // ---------------------------------------------------------------------------

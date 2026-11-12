@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ffi/vault_service.dart';
 import '../knowledge/backlinks_panel.dart';
+import '../knowledge/daily_note.dart';
 import '../knowledge/frontmatter_editor.dart';
 import '../knowledge/kb_provider.dart';
 import '../knowledge/kb_service.dart';
@@ -129,6 +130,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 searchController: _searchCtl,
                 onSearchChanged: (v) => setState(() => _search = v),
                 onNew: _createNote,
+                onNewDaily: _createDailyNote,
                 onSelect: _open,
                 onLock: _lock,
               ),
@@ -179,6 +181,21 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         _openNow(path);
         _preview = false;
       });
+    }
+  }
+
+  /// Creates today's note from the daily template and opens it.
+  ///
+  /// The note is only created when it does not exist yet, so the button
+  /// never overwrites what is already written for the day.
+  Future<void> _createDailyNote() async {
+    try {
+      await openDailyNote(ref);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create the daily note: $e')),
+      );
     }
   }
 
@@ -483,6 +500,7 @@ class _JournalList extends StatelessWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onNew,
+    required this.onNewDaily,
     required this.onSelect,
     required this.onLock,
   });
@@ -494,6 +512,10 @@ class _JournalList extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onNew;
+
+  /// Creates today's note from the daily template and opens it.
+  final VoidCallback onNewDaily;
+
   final ValueChanged<String> onSelect;
   final VoidCallback onLock;
 
@@ -527,6 +549,11 @@ class _JournalList extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'New daily note (from template)',
+                onPressed: onNewDaily,
+                icon: const Icon(Icons.today_outlined),
               ),
               IconButton(
                 tooltip: 'New note',

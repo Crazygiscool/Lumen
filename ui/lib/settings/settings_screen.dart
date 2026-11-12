@@ -7,6 +7,7 @@ import '../theme/lumen_colors.dart';
 import '../widgets/path_picker.dart';
 import '../sync/syncthing_wizard.dart';
 import 'sync_settings_screen.dart';
+import 'template_editor.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -24,6 +25,12 @@ class SettingsScreen extends ConsumerWidget {
     final root = vault.root ?? '';
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => SyncthingWizardScreen(vaultPath: root)),
+    );
+  }
+
+  void _openTemplateEditor(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TemplateEditorScreen()),
     );
   }
 
@@ -183,6 +190,23 @@ class SettingsScreen extends ConsumerWidget {
                   label: const Text('Reset card order'),
                 ),
               ],
+            ),
+          ],
+        ),
+
+        _Section(
+          title: 'Knowledge Base',
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('Daily Template'),
+              subtitle: const Text(
+                'The shape every new daily note starts from. Preview the '
+                'placeholders before you save.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openTemplateEditor(context),
             ),
           ],
         ),
