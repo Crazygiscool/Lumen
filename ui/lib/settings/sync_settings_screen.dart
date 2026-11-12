@@ -5,19 +5,27 @@ import 'package:flutter/material.dart';
 import '../../ffi/lumen_ffi.dart';
 import '../../ffi/sync_service.dart';
 import '../theme/lumen_colors.dart';
+import '../widgets/path_picker.dart';
+import '../../sync/conflict_resolution_screen.dart';
+import '../../sync/syncthing_wizard.dart';
+import '../../sync/webdav_setup_screen.dart';
 
 /// Settings screen for sync configuration.
 class SyncSettingsScreen extends StatefulWidget {
-  const SyncSettingsScreen({super.key, required this.vaultPath});
+  const SyncSettingsScreen({super.key, required this.vaultPath, this.service});
 
   final String vaultPath;
+
+  /// The service to ask; the native one is used when none is given.
+  final SyncService? service;
 
   @override
   State<SyncSettingsScreen> createState() => _SyncSettingsScreenState();
 }
 
 class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
-  late final SyncService _syncService;
+  late final SyncService _syncService =
+      widget.service ?? SyncService(LumenFfi.instance);
 
   SyncStatus? _status;
   bool _loading = true;
@@ -27,10 +35,11 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    final ffi = LumenFfi.instance;
-    _syncService = SyncService(ffi);
     _refresh();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refresh(),
+    );
   }
 
   @override
@@ -64,61 +73,23 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     }
   }
 
-  Future<void> _resolveConflict(SyncConflict conflict, bool keepLocal) async {
-    try {
-      await _syncService.resolveConflict(conflict.path, keepLocal: keepLocal);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Resolved conflict for ${conflict.path}')),
-        );
-        _refresh();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to resolve conflict: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _showConflictDialog(SyncConflict conflict) async {
-    return showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Conflict: ${conflict.path}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Local:  ${conflict.localModified.toLocal()}'),
-            Text('Remote: ${conflict.remoteModified.toLocal()}'),
-            const SizedBox(height: 16),
-            const Text('Choose which version to keep:'),
-          ],
+  /// Show the difference between the two versions of a conflicted note.
+  ///
+  /// The user is asked to pick a version, so the difference is shown first:
+  /// the two versions are encrypted, and only the core can read them both.
+  Future<void> _showConflict(SyncConflict conflict) async {
+    final resolved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ConflictResolutionScreen(
+          conflict: conflict,
+          vaultPath: widget.vaultPath,
+          service: _syncService,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _resolveConflict(conflict, true);
-            },
-            child: const Text('Keep Local'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _resolveConflict(conflict, false);
-            },
-            child: const Text('Keep Remote'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
       ),
     );
+    if (resolved ?? false) {
+      await _refresh();
+    }
   }
 
   @override
@@ -128,39 +99,49 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.error_outline, color: LumenColors.of(context).error, size: 48),
-                      const SizedBox(height: 16),
-                      Text(_error!, style: TextStyle(color: LumenColors.of(context).error)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _refresh, child: const Text('Retry')),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: LumenColors.of(context).error,
+                    size: 48,
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _buildStatusCard(),
-                      const SizedBox(height: 16),
-                      _buildMethodSelector(),
-                      const SizedBox(height: 16),
-                      if (_status?.conflicts.isNotEmpty ?? false) ...[
-                        _buildConflictsSection(),
-                        const SizedBox(height: 16),
-                      ],
-                      _buildActionsSection(),
-                      const SizedBox(height: 16),
-                      _buildBackupSection(),
-                      const SizedBox(height: 16),
-                      _buildSyncthingConfigSection(),
-                    ],
+                  const SizedBox(height: 16),
+                  Text(
+                    _error!,
+                    style: TextStyle(color: LumenColors.of(context).error),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _refresh,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildStatusCard(),
+                  const SizedBox(height: 16),
+                  _buildMethodSelector(),
+                  const SizedBox(height: 16),
+                  if (_status?.conflicts.isNotEmpty ?? false) ...[
+                    _buildConflictsSection(),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildActionsSection(),
+                  const SizedBox(height: 16),
+                  _buildBackupSection(),
+                  const SizedBox(height: 16),
+                  _buildSyncthingConfigSection(),
+                ],
+              ),
+            ),
     );
   }
 
@@ -200,10 +181,35 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildStatusRow('Last Sync', status.lastSync?.toLocal().toString() ?? 'Never'),
-            _buildStatusRow('Pending Changes', status.pendingChanges.toString()),
+            _buildStatusRow(
+              'Last Sync',
+              status.lastSync?.toLocal().toString() ?? 'Never',
+            ),
+            _buildStatusRow(
+              'Pending Changes',
+              status.pendingChanges.toString(),
+            ),
             _buildStatusRow('Conflicts', status.conflicts.length.toString()),
-            _buildStatusRow('Connected Devices', status.deviceStatus.length.toString()),
+            _buildStatusRow(
+              'Connected Devices',
+              status.deviceStatus.length.toString(),
+            ),
+            if (status.deviceError != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: t.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      status.deviceError!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -217,7 +223,12 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: Theme.of(context).textTheme.bodySmall),
-          Text(value, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+          ),
         ],
       ),
     );
@@ -261,11 +272,29 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     );
   }
 
+  /// Choose the method Lumen syncs with.
+  ///
+  /// The choice is written to the configuration, so it is still there the
+  /// next time Lumen starts.
   Future<void> _changeMethod(SyncMethod method) async {
-    // TODO: Update config via FFI
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Changing sync method to $method - restart required')),
-    );
+    try {
+      await _syncService.setSyncMethod(method);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lumen will sync with $method.')));
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not change the sync method: $e')),
+      );
+    }
+
+    // WebDAV needs an account, so the setup is offered right away.
+    if (method == SyncMethod.webdav && mounted) {
+      await _showWebDAVSetup();
+    }
   }
 
   Widget _buildConflictsSection() {
@@ -279,7 +308,10 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Conflicts (${conflicts.length})', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Conflicts (${conflicts.length})',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 TextButton.icon(
                   onPressed: _refresh,
                   icon: const Icon(Icons.refresh, size: 16),
@@ -288,32 +320,38 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            ...conflicts.map((c) => ListTile(
-                  title: Text(c.path),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Local:  ${c.localModified.toLocal()} (${_shortHash(c.localHash)})'),
-                      Text('Remote: ${c.remoteModified.toLocal()} (${_shortHash(c.remoteHash)})'),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_upward, size: 20),
-                        tooltip: 'Keep Local',
-                        onPressed: () => _showConflictDialog(c),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.arrow_downward, size: 20),
-                        tooltip: 'Keep Remote',
-                        onPressed: () => _showConflictDialog(c),
-                      ),
-                    ],
-                  ),
-                  onTap: () => _showConflictDialog(c),
-                )),
+            ...conflicts.map(
+              (c) => ListTile(
+                title: Text(c.path),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Local:  ${c.localModified.toLocal()} (${_shortHash(c.localHash)})',
+                    ),
+                    Text(
+                      'Remote: ${c.remoteModified.toLocal()} (${_shortHash(c.remoteHash)})',
+                    ),
+                  ],
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_upward, size: 20),
+                      tooltip: 'Keep Local',
+                      onPressed: () => _showConflict(c),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_downward, size: 20),
+                      tooltip: 'Keep Remote',
+                      onPressed: () => _showConflict(c),
+                    ),
+                  ],
+                ),
+                onTap: () => _showConflict(c),
+              ),
+            ),
           ],
         ),
       ),
@@ -347,6 +385,11 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
                   icon: const Icon(Icons.settings, size: 18),
                   label: const Text('Setup Wizard'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: _showWebDAVSetup,
+                  icon: const Icon(Icons.cloud_outlined, size: 18),
+                  label: const Text('WebDAV Account'),
+                ),
               ],
             ),
           ],
@@ -355,15 +398,27 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     );
   }
 
-  void _showSetupWizard() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Syncthing Setup Wizard'),
-        content: const Text('This will open the Syncthing Setup Wizard (not yet implemented).'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+  /// The Syncthing wizard, which walks through the installation and the
+  /// folder.
+  Future<void> _showSetupWizard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SyncthingWizardScreen(vaultPath: widget.vaultPath),
       ),
     );
+    if (mounted) await _refresh();
+  }
+
+  /// The WebDAV account.
+  Future<void> _showWebDAVSetup() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => WebDAVSetupScreen(service: _syncService),
+      ),
+    );
+    if ((saved ?? false) && mounted) {
+      await _refresh();
+    }
   }
 
   Widget _buildBackupSection() {
@@ -373,9 +428,14 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Encrypted Backup', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Encrypted Backup',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
-            const Text('Create a portable, encrypted backup of your entire journal.'),
+            const Text(
+              'Create a portable, encrypted backup of your entire journal.',
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -402,11 +462,29 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     );
   }
 
+  /// Write an encrypted backup of the journal to a file of the user's
+  /// choosing.
   Future<void> _createBackup() async {
-    final passphrase = await _promptPassphrase('Enter passphrase for backup encryption');
+    final folder = await showPathPicker(
+      context,
+      mode: PathPickerMode.directory,
+      title: 'Where should the backup be written?',
+      initialPath: widget.vaultPath,
+    );
+    if (folder == null || !mounted) return;
+
+    final name = await _promptText(
+      'Name of the backup',
+      'lumen-backup-${DateTime.now().toIso8601String()}.lumen.bak.age',
+    );
+    if (name == null || name.trim().isEmpty || !mounted) return;
+
+    final passphrase = await _promptPassphrase(
+      'Enter passphrase for backup encryption',
+    );
     if (passphrase == null) return;
 
-    final outputPath = '/tmp/lumen-backup-${DateTime.now().toIso8601String()}.lumen.bak.age';
+    final outputPath = '$folder/${name.trim()}';
     try {
       await _syncService.createBackup(
         vaultPath: widget.vaultPath,
@@ -420,23 +498,59 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Backup failed: $e')));
       }
     }
   }
 
+  /// Restore an encrypted backup into a folder of the user's choosing.
   Future<void> _restoreBackup() async {
-    // TODO: Implement file picker for bundle selection
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restore backup - file picker not yet implemented')),
+    final bundle = await showPathPicker(
+      context,
+      mode: PathPickerMode.file,
+      title: 'Which backup should be restored?',
+      extensions: const ['.age'],
     );
+    if (bundle == null || !mounted) return;
+
+    final target = await showPathPicker(
+      context,
+      mode: PathPickerMode.directory,
+      title: 'Where should the backup be restored?',
+      initialPath: widget.vaultPath,
+    );
+    if (target == null || !mounted) return;
+
+    final passphrase = await _promptPassphrase(
+      'Enter passphrase for backup decryption',
+    );
+    if (passphrase == null) return;
+
+    try {
+      await _syncService.restoreBackup(
+        bundlePath: bundle,
+        passphrase: passphrase,
+        targetDir: target,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Backup restored to $target')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Restore failed: $e')));
+      }
+    }
   }
 
   Future<String?> _promptPassphrase(String message) async {
     final controller = TextEditingController();
-    return showDialog<String>(
+    final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(message),
@@ -447,11 +561,47 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
+    controller.dispose();
+    return result;
+  }
+
+  /// Ask for a single line of text.
+  Future<String?> _promptText(String message, String initial) async {
+    final controller = TextEditingController(text: initial);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(message),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Name'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
   }
 
   Widget _buildSyncthingConfigSection() {
@@ -464,7 +614,10 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Syncthing Configuration', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Syncthing Configuration',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 TextButton.icon(
                   onPressed: _showSyncthingConfig,
                   icon: const Icon(Icons.code, size: 16),
@@ -473,7 +626,9 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Generate Syncthing folder config XML for manual setup.'),
+            const Text(
+              'Generate Syncthing folder config XML for manual setup.',
+            ),
           ],
         ),
       ),
@@ -489,9 +644,17 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Syncthing Folder Config'),
             content: SingleChildScrollView(
-              child: SelectableText(xml, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              child: SelectableText(
+                xml,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
             ),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
           ),
         );
       }
