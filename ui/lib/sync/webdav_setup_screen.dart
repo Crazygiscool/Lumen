@@ -54,17 +54,13 @@ class _WebDAVSetupScreenState extends State<WebDAVSetupScreen> {
   /// Read what is already known: the account, and the secrets.
   Future<void> _load() async {
     try {
-      final config = await _service.config();
-      final sync = config['sync'];
-      final webdav = sync is Map ? sync['webdav'] : null;
+      final settings = await _service.webdavSettings();
       final credentials = await _service.credentialsStatus();
       if (!mounted) return;
       setState(() {
-        if (webdav is Map) {
-          _urlController.text = webdav['url'] as String? ?? '';
-          _usernameController.text = webdav['username'] as String? ?? '';
-          _encrypt = webdav['encrypt'] as bool? ?? true;
-        }
+        _urlController.text = settings.url;
+        _usernameController.text = settings.username;
+        _encrypt = settings.encrypt;
         _credentials = credentials;
       });
     } catch (e) {

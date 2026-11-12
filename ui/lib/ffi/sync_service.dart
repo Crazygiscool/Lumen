@@ -210,6 +210,33 @@ class CredentialStatus {
   );
 }
 
+/// The settings of the WebDAV account.
+///
+/// The password and the passphrase are not here: they live in the
+/// keyring, and the core reads them itself.
+class WebDAVSettings {
+  const WebDAVSettings({
+    required this.url,
+    required this.username,
+    required this.encrypt,
+  });
+
+  /// The address of the server.
+  final String url;
+
+  /// The name of the account.
+  final String username;
+
+  /// Whether the uploads are encrypted before they leave the machine.
+  final bool encrypt;
+
+  factory WebDAVSettings.fromJson(Map<String, dynamic> j) => WebDAVSettings(
+    url: j['url'] as String? ?? '',
+    username: j['username'] as String? ?? '',
+    encrypt: j['encrypt'] as bool? ?? true,
+  );
+}
+
 /// Service for sync operations (Syncthing, WebDAV, backups).
 class SyncService {
   SyncService(this._ffi);
@@ -453,5 +480,17 @@ class SyncService {
     sync['webdav'] = webdav;
     config['sync'] = sync;
     await setConfig(config);
+  }
+
+  /// The settings of the WebDAV account.
+  Future<WebDAVSettings> webdavSettings() async {
+    final config = await this.config();
+    final sync = config['sync'];
+    final webdav = sync is Map ? sync['webdav'] : null;
+    return WebDAVSettings.fromJson(
+      webdav is Map
+          ? webdav.cast<String, dynamic>()
+          : const <String, dynamic>{},
+    );
   }
 }

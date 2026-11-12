@@ -29,6 +29,7 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
 
   SyncStatus? _status;
   bool _loading = true;
+  bool _syncing = false;
   String? _error;
   Timer? _refreshTimer;
 
@@ -376,8 +377,14 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
               runSpacing: 8,
               children: [
                 ElevatedButton.icon(
-                  onPressed: _refresh,
-                  icon: const Icon(Icons.sync, size: 18),
+                  onPressed: _syncing ? null : _syncNow,
+                  icon: _syncing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync, size: 18),
                   label: const Text('Sync Now'),
                 ),
                 OutlinedButton.icon(
@@ -396,6 +403,39 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Sync now.
+  ///
+  /// Syncthing syncs on its own, so there is nothing for Lumen to do but
+  /// read the status. WebDAV is pushed by Lumen, so the notes are sent.
+  Future<void> _syncNow() async {
+    setState(() => _syncing = true);
+    try {
+      if (_status?.method == SyncMethod.webdav) {
+        final settings = await _syncService.webdavSettings();
+        await _syncService.syncWebDAV(
+          vaultPath: widget.vaultPath,
+          url: settings.url,
+          username: settings.username,
+          encrypt: settings.encrypt,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('The notes were sent.')));
+        }
+      }
+      await _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('The sync failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
   }
 
   /// The Syncthing wizard, which walks through the installation and the

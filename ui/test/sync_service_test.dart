@@ -180,6 +180,46 @@ void main() {
       expect(ffi.args.first['encrypt'], isTrue);
     });
 
+    test('the WebDAV settings are read back', () async {
+      final ffi = _FakeFfi({
+        'kb.config.get': {
+          'sync': {
+            'method': 'webdav',
+            'webdav': {
+              'url': 'https://dav.example.com',
+              'username': 'me',
+              'encrypt': false,
+            },
+          },
+        },
+      });
+      final service = SyncService(ffi);
+
+      final settings = await service.webdavSettings();
+
+      expect(settings.url, 'https://dav.example.com');
+      expect(settings.username, 'me');
+      expect(settings.encrypt, isFalse);
+    });
+
+    test('the notes are sent without the password', () async {
+      final ffi = _FakeFfi({
+        'kb.sync.webdav.sync': {'synced': true},
+      });
+      final service = SyncService(ffi);
+
+      await service.syncWebDAV(
+        vaultPath: '/vault',
+        url: 'https://dav.example.com',
+        username: 'me',
+        encrypt: true,
+      );
+
+      expect(ffi.methods, ['kb.sync.webdav.sync']);
+      expect(ffi.args.first['vault_path'], '/vault');
+      expect(ffi.args.first.containsKey('password'), isFalse);
+    });
+
     test('the sync method is written to the configuration', () async {
       final ffi = _FakeFfi({
         'kb.config.get': {
