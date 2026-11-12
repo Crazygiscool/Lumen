@@ -196,6 +196,22 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             };
             ok(serde_json::json!({ "paths": results }))
         }
+        // The query language covers `tag:`, `date:` and `key:value` filters
+        // in one string, which is what a user would type.
+        "kb.query" => {
+            #[derive(Deserialize)]
+            struct QueryArgs {
+                query: String,
+                #[serde(default = "default_store")]
+                store: String,
+            }
+            let a = parse!(QueryArgs);
+            let results = match crate::query::query(&a.store, &a.query) {
+                Ok(r) => r,
+                Err(e) => return err(e),
+            };
+            ok(serde_json::json!({ "paths": results }))
+        }
         // Parsing and serializing work on a body rather than a file, so the
         // editor can edit the metadata of the note it is holding in memory
         // instead of rewriting the file behind the user's back.
@@ -668,6 +684,12 @@ mod tests {
         assert_eq!(after.title.as_deref(), Some("Beta"));
         let queried = call("kb.frontmatter.query", json!({ "tag": "urgent" }));
         assert_eq!(queried["paths"].as_array().unwrap(), &vec![json!("beta.md")]);
+
+        // The query language answers the same question in one string.
+        let by_query = call("kb.query", json!({ "query": "tag:urgent" }));
+        assert_eq!(by_query["paths"].as_array().unwrap(), &vec![json!("beta.md")]);
+        let no_match = call("kb.query", json!({ "query": "tag:missing" }));
+        assert!(no_match["paths"].as_array().unwrap().is_empty());
 
         // --- Templates ------------------------------------------------------
         let date_ms = 1_770_000_000_000_i64;

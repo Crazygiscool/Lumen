@@ -8,6 +8,7 @@ pub mod graph;
 pub mod importer;
 pub mod paths;
 pub mod plugins;
+pub mod query;
 pub mod search;
 pub mod sync;
 pub mod template;
