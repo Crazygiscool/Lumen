@@ -48,6 +48,14 @@ impl Query {
     pub fn is_empty(&self) -> bool {
         self.terms.is_empty()
     }
+
+    /// Whether the query asks for anything but free text.
+    ///
+    /// A full-text index can answer plain words, but only the notes
+    /// themselves know what tags and fields they carry.
+    pub fn has_filters(&self) -> bool {
+        self.terms.iter().any(|term| !matches!(term, Term::Text(_)))
+    }
 }
 
 /// Whether the part before a colon names a field.
@@ -346,5 +354,13 @@ mod tests {
     #[test]
     fn test_an_empty_query_matches_nothing() {
         assert!(!matches("a.md", "# A", &Frontmatter::default(), &parse("")));
+    }
+
+    #[test]
+    fn test_has_filters() {
+        assert!(!parse("meeting").has_filters());
+        assert!(parse("tag:work").has_filters());
+        assert!(parse("meeting tag:work").has_filters());
+        assert!(parse("").terms.is_empty());
     }
 }

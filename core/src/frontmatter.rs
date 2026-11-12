@@ -138,6 +138,22 @@ pub fn write_frontmatter(store: &str, path: &str, fm: &Frontmatter) -> crate::Re
     crate::vault::write_text(path, &new_body, store)
 }
 
+/// The frontmatter as YAML.
+///
+/// This is the form the metadata is edited in, so the YAML is produced here
+/// rather than in every client that offers an editor for it.
+pub fn frontmatter_to_yaml(fm: &Frontmatter) -> String {
+    serde_yaml::to_string(fm).unwrap_or_default()
+}
+
+/// Read frontmatter from YAML.
+///
+/// The error is the YAML parser's, so a user who mistyped a line is told
+/// what is wrong with it.
+pub fn frontmatter_from_yaml(yaml: &str) -> crate::Result<Frontmatter> {
+    serde_yaml::from_str::<Frontmatter>(yaml).map_err(|e| e.to_string())
+}
+
 /// Query entries by frontmatter filter.
 pub fn query_entries(
     store: &str,
@@ -281,5 +297,47 @@ Body content."#;
         let (fm, remaining) = parse_frontmatter(body);
         assert!(fm.is_empty());
         assert_eq!(remaining, "# Body.");
+    }
+
+    /// The YAML form has to survive a round trip, or an editor that works on
+    /// YAML would quietly lose the metadata.
+    #[test]
+    fn test_yaml_round_trips() {
+        let mut fm = Frontmatter::new();
+        fm.tags = vec!["work".to_string(), "urgent".to_string()];
+        fm.title = Some("Beta".to_string());
+        fm.set_string("project".into(), "lumen".into());
+
+        let yaml = frontmatter_to_yaml(&fm);
+        let parsed = frontmatter_from_yaml(&yaml).unwrap();
+
+        assert_eq!(parsed.tags, fm.tags);
+        assert_eq!(parsed.title, fm.title);
+        assert_eq!(parsed.get_string("project").as_deref(), Some("lumen"));
+    }
+
+    /// YAML written by hand has to be understood as well.
+    #[test]
+    fn test_yaml_is_read_back() {
+        let yaml = "tags:\n  - work\n  - urgent\ntitle: Beta\nproject: lumen\n";
+
+        let fm = frontmatter_from_yaml(yaml).unwrap();
+
+        assert_eq!(fm.tags, vec!["work", "urgent"]);
+        assert_eq!(fm.title.as_deref(), Some("Beta"));
+        assert_eq!(fm.get_string("project").as_deref(), Some("lumen"));
+    }
+
+    /// An empty document is empty metadata, not an error.
+    #[test]
+    fn test_empty_yaml_is_empty_frontmatter() {
+        let fm = frontmatter_from_yaml("").unwrap();
+        assert!(fm.is_empty());
+    }
+
+    /// Broken YAML has to say so, rather than quietly emptying the metadata.
+    #[test]
+    fn test_broken_yaml_is_an_error() {
+        assert!(frontmatter_from_yaml("tags: [work\n").is_err());
     }
 }
