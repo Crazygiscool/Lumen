@@ -12,6 +12,7 @@ pub mod query;
 pub mod search;
 pub mod secrets;
 pub mod sync;
+pub mod syncthing;
 pub mod template;
 pub mod vault;
 pub mod wikilinks;

@@ -37,6 +37,12 @@ pub struct SyncStatus {
     pub pending_changes: usize,
     pub conflicts: Vec<SyncConflict>,
     pub device_status: Vec<DeviceStatus>,
+    /// Why the devices could not be asked about, if they could not.
+    ///
+    /// Syncthing may simply not be running, which is not an error: the
+    /// journal works either way. The reason is here so the app can say so.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_error: Option<String>,
 }
 
 /// A sync conflict between local and remote versions.
@@ -149,13 +155,44 @@ pub fn get_sync_status() -> crate::Result<SyncStatus> {
         (false, None, Vec::new())
     };
 
+    // The devices and the pending changes come from Syncthing itself, when
+    // it is there to be asked.
+    let mut device_status = Vec::new();
+    let mut pending_changes = 0;
+    let mut device_error = None;
+
+    if enabled && config.sync.method == "syncthing" {
+        let vault_path = state_guard
+            .as_ref()
+            .map(|state| state.vault_path.clone())
+            .unwrap_or_default();
+
+        match crate::syncthing::status(&vault_path) {
+            Ok(status) => {
+                device_status = status
+                    .devices
+                    .into_iter()
+                    .map(|device| DeviceStatus {
+                        id: device.id,
+                        name: device.name,
+                        connected: device.connected,
+                        last_seen: device.last_seen,
+                    })
+                    .collect();
+                pending_changes = status.pending;
+            }
+            Err(e) => device_error = Some(e),
+        }
+    }
+
     Ok(SyncStatus {
         enabled,
         method,
         last_sync,
-        pending_changes: 0, // TODO: compute from Syncthing API
+        pending_changes,
         conflicts,
-        device_status: Vec::new(), // TODO: from Syncthing API
+        device_status,
+        device_error,
     })
 }
 
