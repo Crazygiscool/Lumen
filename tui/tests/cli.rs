@@ -9,7 +9,8 @@ use clap::Parser;
 
 use lumen_core::vault::{self, STORE_JOURNAL};
 use lumen_tui::cli::{
-    conflict_diff, listed_entries, queried_entries, sync_status_lines, Cli, Commands,
+    conflict_diff, listed_entries, queried_entries, sync_status_lines, webdav_report_lines, Cli,
+    Commands,
 };
 
 /// The vault registry is process-global, so the tests that touch it take
@@ -223,4 +224,45 @@ fn test_the_status_shows_the_number_of_conflicts() {
 
     assert!(lines.iter().any(|line| line.contains("Enabled:")));
     assert!(lines.iter().any(|line| line.contains("Devices:")));
+}
+
+/// The WebDAV sync says what it did, and what needs the user.
+#[test]
+fn test_the_webdav_sync_says_what_it_did() {
+    let report = lumen_core::sync_notes::SyncReport {
+        uploaded: vec!["a.md".to_string()],
+        downloaded: vec!["b.md".to_string(), "c.md".to_string()],
+        deleted: vec![],
+        conflicts: vec![],
+        errors: vec![],
+    };
+
+    let lines = webdav_report_lines(&report);
+
+    assert_eq!(lines[0], "Sent 1 note, took 2 notes, removed 0 notes.");
+}
+
+/// A note both sides changed is named, so the user can go and look at it.
+#[test]
+fn test_the_webdav_sync_names_the_notes_that_need_the_user() {
+    let conflict = lumen_core::sync::SyncConflict {
+        path: "gamma.md".to_string(),
+        local_modified: chrono::Utc::now(),
+        remote_modified: chrono::Utc::now(),
+        local_hash: "aaa".to_string(),
+        remote_hash: "bbb".to_string(),
+        source: "webdav".to_string(),
+    };
+    let report = lumen_core::sync_notes::SyncReport {
+        uploaded: vec![],
+        downloaded: vec![],
+        deleted: vec![],
+        conflicts: vec![conflict],
+        errors: vec![],
+    };
+
+    let lines = webdav_report_lines(&report);
+
+    assert!(lines.iter().any(|line| line.contains("1 note need your attention")));
+    assert!(lines.iter().any(|line| line.contains("gamma.md")));
 }

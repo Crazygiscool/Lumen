@@ -104,6 +104,8 @@ pub enum SyncCommands {
         #[arg(long)]
         keep_local: bool,
     },
+    /// Sync the notes with the WebDAV account, both ways.
+    Webdav,
     /// Generate Syncthing folder configuration XML.
     GenSyncthingConfig,
     /// Create encrypted backup bundle.
@@ -559,7 +561,8 @@ fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
         }
         SyncCommands::Resolve { path, keep_local } => {
             init_sync(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
-            resolve_conflict(path, *keep_local).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            resolve_conflict(STORE_JOURNAL, &root_str, path, *keep_local)
+                .map_err(|e| color_eyre::eyre::eyre!(e))?;
             println!(
                 "Resolved conflict for {} (kept {})",
                 path,
@@ -570,6 +573,19 @@ fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
             let xml =
                 generate_syncthing_config(&root_str).map_err(|e| color_eyre::eyre::eyre!(e))?;
             println!("{}", xml);
+        }
+        SyncCommands::Webdav => {
+            let config = lumen_core::sync::webdav::config_from_settings()
+                .map_err(|e| color_eyre::eyre::eyre!(e))?;
+            let report = lumen_core::sync::webdav::sync_vault_blocking(
+                config,
+                STORE_JOURNAL,
+                &root_str,
+            )
+            .map_err(|e| color_eyre::eyre::eyre!(e))?;
+            for line in webdav_report_lines(&report) {
+                println!("{line}");
+            }
         }
         SyncCommands::BackupCreate { output, passphrase } => {
             let pass = passphrase.clone().unwrap_or_else(prompt_password_hidden);
@@ -625,6 +641,50 @@ pub fn sync_status_lines(vault_path: &str) -> color_eyre::Result<Vec<String>> {
     }
 
     Ok(lines)
+}
+
+/// The lines `lumen sync webdav` prints.
+///
+/// What the sync did is said plainly: how many notes were sent, how many
+/// were taken, and how many need the user.
+pub fn webdav_report_lines(report: &lumen_core::sync_notes::SyncReport) -> Vec<String> {
+    let mut lines = vec![format!(
+        "Sent {}, took {}, removed {}.",
+        plural(report.uploaded.len(), "note"),
+        plural(report.downloaded.len(), "note"),
+        plural(report.deleted.len(), "note"),
+    )];
+
+    if !report.conflicts.is_empty() {
+        lines.push(format!(
+            "{} need your attention:",
+            plural(report.conflicts.len(), "note")
+        ));
+        for conflict in &report.conflicts {
+            lines.push(format!("  {}", conflict.path));
+        }
+    }
+
+    if !report.errors.is_empty() {
+        lines.push(format!(
+            "{} could not be synced:",
+            plural(report.errors.len(), "note")
+        ));
+        for error in &report.errors {
+            lines.push(format!("  {error}"));
+        }
+    }
+
+    lines
+}
+
+/// A count and the thing it counts, so it reads properly.
+fn plural(count: usize, noun: &str) -> String {
+    if count == 1 {
+        format!("{count} {noun}")
+    } else {
+        format!("{count} {noun}s")
+    }
 }
 
 /// The difference between the two versions of a conflicted note.
