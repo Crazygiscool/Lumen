@@ -421,9 +421,14 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             struct ResolveConflictArgs {
                 path: String,
                 keep_local: bool,
+                /// The folder holding the vault.
+                vault_path: String,
+                /// The store the vault belongs to.
+                #[serde(default = "default_store")]
+                store: String,
             }
             let a = parse!(ResolveConflictArgs);
-            if let Err(e) = resolve_conflict(&a.path, a.keep_local) {
+            if let Err(e) = resolve_conflict(&a.store, &a.vault_path, &a.path, a.keep_local) {
                 return err(e);
             }
             ok(serde_json::json!({ "resolved": a.path }))
@@ -945,7 +950,11 @@ mod tests {
 
         call(
             "kb.sync.resolve_conflict",
-            json!({ "path": "alpha.md", "keep_local": true }),
+            json!({
+                "path": "alpha.md",
+                "keep_local": true,
+                "vault_path": vault_path,
+            }),
         );
 
         let syncthing = call(

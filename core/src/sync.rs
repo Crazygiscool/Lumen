@@ -391,24 +391,23 @@ pub fn conflict_versions(
 }
 
 /// Resolve a conflict by choosing local or remote version.
-pub fn resolve_conflict(path: &str, keep_local: bool) -> crate::Result<()> {
-    let (store, vault_path) = {
-        let state_guard = SYNC_STATE.lock().unwrap();
-        let state = state_guard.as_ref().ok_or("Sync not initialized")?;
-        (state.store.clone(), state.vault_path.clone())
-    };
-
+pub fn resolve_conflict(
+    store: &str,
+    vault_path: &str,
+    path: &str,
+    keep_local: bool,
+) -> crate::Result<()> {
     // A WebDAV account keeps the version it had inside the vault, so it is
     // settled here rather than by Syncthing's folder of versions.
     let copy = conflict_copy_path(path);
-    let copy_full = Path::new(&vault_path).join(&copy);
+    let copy_full = Path::new(vault_path).join(&copy);
     if copy_full.exists() {
-        resolve_webdav_conflict(&store, &vault_path, path, &copy, keep_local)?;
+        resolve_webdav_conflict(store, vault_path, path, &copy, keep_local)?;
     } else {
-        resolve_syncthing_conflict(&vault_path, path, keep_local)?;
+        resolve_syncthing_conflict(vault_path, path, keep_local)?;
     }
 
-    // Rescan
+    // Rescan, so the state the app reads is in step with the vault.
     {
         let mut state_guard = SYNC_STATE.lock().unwrap();
         if let Some(state) = state_guard.as_mut() {
@@ -663,6 +662,46 @@ pub mod webdav {
         hasher.update(vault_path.as_bytes());
         let fingerprint = hex::encode(&hasher.finalize()[..8]);
         config::config_dir().join("webdav").join(fingerprint)
+    }
+
+    /// The settings of the WebDAV account, with the secrets from the keyring.
+    ///
+    /// The password and the passphrase are kept in the keyring, so they
+    /// never travel through the app.
+    pub fn config_from_settings() -> crate::Result<WebDAVConfig> {
+        let settings = config::get_config().sync.webdav;
+        if settings.url.trim().is_empty() {
+            return Err("no WebDAV address has been set".into());
+        }
+        let password = match crate::secrets::webdav_password() {
+            Ok(Some(password)) => password,
+            Ok(None) => return Err("the WebDAV password has not been kept in the keyring".into()),
+            Err(e) => return Err(e),
+        };
+        let passphrase = crate::secrets::webdav_passphrase().ok().flatten();
+        Ok(WebDAVConfig {
+            url: settings.url,
+            username: settings.username,
+            password: Some(password),
+            encryption_passphrase: passphrase,
+            encrypt: settings.encrypt,
+        })
+    }
+
+    /// Sync the notes of a vault with the account, waiting for the result.
+    ///
+    /// The sync itself is asynchronous; this is the way to ask for it from
+    /// code that is not.
+    pub fn sync_vault_blocking(
+        config: WebDAVConfig,
+        store: &str,
+        vault_path: &str,
+    ) -> crate::Result<crate::sync_notes::SyncReport> {
+        let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+        runtime.block_on(async {
+            let mut sync = WebDAVSync::new(config).await?;
+            sync.sync_vault(store, vault_path).await
+        })
     }
 
     /// Read what Lumen remembers about an account.
