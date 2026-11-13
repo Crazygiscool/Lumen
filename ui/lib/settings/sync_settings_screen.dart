@@ -333,6 +333,7 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
                     Text(
                       'Remote: ${c.remoteModified.toLocal()} (${_shortHash(c.remoteHash)})',
                     ),
+                    Text('From: ${c.source}'),
                   ],
                 ),
                 trailing: Row(
@@ -408,22 +409,19 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
   /// Sync now.
   ///
   /// Syncthing syncs on its own, so there is nothing for Lumen to do but
-  /// read the status. WebDAV is pushed by Lumen, so the notes are sent.
+  /// read the status. WebDAV is synced by Lumen, so the notes are sent and
+  /// taken, and what happened is said.
   Future<void> _syncNow() async {
     setState(() => _syncing = true);
     try {
       if (_status?.method == SyncMethod.webdav) {
-        final settings = await _syncService.webdavSettings();
-        await _syncService.syncWebDAV(
+        final report = await _syncService.syncWebDAV(
           vaultPath: widget.vaultPath,
-          url: settings.url,
-          username: settings.username,
-          encrypt: settings.encrypt,
         );
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('The notes were sent.')));
+          ).showSnackBar(SnackBar(content: Text(_describe(report))));
         }
       }
       await _refresh();
@@ -436,6 +434,34 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
+  }
+
+  /// What the sync did, said in a sentence.
+  ///
+  /// The notes that need the user are named, because a sync that leaves a
+  /// conflict behind has not really finished.
+  static String _describe(SyncReport report) {
+    if (report.isEmpty) {
+      return 'Everything was already in step.';
+    }
+
+    final parts = <String>[];
+    if (report.uploaded.isNotEmpty) {
+      parts.add('${report.uploaded.length} sent');
+    }
+    if (report.downloaded.isNotEmpty) {
+      parts.add('${report.downloaded.length} taken');
+    }
+    if (report.deleted.isNotEmpty) {
+      parts.add('${report.deleted.length} removed');
+    }
+    if (report.conflicts.isNotEmpty) {
+      parts.add('${report.conflicts.length} need your attention');
+    }
+    if (report.errors.isNotEmpty) {
+      parts.add('${report.errors.length} could not be synced');
+    }
+    return 'The sync sent the notes: ${parts.join(', ')}.';
   }
 
   /// The Syncthing wizard, which walks through the installation and the

@@ -38,6 +38,7 @@ class SyncConflict {
     required this.remoteModified,
     required this.localHash,
     required this.remoteHash,
+    this.source = 'syncthing',
   });
 
   final String path;
@@ -45,6 +46,9 @@ class SyncConflict {
   final DateTime remoteModified;
   final String localHash;
   final String remoteHash;
+
+  /// Where the conflict came from: `syncthing` or `webdav`.
+  final String source;
 
   factory SyncConflict.fromJson(Map<String, dynamic> j) => SyncConflict(
     path: j['path'] as String? ?? '',
@@ -56,8 +60,59 @@ class SyncConflict {
         DateTime.fromMillisecondsSinceEpoch(0),
     localHash: j['local_hash'] as String? ?? '',
     remoteHash: j['remote_hash'] as String? ?? '',
+    source: j['source'] as String? ?? 'syncthing',
   );
 }
+
+/// What a sync did.
+class SyncReport {
+  const SyncReport({
+    required this.uploaded,
+    required this.downloaded,
+    required this.deleted,
+    required this.conflicts,
+    required this.errors,
+  });
+
+  /// The notes that were sent to the other side.
+  final List<String> uploaded;
+
+  /// The notes that were taken from the other side.
+  final List<String> downloaded;
+
+  /// The notes that were removed.
+  final List<String> deleted;
+
+  /// The notes that both sides changed.
+  final List<SyncConflict> conflicts;
+
+  /// The notes that could not be synced, and why.
+  final List<String> errors;
+
+  /// Whether anything happened at all.
+  bool get isEmpty =>
+      uploaded.isEmpty &&
+      downloaded.isEmpty &&
+      deleted.isEmpty &&
+      conflicts.isEmpty &&
+      errors.isEmpty;
+
+  factory SyncReport.fromJson(Map<String, dynamic> j) => SyncReport(
+    uploaded: _strings(j['uploaded']),
+    downloaded: _strings(j['downloaded']),
+    deleted: _strings(j['deleted']),
+    conflicts: (j['conflicts'] as List<dynamic>? ?? const [])
+        .map((e) => SyncConflict.fromJson((e as Map<String, dynamic>).cast()))
+        .toList(),
+    errors: _strings(j['errors']),
+  );
+}
+
+/// The paths in a list the core sent.
+List<String> _strings(Object? value) =>
+    (value as List<dynamic>? ?? const [])
+        .map((e) => e.toString())
+        .toList();
 
 /// Connected device status.
 class DeviceStatus {
@@ -266,10 +321,23 @@ class SyncService {
   }
 
   /// Resolve a conflict by choosing local or remote version.
-  Future<void> resolveConflict(String path, {required bool keepLocal}) async {
+  ///
+  /// The folder holding the vault is needed: the version the other side
+  /// sent is kept inside it, so the core can read both versions.
+  Future<void> resolveConflict(
+    String path, {
+    required bool keepLocal,
+    required String vaultPath,
+    String store = 'journal',
+  }) async {
     _ffi.kb(
       'kb.sync.resolve_conflict',
-      _args({'path': path, 'keep_local': keepLocal}),
+      _args({
+        'path': path,
+        'keep_local': keepLocal,
+        'vault_path': vaultPath,
+        'store': store,
+      }),
     );
   }
 
@@ -411,22 +479,22 @@ class SyncService {
     );
   }
 
-  /// Upload the vault to a WebDAV account.
-  Future<void> syncWebDAV({
+  /// Sync the notes with a WebDAV account, both ways.
+  ///
+  /// The address, the name of the account and whether the uploads are
+  /// encrypted are read by the core from the configuration, so only the
+  /// store is named here.
+  Future<SyncReport> syncWebDAV({
     required String vaultPath,
-    required String url,
-    required String username,
-    required bool encrypt,
+    String store = 'journal',
   }) async {
-    _ffi.kb(
-      'kb.sync.webdav.sync',
-      _args({
-        'vault_path': vaultPath,
-        'url': url,
-        'username': username,
-        'encrypt': encrypt,
-      }),
-    );
+    final data =
+        _ffi.kb(
+              'kb.sync.webdav.sync',
+              _args({'vault_path': vaultPath, 'store': store}),
+            )
+            as Map<String, dynamic>;
+    return SyncReport.fromJson(data);
   }
 
   // ---------------------------------------------------------------------------
