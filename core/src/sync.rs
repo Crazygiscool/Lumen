@@ -53,6 +53,13 @@ pub struct SyncConflict {
     pub remote_modified: DateTime<Utc>,
     pub local_hash: String,
     pub remote_hash: String,
+    /// Where the conflict came from: "syncthing" or "webdav".
+    #[serde(default = "default_conflict_source")]
+    pub source: String,
+}
+
+fn default_conflict_source() -> String {
+    "syncthing".to_string()
 }
 
 /// Connected device status (from Syncthing).
@@ -68,28 +75,96 @@ pub struct DeviceStatus {
 #[derive(Debug, Clone)]
 struct SyncState {
     vault_path: String,
+    /// The store the vault belongs to.
+    store: String,
     last_scan: Option<DateTime<Utc>>,
     file_hashes: HashMap<String, (DateTime<Utc>, String)>, // path -> (mtime, sha256)
 }
 
 /// Get SHA256 hash of a file.
-fn file_hash(path: &Path) -> crate::Result<String> {
+pub(crate) fn file_hash(path: &Path) -> crate::Result<String> {
     let data = fs::read(path).map_err(|e| e.to_string())?;
+    Ok(hash_bytes(&data))
+}
+
+/// The hash of some bytes.
+pub(crate) fn hash_bytes(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(&data);
-    Ok(hex::encode(hasher.finalize()))
+    hasher.update(data);
+    hex::encode(hasher.finalize())
 }
 
 /// Get file modified time.
-fn file_modified(path: &Path) -> crate::Result<DateTime<Utc>> {
+pub(crate) fn file_modified(path: &Path) -> crate::Result<DateTime<Utc>> {
     let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
     let modified = metadata.modified().map_err(|e| e.to_string())?;
     let datetime: DateTime<Utc> = modified.into();
     Ok(datetime)
 }
 
+/// Whether a file in the vault is a note that is synced.
+///
+/// The metadata folder holds the wrapped key, the search index and the
+/// copies of the other side's version that a conflict leaves behind — none
+/// of which are notes of the journal.
+fn is_synced_note(path: &Path, vault_root: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(vault_root) else {
+        return false;
+    };
+    let mut components = rel.components();
+    let Some(first) = components.next() else {
+        return false;
+    };
+    if first.as_os_str() == crate::vault::META_DIR {
+        return false;
+    }
+    path.extension().and_then(|s| s.to_str()) == Some("md")
+}
+
+/// The notes in the vault, with the hash of their encrypted bytes.
+///
+/// The hash is of the bytes on disk, which are encrypted: every device that
+/// has the note has the same bytes, so the hashes can be compared across
+/// devices.
+pub(crate) fn local_manifest(vault_path: &str) -> crate::Result<crate::sync_plan::Manifest> {
+    let root = Path::new(vault_path);
+    let mut notes = crate::sync_plan::Manifest::new();
+
+    for entry in walkdir::WalkDir::new(root) {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if !is_synced_note(path, root) {
+            continue;
+        }
+        let rel_path = path
+            .strip_prefix(root)
+            .map_err(|_| "Path not in vault")?
+            .to_string_lossy()
+            .replace('\\', "/");
+        notes.insert(rel_path, file_hash(path)?);
+    }
+
+    Ok(notes)
+}
+
+/// Where the version the other side sent is kept, so the user can look at it.
+///
+/// The copy lives inside the vault, so it is encrypted like a note and the
+/// app can read both versions without asking the server again.
+pub fn conflict_copy_path(path: &str) -> String {
+    format!("{}/conflicts/{}", crate::vault::META_DIR, path)
+}
+
 /// Initialize sync state for a vault.
 pub fn init_sync(vault_path: &str) -> crate::Result<()> {
+    init_sync_store(crate::vault::STORE_JOURNAL, vault_path)
+}
+
+/// Initialize sync state for a store of a vault.
+pub fn init_sync_store(store: &str, vault_path: &str) -> crate::Result<()> {
     let config = config::get_config();
     if config.sync.method == "none" {
         return Ok(());
@@ -97,6 +172,7 @@ pub fn init_sync(vault_path: &str) -> crate::Result<()> {
 
     let mut state = SyncState {
         vault_path: vault_path.to_string(),
+        store: store.to_string(),
         last_scan: None,
         file_hashes: HashMap::new(),
     };
@@ -121,14 +197,16 @@ fn scan_vault(state: &mut SyncState) -> crate::Result<()> {
             continue;
         }
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("md") {
+        if !is_synced_note(path, vault_path) {
             continue;
         }
 
         // Get relative path from vault root
-        let rel_path = path.strip_prefix(vault_path)
+        let rel_path = path
+            .strip_prefix(vault_path)
             .map_err(|_| "Path not in vault")?
             .to_string_lossy()
+            .replace('\\', "/")
             .to_string();
 
         let modified = file_modified(path)?;
@@ -148,7 +226,7 @@ pub fn get_sync_status() -> crate::Result<SyncStatus> {
 
     let method = parse_sync_method(&config.sync.method);
 
-    let (enabled, last_sync, conflicts) = if let Some(state) = state_guard.as_ref() {
+    let (enabled, last_sync, mut conflicts) = if let Some(state) = state_guard.as_ref() {
         let conflicts = detect_conflicts(state)?;
         (true, state.last_scan, conflicts)
     } else {
@@ -182,6 +260,20 @@ pub fn get_sync_status() -> crate::Result<SyncStatus> {
                 pending_changes = status.pending;
             }
             Err(e) => device_error = Some(e),
+        }
+    }
+
+    // The conflicts of a WebDAV account are the ones the last sync found;
+    // they are kept until the user has had a look at them.
+    if enabled && config.sync.method == "webdav" {
+        if let Some(state) = state_guard.as_ref() {
+            let dir = webdav::state_dir(
+                &config.sync.webdav.url,
+                &config.sync.webdav.username,
+                &state.store,
+                &state.vault_path,
+            );
+            conflicts.extend(webdav::read_state(&dir).conflicts);
         }
     }
 
@@ -234,6 +326,7 @@ fn detect_conflicts(state: &SyncState) -> crate::Result<Vec<SyncConflict>> {
                             remote_modified: remote_mtime,
                             local_hash: local_hash.clone(),
                             remote_hash,
+                            source: "syncthing".to_string(),
                         });
                     }
                 }
@@ -246,7 +339,7 @@ fn detect_conflicts(state: &SyncState) -> crate::Result<Vec<SyncConflict>> {
 
 /// The two versions of a conflicted note, decrypted.
 ///
-/// The note and the version Syncthing kept are both encrypted with the
+/// The note and the version the other side sent are both encrypted with the
 /// vault's key, so both are read through the vault and come back as text.
 /// The difference between them is what the user is asked to look at.
 pub fn conflict_versions(
@@ -256,10 +349,22 @@ pub fn conflict_versions(
 ) -> crate::Result<(String, String)> {
     let local = crate::vault::read_text(path, store)?;
 
+    // A WebDAV account leaves the version it had inside the vault, so the
+    // difference can be shown without asking the server again.
+    let copy = conflict_copy_path(path);
+    let copy_full = Path::new(vault_path).join(&copy);
+    if copy_full.exists() {
+        let remote = crate::vault::read_text(&copy, store)?;
+        return Ok((local, remote));
+    }
+
     let stversions_path = Path::new(vault_path).join(".stversions").join(path);
     let mut latest: Option<(DateTime<Utc>, PathBuf)> = None;
     if stversions_path.exists() {
-        for entry in fs::read_dir(&stversions_path).map_err(|e| e.to_string())?.flatten() {
+        for entry in fs::read_dir(&stversions_path)
+            .map_err(|e| e.to_string())?
+            .flatten()
+        {
             if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
                 let mtime = file_modified(&entry.path())?;
                 if latest.is_none() || mtime > latest.as_ref().unwrap().0 {
@@ -287,12 +392,71 @@ pub fn conflict_versions(
 
 /// Resolve a conflict by choosing local or remote version.
 pub fn resolve_conflict(path: &str, keep_local: bool) -> crate::Result<()> {
-    let state_guard = SYNC_STATE.lock().unwrap();
-    let state = state_guard.as_ref().ok_or("Sync not initialized")?;
+    let (store, vault_path) = {
+        let state_guard = SYNC_STATE.lock().unwrap();
+        let state = state_guard.as_ref().ok_or("Sync not initialized")?;
+        (state.store.clone(), state.vault_path.clone())
+    };
 
-    let vault_path = Path::new(&state.vault_path);
-    let file_path = vault_path.join(path);
-    let stversions_path = vault_path.join(".stversions").join(path);
+    // A WebDAV account keeps the version it had inside the vault, so it is
+    // settled here rather than by Syncthing's folder of versions.
+    let copy = conflict_copy_path(path);
+    let copy_full = Path::new(&vault_path).join(&copy);
+    if copy_full.exists() {
+        resolve_webdav_conflict(&store, &vault_path, path, &copy, keep_local)?;
+    } else {
+        resolve_syncthing_conflict(&vault_path, path, keep_local)?;
+    }
+
+    // Rescan
+    {
+        let mut state_guard = SYNC_STATE.lock().unwrap();
+        if let Some(state) = state_guard.as_mut() {
+            scan_vault(state)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Settle a conflict of a WebDAV account.
+///
+/// The version the other side had is the one the server still has, so the
+/// base of the account becomes that version: the next sync then carries the
+/// local choice over, or finds that both sides agree.
+fn resolve_webdav_conflict(
+    store: &str,
+    vault_path: &str,
+    path: &str,
+    copy: &str,
+    keep_local: bool,
+) -> crate::Result<()> {
+    let copy_full = Path::new(vault_path).join(copy);
+    let remote_hash = file_hash(&copy_full)?;
+
+    if !keep_local {
+        // Take the version the other side had.
+        crate::vault::copy_encrypted_note(copy, path, store)?;
+    }
+    fs::remove_file(&copy_full).map_err(|e| e.to_string())?;
+
+    let config = config::get_config();
+    let dir = webdav::state_dir(
+        &config.sync.webdav.url,
+        &config.sync.webdav.username,
+        store,
+        vault_path,
+    );
+    let mut state = webdav::read_state(&dir);
+    state.base.insert(path.to_string(), remote_hash);
+    state.conflicts.retain(|c| c.path != path);
+    webdav::write_state(&dir, &state)
+}
+
+/// Settle a conflict Syncthing found.
+fn resolve_syncthing_conflict(vault_path: &str, path: &str, keep_local: bool) -> crate::Result<()> {
+    let file_path = Path::new(vault_path).join(path);
+    let stversions_path = Path::new(vault_path).join(".stversions").join(path);
 
     if keep_local {
         // Remove remote versions, keep local
@@ -303,7 +467,10 @@ pub fn resolve_conflict(path: &str, keep_local: bool) -> crate::Result<()> {
         // Restore latest remote version
         if stversions_path.exists() {
             let mut latest: Option<(DateTime<Utc>, PathBuf)> = None;
-            for entry in fs::read_dir(&stversions_path).map_err(|e| e.to_string())?.flatten() {
+            for entry in fs::read_dir(&stversions_path)
+                .map_err(|e| e.to_string())?
+                .flatten()
+            {
                 if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
                     let mtime = file_modified(&entry.path())?;
                     if latest.is_none() || mtime > latest.as_ref().unwrap().0 {
@@ -315,13 +482,6 @@ pub fn resolve_conflict(path: &str, keep_local: bool) -> crate::Result<()> {
                 fs::copy(&latest_path, &file_path).map_err(|e| e.to_string())?;
             }
         }
-    }
-
-    // Rescan
-    drop(state_guard);
-    let mut state_guard = SYNC_STATE.lock().unwrap();
-    if let Some(state) = state_guard.as_mut() {
-        scan_vault(state)?;
     }
 
     Ok(())
@@ -443,13 +603,22 @@ fn decrypt_with_age(data: &[u8], passphrase: &str) -> crate::Result<Vec<u8>> {
 }
 
 /// WebDAV sync implementation using remotefs-webdav.
+///
+/// The notes are synced both ways. Every device keeps a manifest of the
+/// notes it has seen the other side agree on, and the server keeps a
+/// manifest of the notes it has. Comparing the two tells Lumen what to
+/// send, what to take and what the user has to decide.
 pub mod webdav {
     use super::*;
+    use crate::sync_plan::Manifest;
     use dav_xml_client::Auth;
     use futures::AsyncReadExt;
-    use remotefs::fs::{AsyncRemoteFs, ReadOptions, WriteOptions};
+    use remotefs::fs::{AsyncRemoteFs, File, ReadOptions, WriteOptions};
     use remotefs_webdav::WebDAVFs;
-    use std::collections::HashMap;
+    use serde::{Deserialize, Serialize};
+
+    /// The name of the manifest that says what is on the server.
+    pub const MANIFEST_FILE: &str = "lumen-manifest.json";
 
     /// WebDAV connection settings.
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -466,6 +635,44 @@ pub mod webdav {
         #[serde(skip_serializing)]
         pub encryption_passphrase: Option<String>,
         pub encrypt: bool,
+    }
+
+    /// What the server says it has.
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    struct RemoteManifest {
+        /// The version of the manifest, so a later change can be told apart.
+        #[serde(default)]
+        version: u32,
+        /// The notes on the server, with the hash of their encrypted bytes.
+        #[serde(default)]
+        notes: Manifest,
+    }
+
+    /// The folder holding what Lumen remembers about an account.
+    ///
+    /// Every account and every vault gets a folder of its own, so two
+    /// journals never share a base.
+    pub fn state_dir(url: &str, username: &str, store: &str, vault_path: &str) -> PathBuf {
+        let mut hasher = Sha256::new();
+        hasher.update(url.as_bytes());
+        hasher.update([0]);
+        hasher.update(username.as_bytes());
+        hasher.update([0]);
+        hasher.update(store.as_bytes());
+        hasher.update([0]);
+        hasher.update(vault_path.as_bytes());
+        let fingerprint = hex::encode(&hasher.finalize()[..8]);
+        config::config_dir().join("webdav").join(fingerprint)
+    }
+
+    /// Read what Lumen remembers about an account.
+    pub fn read_state(dir: &Path) -> crate::sync_notes::LocalState {
+        crate::sync_notes::read_local_state(dir)
+    }
+
+    /// Write down what Lumen remembers about an account.
+    pub fn write_state(dir: &Path, state: &crate::sync_notes::LocalState) -> crate::Result<()> {
+        crate::sync_notes::write_local_state(dir, state)
     }
 
     /// A connected WebDAV client.
@@ -487,6 +694,24 @@ pub mod webdav {
             Ok(Self { client, config })
         }
 
+        /// The path a note has on the server.
+        fn note_path(&self, rel_path: &str) -> String {
+            if self.config.encrypt {
+                format!("/{rel_path}.age")
+            } else {
+                format!("/{rel_path}")
+            }
+        }
+
+        /// The path the manifest has on the server.
+        fn manifest_path(&self) -> String {
+            if self.config.encrypt {
+                format!("/{MANIFEST_FILE}.age")
+            } else {
+                format!("/{MANIFEST_FILE}")
+            }
+        }
+
         /// Upload a local file, age-encrypting it when `encrypt` is set.
         pub async fn upload(&mut self, local_path: &Path, remote_path: &str) -> crate::Result<()> {
             let data = fs::read(local_path).map_err(|e| e.to_string())?;
@@ -501,35 +726,22 @@ pub mod webdav {
                 (data, remote_path.to_string())
             };
 
-            let mut cursor = futures::io::Cursor::new(data);
-            self.client
-                .write_file(
-                    Path::new(&remote_path),
-                    &WriteOptions::default(),
-                    &mut cursor,
-                )
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(())
+            self.write_file(&remote_path, data).await
         }
 
         /// Download a remote file, age-decrypting it when `encrypt` is set.
-        pub async fn download(&mut self, remote_path: &str, local_path: &Path) -> crate::Result<()> {
+        pub async fn download(
+            &mut self,
+            remote_path: &str,
+            local_path: &Path,
+        ) -> crate::Result<()> {
             let remote_path = if self.config.encrypt {
                 format!("{}.age", remote_path)
             } else {
                 remote_path.to_string()
             };
 
-            let mut stream = self
-                .client
-                .open(Path::new(&remote_path), &ReadOptions::default())
-                .await
-                .map_err(|e| e.to_string())?;
-            let mut data = Vec::new();
-            stream.read_to_end(&mut data).await.map_err(|e| e.to_string())?;
-            stream.finish().await.map_err(|e| e.to_string())?;
-
+            let data = self.read_file(&remote_path).await?;
             let data = if self.config.encrypt {
                 let passphrase = self.encryption_passphrase()?;
                 decrypt_with_age(&data, passphrase)?
@@ -572,71 +784,198 @@ pub mod webdav {
                 .collect())
         }
 
-        /// Push every note in the vault to the remote endpoint.
+        /// Every file on the server, with the path it has there.
         ///
-        /// Files already uploaded during this session are skipped when their
-        /// local hash is unchanged, so repeated syncs stay cheap.
-        pub async fn sync_to_webdav(&mut self, vault_path: &str) -> crate::Result<()> {
-            let vault_root = Path::new(vault_path);
-            let mut local_files: HashMap<String, String> = HashMap::new();
+        /// A listing only holds the direct children of a folder, so the
+        /// folders are walked as well: the notes of a journal live in
+        /// folders of their own.
+        pub async fn list_recursive(&mut self, remote_path: &str) -> crate::Result<Vec<File>> {
+            let mut files = Vec::new();
+            let mut folders = vec![remote_path.to_string()];
 
-            // Scan local vault for .md files
-            for entry in walkdir::WalkDir::new(vault_root) {
-                let entry = entry.map_err(|e| e.to_string())?;
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-                let path = entry.path();
-                if path.extension().and_then(|s| s.to_str()) != Some("md") {
-                    continue;
-                }
-
-                let rel_path = path
-                    .strip_prefix(vault_root)
-                    .map_err(|_| "Path not in vault")?
-                    .to_string_lossy()
-                    .to_string();
-
-                local_files.insert(rel_path, file_hash(path)?);
-            }
-
-            // List remote files
-            let remote_files = self.list("/").await?;
-
-            // Remote name -> local hash, for files uploaded in this session.
-            let mut uploaded: HashMap<String, String> = HashMap::new();
-
-            for (rel_path, hash) in &local_files {
-                let remote_name = if self.config.encrypt {
-                    format!("{}.age", rel_path)
-                } else {
-                    rel_path.clone()
-                };
-
-                let unchanged = uploaded
-                    .get(&remote_name)
-                    .map(|seen| seen == hash)
-                    .unwrap_or(false);
-                if unchanged && remote_files.iter().any(|f| f == &remote_name) {
-                    continue;
-                }
-
-                // WebDAV needs the parent collection to exist before the file.
-                if let Some(parent) = Path::new(rel_path).parent() {
-                    if !parent.as_os_str().is_empty() {
-                        self.client
-                            .create_dir(Path::new(&format!("/{}", parent.to_string_lossy())), None)
-                            .await
-                            .map_err(|e| e.to_string())?;
+            while let Some(folder) = folders.pop() {
+                let entries = self
+                    .client
+                    .list_dir(Path::new(&folder))
+                    .await
+                    .map_err(|e| e.to_string())?;
+                for entry in entries {
+                    if entry.is_dir() {
+                        folders.push(entry.path().to_string_lossy().into_owned());
+                    } else {
+                        files.push(entry);
                     }
                 }
-
-                let local_path = vault_root.join(rel_path);
-                self.upload(&local_path, &format!("/{}", rel_path)).await?;
-                uploaded.insert(remote_name, hash.clone());
             }
 
+            Ok(files)
+        }
+
+        /// Read a file from the server.
+        async fn read_file(&mut self, remote_path: &str) -> crate::Result<Vec<u8>> {
+            let mut stream = self
+                .client
+                .open(Path::new(remote_path), &ReadOptions::default())
+                .await
+                .map_err(|e| e.to_string())?;
+            let mut data = Vec::new();
+            stream
+                .read_to_end(&mut data)
+                .await
+                .map_err(|e| e.to_string())?;
+            stream.finish().await.map_err(|e| e.to_string())?;
+            Ok(data)
+        }
+
+        /// Write a file to the server.
+        async fn write_file(&mut self, remote_path: &str, data: Vec<u8>) -> crate::Result<()> {
+            self.ensure_parent(remote_path).await?;
+            let mut cursor = futures::io::Cursor::new(data);
+            self.client
+                .write_file(
+                    Path::new(remote_path),
+                    &WriteOptions::default(),
+                    &mut cursor,
+                )
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(())
+        }
+
+        /// Make sure the folders of a path are there.
+        ///
+        /// WebDAV needs the collection to exist before the file in it, and
+        /// the server says so when it is not.
+        async fn ensure_parent(&mut self, remote_path: &str) -> crate::Result<()> {
+            let path = Path::new(remote_path);
+            let Some(parent) = path.parent() else {
+                return Ok(());
+            };
+
+            let mut current = PathBuf::from("/");
+            for part in parent.components() {
+                if !matches!(part, std::path::Component::Normal(_)) {
+                    continue;
+                }
+                current.push(part);
+                if self.client.exists(&current).await.unwrap_or(false) {
+                    continue;
+                }
+                // The folder may have been made between the check and the
+                // call, so a failure here is not the end of it: the write
+                // that follows says what is really wrong.
+                let _ = self.client.create_dir(&current, None).await;
+            }
+            Ok(())
+        }
+
+        /// Read what the server says it has.
+        async fn read_manifest_file(&mut self) -> crate::Result<Manifest> {
+            let path = self.manifest_path();
+            if !self.client.exists(Path::new(&path)).await.unwrap_or(false) {
+                // The server has no manifest: it has no notes as far as
+                // Lumen is concerned.
+                return Ok(Manifest::new());
+            }
+
+            let data = self.read_file(&path).await?;
+            let data = if self.config.encrypt {
+                let passphrase = self.encryption_passphrase()?;
+                decrypt_with_age(&data, passphrase)?
+            } else {
+                data
+            };
+
+            let raw = String::from_utf8(data)
+                .map_err(|e| format!("the manifest on the server is not text: {e}"))?;
+            let manifest: RemoteManifest = serde_json::from_str(&raw)
+                .map_err(|e| format!("the manifest on the server cannot be read: {e}"))?;
+            Ok(manifest.notes)
+        }
+
+        /// Tell the server what it has.
+        async fn write_manifest_file(&mut self, notes: &Manifest) -> crate::Result<()> {
+            let manifest = RemoteManifest {
+                version: 1,
+                notes: notes.clone(),
+            };
+            let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+            let data = if self.config.encrypt {
+                let passphrase = self.encryption_passphrase()?;
+                encrypt_with_age(json.as_bytes(), passphrase)?
+            } else {
+                json.into_bytes()
+            };
+            let path = self.manifest_path();
+            self.write_file(&path, data).await
+        }
+
+        /// Sync the notes of a vault with the server, both ways.
+        ///
+        /// The notes are compared with what the server has and with what the
+        /// two sides last agreed on, so the sync knows what to send, what to
+        /// take, and what the user has to decide.
+        pub async fn sync_vault(
+            &mut self,
+            store: &str,
+            vault_path: &str,
+        ) -> crate::Result<crate::sync_notes::SyncReport> {
+            let dir = state_dir(&self.config.url, &self.config.username, store, vault_path);
+            crate::sync_notes::sync_notes(self, store, vault_path, &dir).await
+        }
+    }
+
+    #[remotefs::async_trait]
+    impl crate::sync_notes::NoteStore for WebDAVSync {
+        async fn put(&mut self, rel_path: &str, data: Vec<u8>) -> crate::Result<()> {
+            let data = if self.config.encrypt {
+                let passphrase = self.encryption_passphrase()?;
+                encrypt_with_age(&data, passphrase)?
+            } else {
+                data
+            };
+            let path = self.note_path(rel_path);
+            self.write_file(&path, data).await
+        }
+
+        async fn get(&mut self, rel_path: &str) -> crate::Result<Vec<u8>> {
+            let path = self.note_path(rel_path);
+            let data = self.read_file(&path).await?;
+            if self.config.encrypt {
+                let passphrase = self.encryption_passphrase()?;
+                decrypt_with_age(&data, passphrase)
+            } else {
+                Ok(data)
+            }
+        }
+
+        async fn remove(&mut self, rel_path: &str) -> crate::Result<()> {
+            let path = self.note_path(rel_path);
+            self.client
+                .remove_file(Path::new(&path))
+                .await
+                .map_err(|e| e.to_string())
+        }
+
+        async fn modified(&mut self, rel_path: &str) -> crate::Result<DateTime<Utc>> {
+            let path = self.note_path(rel_path);
+            let entry = self
+                .client
+                .stat(Path::new(&path))
+                .await
+                .map_err(|e| e.to_string())?;
+            match entry.metadata.modified {
+                Some(modified) => Ok(modified.into()),
+                None => Ok(Utc::now()),
+            }
+        }
+
+        async fn read_manifest(&mut self) -> crate::Result<Manifest> {
+            self.read_manifest_file().await
+        }
+
+        async fn write_manifest(&mut self, notes: &Manifest) -> crate::Result<()> {
+            self.write_manifest_file(notes).await
         }
     }
 }

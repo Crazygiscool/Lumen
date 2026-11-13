@@ -17,7 +17,7 @@ use crate::sync::{
     create_backup_bundle,
     generate_syncthing_config,
     get_sync_status,
-    init_sync,
+    init_sync_store,
     resolve_conflict,
     restore_backup_bundle,
     webdav::{WebDAVConfig, WebDAVSync},
@@ -394,9 +394,12 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             #[derive(Deserialize)]
             struct SyncInitArgs {
                 vault_path: String,
+                /// The store to sync; the journal unless it is told otherwise.
+                #[serde(default = "default_store")]
+                store: String,
             }
             let a = parse!(SyncInitArgs);
-            if let Err(e) = init_sync(&a.vault_path) {
+            if let Err(e) = init_sync_store(&a.store, &a.vault_path) {
                 return err(e);
             }
             ok(serde_json::json!({ "initialized": true }))
@@ -587,34 +590,67 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
         "kb.sync.webdav.sync" => {
             #[derive(Deserialize)]
             struct WebDAVSyncArgs {
-                vault_path: String,
-                url: String,
-                username: String,
-                encrypt: bool,
+                /// The store to sync; the journal unless it is told otherwise.
+                #[serde(default = "default_store")]
+                store: String,
+                /// The folder holding the vault; the store's own folder
+                /// unless it is told otherwise.
+                #[serde(default)]
+                vault_path: Option<String>,
+                /// The address of the server; the one in the configuration
+                /// unless it is told otherwise.
+                #[serde(default)]
+                url: Option<String>,
+                /// The name of the account; the one in the configuration
+                /// unless it is told otherwise.
+                #[serde(default)]
+                username: Option<String>,
+                /// Whether the uploads are encrypted; the setting in the
+                /// configuration unless it is told otherwise.
+                #[serde(default)]
+                encrypt: Option<bool>,
             }
             let a = parse!(WebDAVSyncArgs);
+            let settings = config::get_config().sync.webdav;
+
+            let url = a.url.unwrap_or(settings.url);
+            let username = a.username.unwrap_or(settings.username);
+            let encrypt = a.encrypt.unwrap_or(settings.encrypt);
+            if url.trim().is_empty() {
+                return err("no WebDAV address has been set");
+            }
+
             let password = match secrets::webdav_password() {
                 Ok(Some(password)) => password,
                 Ok(None) => return err("the WebDAV password has not been kept in the keyring"),
                 Err(e) => return err(e),
             };
             let passphrase = secrets::webdav_passphrase().ok().flatten();
-            let config = WebDAVConfig {
-                url: a.url,
-                username: a.username,
+
+            let vault_path = match a.vault_path {
+                Some(path) => path,
+                None => match vault::get_vault_root(&a.store) {
+                    Ok(path) => path,
+                    Err(e) => return err(e),
+                },
+            };
+
+            let webdav_config = WebDAVConfig {
+                url,
+                username,
                 password: Some(password),
                 encryption_passphrase: passphrase,
-                encrypt: a.encrypt,
+                encrypt,
             };
             let rt = match runtime() {
                 Ok(rt) => rt,
                 Err(e) => return err(e),
             };
             match rt.block_on(async {
-                let mut sync = WebDAVSync::new(config).await?;
-                sync.sync_to_webdav(&a.vault_path).await
+                let mut sync = WebDAVSync::new(webdav_config).await?;
+                sync.sync_vault(&a.store, &vault_path).await
             }) {
-                Ok(_) => ok(serde_json::json!({ "synced": true })),
+                Ok(report) => ok(serde_json::to_value(report).unwrap_or_default()),
                 Err(e) => err(e),
             }
         }

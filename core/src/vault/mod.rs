@@ -397,6 +397,96 @@ pub fn write_text(input: &str, text: &str, store: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Decrypt a blob that is already encrypted with the vault's key.
+///
+/// The blob has the same shape as a file in the vault: the nonce, then the
+/// ciphertext.
+pub fn decrypt_blob(blob: &[u8], store: &str) -> Result<Vec<u8>, String> {
+    let st = state_clone(store)?;
+    decrypt_blob_with(blob, &st.data_key)
+}
+
+/// Decrypt a blob with a key, checking its shape first.
+fn decrypt_blob_with(blob: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> {
+    if blob.len() < 12 {
+        return Err("the encrypted note is corrupt (missing nonce)".into());
+    }
+    let (nonce, ciphertext) = blob.split_at(12);
+    decrypt(ciphertext, nonce, key)
+        .map_err(|_| "this note is not encrypted with this vault's key".to_string())
+}
+
+/// Write a note that is already encrypted with the vault's key.
+///
+/// A note that comes from another device is encrypted with the same key, so
+/// it is written as it is: encrypting it again would give it another
+/// fingerprint, and the sync would see it as a new note every time.
+///
+/// The blob is read before it is written, so a note that does not belong to
+/// this vault is refused instead of being stored where it cannot be read.
+pub fn put_encrypted_note(input: &str, blob: &[u8], store: &str) -> Result<(), String> {
+    let text = put_encrypted_blob(input, blob, store)?;
+    let text = String::from_utf8_lossy(&text).into_owned();
+
+    // Keep the knowledge-base indexes in step with the vault. These are
+    // secondary indexes, so a failure here must not fail the write.
+    let _ = crate::search::index_entry_on_write(store, input, &text);
+    let links = crate::wikilinks::parse_wikilinks(&text);
+    crate::wikilinks::update_backlinks(store, input, &links);
+
+    Ok(())
+}
+
+/// Write a copy of a note that is already encrypted with the vault's key.
+///
+/// The copy is not a note of this journal — it is what the user is asked to
+/// compare a note with — so the indexes are left alone.
+pub fn put_encrypted_copy(input: &str, blob: &[u8], store: &str) -> Result<(), String> {
+    put_encrypted_blob(input, blob, store).map(|_| ())
+}
+
+/// Write an already-encrypted blob into the vault, and read it back.
+fn put_encrypted_blob(input: &str, blob: &[u8], store: &str) -> Result<Vec<u8>, String> {
+    let st = state_clone(store)?;
+    let full = resolve_under_root(&st.root, input)?;
+
+    // The blob has to be a note of this vault, so it is read before it is
+    // written: a note from another vault would be unreadable later on.
+    let text = decrypt_blob_with(blob, &st.data_key)?;
+
+    if let Some(parent) = full.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&full, blob).map_err(|e| e.to_string())?;
+
+    Ok(text)
+}
+
+/// Copy an already-encrypted note over another one.
+///
+/// The bytes are written as they are, so the note keeps the fingerprint it
+/// had on the device it came from.
+pub fn copy_encrypted_note(from: &str, to: &str, store: &str) -> Result<(), String> {
+    let st = state_clone(store)?;
+    let src = resolve_under_root(&st.root, from)?;
+    let dst = resolve_under_root(&st.root, to)?;
+
+    let blob = fs::read(&src).map_err(|e| e.to_string())?;
+    let text = decrypt_blob_with(&blob, &st.data_key)?;
+
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&dst, &blob).map_err(|e| e.to_string())?;
+
+    let text = String::from_utf8_lossy(&text).into_owned();
+    let _ = crate::search::index_entry_on_write(store, to, &text);
+    let links = crate::wikilinks::parse_wikilinks(&text);
+    crate::wikilinks::update_backlinks(store, to, &links);
+
+    Ok(())
+}
+
 pub fn mkdir(input: &str, store: &str) -> Result<(), String> {
     let st = state_clone(store)?;
     let full = resolve_under_root(&st.root, input)?;

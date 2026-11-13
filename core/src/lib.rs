@@ -13,6 +13,8 @@ pub mod query;
 pub mod search;
 pub mod secrets;
 pub mod sync;
+pub mod sync_notes;
+pub mod sync_plan;
 pub mod syncthing;
 pub mod template;
 pub mod vault;
