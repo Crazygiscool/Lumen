@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>lumen</id>
+    <title>Lumen</title>
+    <version>3.2.3</version>
+    <authors>Crazygiscool</authors>
+    <owners>Crazygiscool</owners>
+    <projectUrl>https://github.com/Crazygiscool/Lumen</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/Crazygiscool/Lumen/main/ui/windows/runner/resources/app_icon.ico</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">LicenseRef-LumenNC</license>
+    <projectSourceUrl>https://github.com/Crazygiscool/Lumen</projectSourceUrl>
+    <docsUrl>https://github.com/Crazygiscool/Lumen#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/Crazygiscool/Lumen/issues</bugTrackerUrl>
+    <tags>journal markdown encrypted notes privacy sync webdav syncthing</tags>
+    <summary>Private, encrypted Markdown journal</summary>
+    <description>
+      Lumen is an offline-first, encrypted personal journal with Markdown editing,
+      Wikilinks, backlinks, full-text search, and a terminal client. Notes are
+      encrypted with AES-256-GCM and synced peer-to-peer via Syncthing or WebDAV.
+    </description>
+    <dependencies>
+      <dependency id="chocolatey-core.extension" version="[1.3.5.1,)" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

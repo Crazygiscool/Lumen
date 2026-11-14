@@ -1,0 +1,30 @@
+app-id: io.github.Crazygiscool.Lumen
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: lumen
+finish-args:
+  - --share=network          # Syncthing
+  - --filesystem=home        # Journal access
+  - --filesystem=xdg-config/lumen:rw
+  - --filesystem=xdg-data/lumen:rw
+  - --device=all             # Hardware keys (YubiKey)
+  - --talk-name=org.freedesktop.secrets  # Keyring (libsecret)
+modules:
+  - name: lumen
+    buildsystem: simple
+    build-commands:
+      - cp -r bundle/* /app/
+      - install -Dm755 lumen /app/bin/lumen
+      - install -Dm755 lumen-cli /app/bin/lumen-cli
+      - install -Dm644 lumen.desktop /app/share/applications/lumen.desktop
+      - install -Dm644 lumen.png /app/share/icons/hicolor/1024x1024/apps/lumen.png
+    sources:
+      - type: dir
+        path: ../build/linux/x64/release/bundle
+      - type: file
+        path: scripts/lumen.desktop
+        dest: lumen.desktop
+      - type: file
+        path: ui/lib/assets/lumen_logo.png
+        dest: lumen.png

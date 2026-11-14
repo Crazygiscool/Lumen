@@ -1,0 +1,39 @@
+{
+  "version": "3.2.3",
+  "description": "Private, encrypted Markdown journal",
+  "homepage": "https://github.com/Crazygiscool/Lumen",
+  "license": "Lumen Non-Commercial License v1.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/Crazygiscool/Lumen/releases/download/v3.2.3/Lumen-windows-v3.2.3-portable.zip",
+      "hash": "REPLACE_WITH_ACTUAL_HASH"
+    }
+  },
+  "extract_dir": "Lumen-windows-v3.2.3",
+  "bin": [
+    "lumen.exe",
+    "lumen-cli.exe"
+  ],
+  "shortcuts": [
+    [
+      "lumen.exe",
+      "Lumen"
+    ]
+  ],
+  "persist": [
+    "user-data"
+  ],
+  "checkver": {
+    "github": "https://github.com/Crazygiscool/Lumen"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/Crazygiscool/Lumen/releases/download/v$version/Lumen-windows-v$version-portable.zip",
+        "hash": {
+          "url": "https://github.com/Crazygiscool/Lumen/releases/download/v$version/Lumen-windows-v$version-portable.zip.sha256"
+        }
+      }
+    }
+  }
+}
