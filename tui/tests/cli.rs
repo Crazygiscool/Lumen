@@ -226,6 +226,63 @@ fn test_the_status_shows_the_number_of_conflicts() {
     assert!(lines.iter().any(|line| line.contains("Devices:")));
 }
 
+/// A wikilink target that does not exist yet is created, and its path is
+/// printed.
+#[test]
+fn test_wikilink_create_missing_makes_a_new_note() {
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().to_string_lossy().to_string();
+
+    vault::create_with_passphrase(&path, "testpass123", STORE_JOURNAL).unwrap();
+    vault::unlock(&path, "testpass123", STORE_JOURNAL).unwrap();
+
+    let cli = Cli::try_parse_from([
+        "lumen",
+        "--vault",
+        &path,
+        "--password",
+        "testpass123",
+        "wikilink",
+        "create-missing",
+        "New Note",
+    ])
+    .unwrap();
+
+    lumen_tui::cli::run(cli).unwrap();
+
+    assert!(std::path::Path::new(&path).join("new-note.md").exists());
+    assert_eq!(vault::read_text("new-note.md", STORE_JOURNAL).unwrap(), "");
+}
+
+/// Creating a wikilink target that already exists is an error.
+#[test]
+fn test_wikilink_create_missing_refuses_an_existing_note() {
+    let _lock = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().to_string_lossy().to_string();
+
+    vault::create_with_passphrase(&path, "testpass123", STORE_JOURNAL).unwrap();
+    vault::unlock(&path, "testpass123", STORE_JOURNAL).unwrap();
+
+    vault::write_text("existing.md", "# Already here", STORE_JOURNAL).unwrap();
+
+    let cli = Cli::try_parse_from([
+        "lumen",
+        "--vault",
+        &path,
+        "--password",
+        "testpass123",
+        "wikilink",
+        "create-missing",
+        "Existing",
+    ])
+    .unwrap();
+
+    let result = lumen_tui::cli::run(cli);
+    assert!(result.is_err(), "creating an existing note should fail");
+}
+
 /// The WebDAV sync says what it did, and what needs the user.
 #[test]
 fn test_the_webdav_sync_says_what_it_did() {
@@ -263,6 +320,8 @@ fn test_the_webdav_sync_names_the_notes_that_need_the_user() {
 
     let lines = webdav_report_lines(&report);
 
-    assert!(lines.iter().any(|line| line.contains("1 note need your attention")));
+    assert!(lines
+        .iter()
+        .any(|line| line.contains("1 note need your attention")));
     assert!(lines.iter().any(|line| line.contains("gamma.md")));
 }

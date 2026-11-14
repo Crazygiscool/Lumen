@@ -75,6 +75,11 @@ pub enum Commands {
     DailyTemplate,
     /// List the notes that link to an entry.
     Backlinks { path: String },
+    /// Follow a wikilink target, creating the note if it is missing.
+    Wikilink {
+        #[command(subcommand)]
+        command: WikilinkCommands,
+    },
     /// Edit an entry in $EDITOR.
     Edit { path: String },
     /// Consecutive days written, counting back from today.
@@ -128,6 +133,16 @@ pub enum SyncCommands {
     },
 }
 
+/// Follow a wikilink target.
+#[derive(Subcommand, Debug)]
+pub enum WikilinkCommands {
+    /// Create a missing note for a wikilink target, then open it in $EDITOR.
+    CreateMissing {
+        /// The wikilink target (e.g. "My Note").
+        target: String,
+    },
+}
+
 /// Run the client with the parsed command line.
 pub fn run(cli: Cli) -> color_eyre::Result<()> {
     match &cli.command {
@@ -144,6 +159,7 @@ pub fn run(cli: Cli) -> color_eyre::Result<()> {
         Some(Commands::Daily { date }) => cmd_daily(&cli, date.as_deref()),
         Some(Commands::DailyTemplate) => cmd_daily_template(&cli),
         Some(Commands::Backlinks { path }) => cmd_backlinks(&cli, path),
+        Some(Commands::Wikilink { command }) => cmd_wikilink(&cli, command),
         Some(Commands::Edit { path }) => cmd_writer(&cli, path),
         Some(Commands::Streak) => cmd_streak(&cli),
         Some(Commands::Sync { command }) => cmd_sync(&cli, command),
@@ -493,6 +509,25 @@ fn cmd_backlinks(cli: &Cli, path: &str) -> color_eyre::Result<()> {
     Ok(())
 }
 
+/// Create a missing note for a wikilink target.
+///
+/// The note is written empty, so the editor can open it next. The
+/// `wikilinks.create_missing` setting must be on, and the target must not
+/// already name a note.
+fn cmd_wikilink(cli: &Cli, cmd: &WikilinkCommands) -> color_eyre::Result<()> {
+    unlock(cli)?;
+
+    match cmd {
+        WikilinkCommands::CreateMissing { target } => {
+            let created = wikilinks::create_missing(STORE_JOURNAL, target)
+                .map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("Created {created}");
+        }
+    }
+
+    Ok(())
+}
+
 fn journal_dates(cli: &Cli) -> color_eyre::Result<BTreeSet<NaiveDate>> {
     unlock(cli)?;
     let mut dates = BTreeSet::new();
@@ -577,12 +612,9 @@ fn cmd_sync(cli: &Cli, cmd: &SyncCommands) -> color_eyre::Result<()> {
         SyncCommands::Webdav => {
             let config = lumen_core::sync::webdav::config_from_settings()
                 .map_err(|e| color_eyre::eyre::eyre!(e))?;
-            let report = lumen_core::sync::webdav::sync_vault_blocking(
-                config,
-                STORE_JOURNAL,
-                &root_str,
-            )
-            .map_err(|e| color_eyre::eyre::eyre!(e))?;
+            let report =
+                lumen_core::sync::webdav::sync_vault_blocking(config, STORE_JOURNAL, &root_str)
+                    .map_err(|e| color_eyre::eyre::eyre!(e))?;
             for line in webdav_report_lines(&report) {
                 println!("{line}");
             }
