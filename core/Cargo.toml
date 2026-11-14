@@ -42,6 +42,9 @@ tokio = { version = "1", features = ["rt-multi-thread"] }
 keyring = "4"
 # Phase 3: Cross-Platform
 reqwest = { version = "0.11", features = ["blocking", "json"] }
+# Phase 4: Power User
+wasmtime = { version = "18", features = ["cranelift", "async"] }
+wasmtime-wasi = { version = "18" }
 
 [dev-dependencies]
 tempfile = "3.27"

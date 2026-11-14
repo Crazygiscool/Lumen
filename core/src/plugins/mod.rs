@@ -2,6 +2,7 @@ pub mod builtin;
 pub mod ffi;
 pub mod loader;
 pub mod manifest;
+pub mod wasm;
 pub(crate) mod plugin_trait;
 
 pub use loader::{inventory, scan_plugins, LoadedPlugin};
