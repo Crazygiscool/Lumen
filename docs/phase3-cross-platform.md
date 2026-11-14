@@ -19,7 +19,7 @@
 | **.deb** | `dpkg-deb` | Debian/Ubuntu | ✅ (scripts/build_linux.sh) |
 | **.rpm** | `rpmbuild` | Fedora/RHEL | ✅ (scripts/build_linux.sh) |
 | **Arch/AUR** | `makepkg` | Arch Linux | ✅ (scripts/release.sh) |
-| **Snap** | `snapcraft` | Ubuntu Store | Planned |
+| **Snap** | `snapcraft` | Ubuntu Store | ✅ (packaging/snapcraft.yaml) |
 
 ### Flatpak Manifest (`packaging/flatpak/io.github.Crazygiscool.Lumen.yml`)
 
@@ -69,6 +69,36 @@ without maintaining build infrastructure:
 
 Both services rebuild on every source change, so new Lumen releases are
 automatically packaged for Fedora and openSUSE users.
+
+### Snap Store
+
+Snaps are built automatically for Ubuntu and other snap-enabled distros
+without maintaining build infrastructure:
+
+**Snap Store** (`snapcraft.io`):
+1. Create a snap name at snapcraft.io (the name `lumen` is reserved on first
+   push)
+2. Push `packaging/snapcraft.yaml` and build the snap:
+   ```
+   snapcraft login
+   snapcraft
+   snapcraft upload --release=edge lumen_*.snap
+   ```
+3. The snap builds on Snapcraft's build farm for `amd64`, `arm64`,
+   `armhf`, and `i386`
+4. Promote to the `stable` channel once tested:
+   ```
+   snapcraft release lumen <revision> stable
+   ```
+
+The snap uses strict confinement with the `home`, `network`, `wayland`,
+`x11`, `unity7`, `desktop`, `desktop-legacy`, `gsettings`, and `libsecret`
+plugs. The Rust FFI library (`liblumen_core.so`) and the TUI binary
+(`lumen-cli`) are packaged alongside the Flutter bundle.
+
+Both COPR/OBS and the Snap Store rebuild on every source change, so new
+Lumen releases are automatically packaged for Fedora, openSUSE, and Ubuntu
+users.
 
 ### Wayland Support
 
@@ -313,7 +343,7 @@ automatically packaged for Fedora and openSUSE users.
 | Feature | Linux | macOS | Windows | iOS | Android |
 |---------|-------|-------|---------|-----|---------|
 | **Native build** | ✅ | ✅ | ✅ | Planned | Planned |
-| **Packaging** | Flatpak, AppImage, .deb, .rpm, AUR | .dmg, Homebrew | MSIX, Chocolatey, Inno | IPA | AAB |
+| **Packaging** | Flatpak, AppImage, .deb, .rpm, Snap, AUR | .dmg, Homebrew | MSIX, Chocolatey, Inno | IPA | AAB |
 | **Wayland** | ✅ | N/A | N/A | N/A | N/A |
 | **Notarized** | N/A | ✅ | N/A | N/A | N/A |
 | **Code signed** | N/A | ✅ | Planned | ✅ | ✅ |
@@ -332,7 +362,7 @@ automatically packaged for Fedora and openSUSE users.
 |---|------|----------|------|
 | 1 | Flatpak manifest + Flathub submission | Linux | 2d |
 | 2 | ✅ .rpm packaging + COPR/OBS | Linux | 1d |
-| 3 | Snapcraft.yaml + Snap Store | Linux | 1d |
+| 3 | ✅ Snapcraft.yaml + Snap Store | Linux | 1d |
 | 4 | macOS notarization pipeline + entitlements | macOS | 3d |
 | 5 | Homebrew formula + tap | macOS | 1d |
 | 6 | MSIX packaging + Microsoft Store | Windows | 3d |
