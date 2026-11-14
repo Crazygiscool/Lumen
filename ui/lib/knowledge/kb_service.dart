@@ -93,6 +93,66 @@ class KbCommand {
   );
 }
 
+/// An Ollama model installed locally.
+@immutable
+class KbAiModel {
+  const KbAiModel({
+    required this.name,
+    required this.size,
+  });
+
+  final String name;
+  final int size;
+
+  factory KbAiModel.fromJson(Map<String, dynamic> j) => KbAiModel(
+    name: j['name'] as String? ?? '',
+    size: (j['size'] as num?)?.toInt() ?? 0,
+  );
+}
+
+/// The response from a local Ollama chat.
+@immutable
+class KbAiChatResponse {
+  const KbAiChatResponse({
+    required this.model,
+    required this.content,
+    required this.done,
+  });
+
+  final String model;
+  final String content;
+  final bool done;
+
+  factory KbAiChatResponse.fromJson(Map<String, dynamic> j) => KbAiChatResponse(
+    model: j['model'] as String? ?? '',
+    content: j['content'] as String? ?? '',
+    done: j['done'] as bool? ?? true,
+  );
+}
+
+/// A relevant note retrieved for a RAG query.
+@immutable
+class KbAiRagContext {
+  const KbAiRagContext({
+    required this.path,
+    required this.title,
+    required this.body,
+    required this.score,
+  });
+
+  final String path;
+  final String title;
+  final String body;
+  final double score;
+
+  factory KbAiRagContext.fromJson(Map<String, dynamic> j) => KbAiRagContext(
+    path: j['path'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    body: j['body'] as String? ?? '',
+    score: (j['score'] as num?)?.toDouble() ?? 0,
+  );
+}
+
 /// A note's YAML frontmatter.
 ///
 /// Fields the app does not know about are kept in [custom] and written back
@@ -357,6 +417,63 @@ class KbService {
   Future<KbCommand> executeCommand(String id) async {
     final data = _map(_ffi.kb('kb.command.execute', {'id': id}));
     return KbCommand.fromJson(_map(data['command']));
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI
+  // ---------------------------------------------------------------------------
+
+  /// List installed Ollama models.
+  Future<List<KbAiModel>> listAiModels() async {
+    final data = _map(_ffi.kb('kb.ai.list_models'));
+    final list = _list(data['models']);
+    return [
+      for (final m in list)
+        KbAiModel.fromJson((m as Map<String, dynamic>? ?? const {}).cast())
+    ];
+  }
+
+  /// Chat with a local Ollama model.
+  ///
+  /// Sends only the given message (and optional system prompt) to the local
+  /// Ollama instance. Nothing leaves the user's machine.
+  Future<KbAiChatResponse> chatAi({
+    required String model,
+    required String message,
+    String? system,
+    bool stream = true,
+  }) async {
+    final data = _map(_ffi.kb(
+      'kb.ai.chat',
+      {'model': model, 'message': message, 'system': system, 'stream': stream},
+    ));
+    return KbAiChatResponse.fromJson(data);
+  }
+
+  /// Retrieve relevant notes for a RAG query.
+  ///
+  /// Uses Tantivy for candidate retrieval, optionally re-ranked by embedding
+  /// similarity if an embedding model is configured.
+  Future<List<KbAiRagContext>> ragAi({
+    required String query,
+    String store = 'journal',
+    int k = 5,
+    String? embeddingModel,
+  }) async {
+    final data = _map(_ffi.kb(
+      'kb.ai.rag',
+      {
+        'query': query,
+        'store': store,
+        'k': k,
+        'embedding_model': embeddingModel,
+      },
+    ));
+    final list = _list(data['contexts']);
+    return [
+      for (final c in list)
+        KbAiRagContext.fromJson((c as Map<String, dynamic>? ?? const {}).cast())
+    ];
   }
 
   // ---------------------------------------------------------------------------

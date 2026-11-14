@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::auto_update::{check_for_update, download_update, apply_update, current_version, UpdateStatus};
 use crate::commands::{list_commands, register_builtin_commands};
+use crate::ai::{self, OllamaClient};
 
 use crate::config;
 use crate::frontmatter::{self, Frontmatter};
@@ -86,6 +87,14 @@ struct NeighborhoodArgs {
 
 fn default_max() -> usize {
     50
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_top_k() -> usize {
+    5
 }
 
 /// Shared tokio runtime for the async FFI entry points (WebDAV).
@@ -756,6 +765,76 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 }))
             } else {
                 err(format!("command '{}' not found", a.id))
+            }
+        }
+
+        // AI
+        "kb.ai.chat" => {
+            #[derive(Deserialize)]
+            struct ChatArgs {
+                model: String,
+                message: String,
+                #[serde(default)]
+                system: Option<String>,
+                #[serde(default = "default_true")]
+                stream: bool,
+            }
+            let a = parse!(ChatArgs);
+            let ollama = OllamaClient::default();
+            let mut messages = Vec::new();
+            if let Some(system) = a.system {
+                messages.push(ai::Message::system(&system));
+            }
+            messages.push(ai::Message::user(&a.message));
+            match ollama.chat(&a.model, messages, a.stream) {
+                Ok(resp) => ok(serde_json::json!({
+                    "model": resp.model,
+                    "content": resp.message.content,
+                    "done": resp.done,
+                })),
+                Err(e) => err(e),
+            }
+        }
+        "kb.ai.list_models" => {
+            let ollama = OllamaClient::default();
+            match ollama.list_models() {
+                Ok(models) => ok(serde_json::json!({
+                    "models": models.iter().map(|m| serde_json::json!({
+                        "name": m.name,
+                        "size": m.size,
+                    })).collect::<Vec<_>>()
+                })),
+                Err(e) => err(e),
+            }
+        }
+        "kb.ai.rag" => {
+            #[derive(Deserialize)]
+            struct RagArgs {
+                query: String,
+                store: String,
+                #[serde(default = "default_top_k")]
+                k: usize,
+                #[serde(default)]
+                embedding_model: Option<String>,
+            }
+            let a = parse!(RagArgs);
+            let ollama = OllamaClient::default();
+            match ai::retrieve_context(
+                &ollama,
+                a.embedding_model.as_deref(),
+                &a.query,
+                &a.store,
+                a.k,
+            ) {
+                Ok(contexts) => ok(serde_json::json!({
+                    "contexts": contexts.iter().map(|c| serde_json::json!({
+                        "path": c.path,
+                        "title": c.title,
+                        "body": c.body,
+                        "score": c.score,
+                    })).collect::<Vec<_>>()
+                })),
+                Err(e) => err(e),
             }
         }
 

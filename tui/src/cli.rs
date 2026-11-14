@@ -96,6 +96,11 @@ pub enum Commands {
         /// The command id (e.g. `navigation.openSearch`).
         id: String,
     },
+    /// AI operations via local Ollama.
+    Ai {
+        #[command(subcommand)]
+        command: AiCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -150,6 +155,37 @@ pub enum WikilinkCommands {
     },
 }
 
+/// AI operations via local Ollama.
+#[derive(Subcommand, Debug)]
+pub enum AiCommands {
+    /// List installed Ollama models.
+    ListModels,
+    /// Chat with a local Ollama model.
+    Chat {
+        /// The model to use (e.g. "llama3").
+        model: String,
+        /// The message to send.
+        message: String,
+        /// Optional system prompt.
+        #[arg(long)]
+        system: Option<String>,
+    },
+    /// Retrieve relevant notes for a RAG query.
+    Rag {
+        /// The query to search for.
+        query: String,
+        /// The store to search (default: journal).
+        #[arg(long, default_value = "journal")]
+        store: String,
+        /// Number of results to return.
+        #[arg(long, default_value = "5")]
+        k: usize,
+        /// Optional embedding model for re-ranking.
+        #[arg(long)]
+        embedding_model: Option<String>,
+    },
+}
+
 /// Run the client with the parsed command line.
 pub fn run(cli: Cli) -> color_eyre::Result<()> {
     match &cli.command {
@@ -170,6 +206,7 @@ pub fn run(cli: Cli) -> color_eyre::Result<()> {
         Some(Commands::Edit { path }) => cmd_writer(&cli, path),
         Some(Commands::Streak) => cmd_streak(&cli),
         Some(Commands::AutoUpdate) => cmd_auto_update(),
+        Some(Commands::Ai { command }) => cmd_ai(command),
         Some(Commands::Command { id }) => cmd_command(id),
         Some(Commands::Sync { command }) => cmd_sync(&cli, command),
     }
@@ -575,6 +612,60 @@ fn cmd_auto_update() -> color_eyre::Result<()> {
         }
         UpdateStatus::Error(e) => {
             return Err(color_eyre::eyre::eyre!(e));
+        }
+    }
+
+    Ok(())
+}
+
+/// AI operations via local Ollama.
+fn cmd_ai(cmd: &AiCommands) -> color_eyre::Result<()> {
+    match cmd {
+        AiCommands::ListModels => {
+            let models = lumen_core::ai::OllamaClient::default()
+                .list_models()
+                .map_err(|e| color_eyre::eyre::eyre!(e))?;
+            if models.is_empty() {
+                println!("No Ollama models installed. Run `ollama pull <model>` first.");
+            } else {
+                println!("Installed models:");
+                for m in models {
+                    println!("  {} ({} bytes)", m.name, m.size);
+                }
+            }
+        }
+        AiCommands::Chat { model, message, system } => {
+            let ollama = lumen_core::ai::OllamaClient::default();
+            let mut messages = Vec::new();
+            if let Some(system) = system {
+                messages.push(lumen_core::ai::Message::system(system));
+            }
+            messages.push(lumen_core::ai::Message::user(message));
+            let resp = ollama.chat(model, messages, false)
+                .map_err(|e| color_eyre::eyre::eyre!(e))?;
+            println!("{}", resp.message.content);
+        }
+        AiCommands::Rag { query, store, k, embedding_model } => {
+            let ollama = lumen_core::ai::OllamaClient::default();
+            let contexts = lumen_core::ai::retrieve_context(
+                &ollama,
+                embedding_model.as_deref(),
+                query,
+                store,
+                *k,
+            ).map_err(|e| color_eyre::eyre::eyre!(e))?;
+            if contexts.is_empty() {
+                println!("No relevant notes found.");
+            } else {
+                println!("Relevant notes (top {}):", contexts.len());
+                for c in contexts {
+                    println!("  {} (score: {:.3})", c.path, c.score);
+                    println!("    {}", c.title);
+                    // Print first 200 chars of body
+                    let preview: String = c.body.chars().take(200).collect();
+                    println!("    {preview}...");
+                }
+            }
         }
     }
 
