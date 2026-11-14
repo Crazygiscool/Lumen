@@ -1,0 +1,93 @@
+# Lumen continuous integration.
+#
+# Runs on every push and pull request to `main`, across Linux and macOS, so a
+# change that breaks the Rust core, the Flutter UI, or the FFI contract is
+# caught before it reaches a release tag.
+#
+# The release workflow (release.yml) still handles publishing the three desktop
+# platforms when a `v*` tag is pushed; this workflow only validates.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (test + clippy + analyze)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libsecret-1-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components:
+            - rustfmt
+            - clippy
+
+      - name: "Rust: check, test, clippy"
+        run: |
+          cargo check --workspace --locked
+          cargo test --workspace --locked
+          cargo clippy --workspace --locked --all-targets
+
+      - name: "Flutter: analyze + test"
+        working-directory: ui
+        run: |
+          flutter analyze
+          flutter test
+
+  macos:
+    name: macOS (check + analyze)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets:
+            - aarch64-apple-darwin
+            - aarch64-apple-ios
+            - x86_64-apple-ios
+          components:
+            - rustfmt
+            - clippy
+
+      - name: "Rust: check + clippy (universal + iOS)"
+        run: |
+          cargo check --workspace --locked --target x86_64-apple-darwin --target aarch64-apple-darwin --target aarch64-apple-ios --target x86_64-apple-ios
+          cargo clippy --workspace --locked --all-targets
+
+      - name: "Flutter: analyze"
+        working-directory: ui
+        run: flutter analyze
