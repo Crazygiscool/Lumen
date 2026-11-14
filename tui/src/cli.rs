@@ -89,6 +89,8 @@ pub enum Commands {
         #[command(subcommand)]
         command: SyncCommands,
     },
+    /// Check for and apply updates from GitHub Releases.
+    AutoUpdate,
 }
 
 #[derive(Subcommand, Debug)]
@@ -162,6 +164,7 @@ pub fn run(cli: Cli) -> color_eyre::Result<()> {
         Some(Commands::Wikilink { command }) => cmd_wikilink(&cli, command),
         Some(Commands::Edit { path }) => cmd_writer(&cli, path),
         Some(Commands::Streak) => cmd_streak(&cli),
+        Some(Commands::AutoUpdate) => cmd_auto_update(),
         Some(Commands::Sync { command }) => cmd_sync(&cli, command),
     }
 }
@@ -543,6 +546,33 @@ fn journal_dates(cli: &Cli) -> color_eyre::Result<BTreeSet<NaiveDate>> {
         }
     }
     Ok(dates)
+}
+
+/// Check for and apply updates from GitHub Releases.
+fn cmd_auto_update() -> color_eyre::Result<()> {
+    use lumen_core::auto_update::UpdateStatus;
+
+    match lumen_core::auto_update::check_for_update() {
+        UpdateStatus::UpToDate => {
+            println!("Lumen is up to date (v{}).", lumen_core::auto_update::current_version());
+        }
+        UpdateStatus::UpdateAvailable(info) => {
+            println!(
+                "Update available: v{} (current: v{})",
+                info.tag_name,
+                lumen_core::auto_update::current_version()
+            );
+            for asset in &info.assets {
+                println!("  - {} ({} bytes)", asset.name, asset.size);
+            }
+            println!("\nRun `lumen auto-update apply` to download and install.");
+        }
+        UpdateStatus::Error(e) => {
+            return Err(color_eyre::eyre::eyre!(e));
+        }
+    }
+
+    Ok(())
 }
 
 fn cmd_streak(cli: &Cli) -> color_eyre::Result<()> {

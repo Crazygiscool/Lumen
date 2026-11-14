@@ -5,8 +5,11 @@
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::path::Path;
 
 use serde::Deserialize;
+
+use crate::auto_update::{check_for_update, download_update, apply_update, current_version, UpdateStatus};
 
 use crate::config;
 use crate::frontmatter::{self, Frontmatter};
@@ -659,6 +662,66 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 sync.sync_vault(&a.store, &vault_path).await
             }) {
                 Ok(report) => ok(serde_json::to_value(report).unwrap_or_default()),
+                Err(e) => err(e),
+            }
+        }
+
+        // Auto-update
+        "kb.auto_update.check" => {
+            match check_for_update() {
+                UpdateStatus::UpToDate => ok(serde_json::json!({
+                    "up_to_date": true,
+                    "current_version": current_version()
+                })),
+                UpdateStatus::UpdateAvailable(info) => ok(serde_json::json!({
+                    "up_to_date": false,
+                    "current_version": current_version(),
+                    "tag_name": info.tag_name,
+                    "assets": info.assets.iter().map(|a| serde_json::json!({
+                        "name": a.name,
+                        "url": a.browser_download_url,
+                        "size": a.size
+                    })).collect::<Vec<_>>()
+                })),
+                UpdateStatus::Error(e) => err(e),
+            }
+        }
+        "kb.auto_update.download" => {
+            #[derive(Deserialize)]
+            struct DownloadArgs {
+                tag_name: String,
+            }
+            let a = parse!(DownloadArgs);
+            // Re-query to get the release info for the requested tag.
+            // The GitHub API only exposes /releases/latest, so we compare
+            // tags and download the matching asset.
+            match check_for_update() {
+                UpdateStatus::UpdateAvailable(info) => {
+                    if info.tag_name != a.tag_name {
+                        return err(format!("requested tag {} is not the latest release", a.tag_name));
+                    }
+                    let asset_name = info.assets.first().map(|a| a.name.clone()).unwrap_or_default();
+                    match download_update(&info) {
+                        Ok(path) => ok(serde_json::json!({
+                            "path": path.to_string_lossy(),
+                            "name": asset_name
+                        })),
+                        Err(e) => err(e),
+                    }
+                }
+                UpdateStatus::UpToDate => err("no update available to download".to_string()),
+                UpdateStatus::Error(e) => err(e),
+            }
+        }
+        "kb.auto_update.apply" => {
+            #[derive(Deserialize)]
+            struct ApplyArgs {
+                path: String,
+            }
+            let a = parse!(ApplyArgs);
+            let path = Path::new(&a.path);
+            match apply_update(path) {
+                Ok(()) => ok(serde_json::json!({ "applied": true })),
                 Err(e) => err(e),
             }
         }
