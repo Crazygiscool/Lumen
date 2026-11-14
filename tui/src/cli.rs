@@ -91,6 +91,11 @@ pub enum Commands {
     },
     /// Check for and apply updates from GitHub Releases.
     AutoUpdate,
+    /// Run a command from the command registry.
+    Command {
+        /// The command id (e.g. `navigation.openSearch`).
+        id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -165,6 +170,7 @@ pub fn run(cli: Cli) -> color_eyre::Result<()> {
         Some(Commands::Edit { path }) => cmd_writer(&cli, path),
         Some(Commands::Streak) => cmd_streak(&cli),
         Some(Commands::AutoUpdate) => cmd_auto_update(),
+        Some(Commands::Command { id }) => cmd_command(id),
         Some(Commands::Sync { command }) => cmd_sync(&cli, command),
     }
 }
@@ -569,6 +575,42 @@ fn cmd_auto_update() -> color_eyre::Result<()> {
         }
         UpdateStatus::Error(e) => {
             return Err(color_eyre::eyre::eyre!(e));
+        }
+    }
+
+    Ok(())
+}
+
+/// Run a command from the command registry.
+fn cmd_command(id: &str) -> color_eyre::Result<()> {
+    lumen_core::commands::register_builtin_commands()
+        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+
+    let commands = lumen_core::commands::list_commands();
+    match commands.iter().find(|c| c.id == id) {
+        Some(cmd) => {
+            println!("{}: {}", cmd.id, cmd.title);
+            if let Some(desc) = &cmd.description {
+                println!("  {}", desc);
+            }
+            if !cmd.keywords.is_empty() {
+                println!("  keywords: {}", cmd.keywords.join(", "));
+            }
+            println!("  source: {}", cmd.source);
+        }
+        None => {
+            // Try fuzzy matching for suggestions
+            let matches = lumen_core::commands::filter_commands(id);
+            if matches.is_empty() {
+                return Err(color_eyre::eyre::eyre!(
+                    "command '{}' not found", id
+                ));
+            }
+            println!("command '{}' not found. Did you mean:", id);
+            for (cmd, score) in matches.iter().take(5) {
+                println!("  {} (score {})", cmd.id, score);
+            }
+            return Err(color_eyre::eyre::eyre!("command not found"));
         }
     }
 
