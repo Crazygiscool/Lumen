@@ -56,6 +56,43 @@ class KbWikilink {
   );
 }
 
+/// A command registered in the command palette.
+@immutable
+class KbCommand {
+  const KbCommand({
+    required this.id,
+    required this.title,
+    this.description,
+    this.keywords = const [],
+    this.source = 'builtin',
+  });
+
+  /// Unique command id (e.g. `journal.openDailyNote`).
+  final String id;
+
+  /// Human-readable title shown in the palette.
+  final String title;
+
+  /// Optional description shown as a subtitle.
+  final String? description;
+
+  /// Keywords for fuzzy matching.
+  final List<String> keywords;
+
+  /// Source of the command: `builtin` or a plugin id.
+  final String source;
+
+  factory KbCommand.fromJson(Map<String, dynamic> j) => KbCommand(
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    description: j['description'] as String?,
+    keywords: (j['keywords'] as List<dynamic>? ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    source: j['source'] as String? ?? 'builtin',
+  );
+}
+
 /// A note's YAML frontmatter.
 ///
 /// Fields the app does not know about are kept in [custom] and written back
@@ -298,6 +335,28 @@ class KbService {
   /// Rebuild the backlink index from scratch.
   Future<void> rebuildBacklinkIndex() async {
     _ffi.kb('kb.wikilinks.rebuild_index', _args());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Command palette
+  // ---------------------------------------------------------------------------
+
+  /// Every command registered in the command palette.
+  Future<List<KbCommand>> listCommands() async {
+    final data = _map(_ffi.kb('kb.command.list'));
+    final list = _list(data['commands']);
+    return [
+      for (final c in list)
+        KbCommand.fromJson((c as Map<String, dynamic>? ?? const {}).cast())
+    ];
+  }
+
+  /// Execute a command by id.
+  ///
+  /// Returns the command definition if it was found, or throws if not.
+  Future<KbCommand> executeCommand(String id) async {
+    final data = _map(_ffi.kb('kb.command.execute', {'id': id}));
+    return KbCommand.fromJson(_map(data['command']));
   }
 
   // ---------------------------------------------------------------------------

@@ -14,6 +14,8 @@ import 'theme/app_theme.dart';
 import 'theme/lumen_colors.dart';
 import 'theme/plugin_theme.dart';
 
+import 'command_palette.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   configureSystemUi();
@@ -134,7 +136,7 @@ class LumenApp extends ConsumerWidget {
 
 /// The app-wide keyboard shortcuts.
 ///
-/// `Ctrl+K` (or `Cmd+K` on macOS) jumps to the search screen from anywhere.
+/// `Ctrl+K` (or `Cmd+K` on macOS) opens the command palette from anywhere.
 class _AppShortcuts extends ConsumerWidget {
   const _AppShortcuts({required this.child});
 
@@ -145,16 +147,14 @@ class _AppShortcuts extends ConsumerWidget {
     return Shortcuts(
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            _OpenSearchIntent(),
-        SingleActivator(LogicalKeyboardKey.keyK, meta: true): _OpenSearchIntent(),
+            _OpenPaletteIntent(),
+        SingleActivator(LogicalKeyboardKey.keyK, meta: true): _OpenPaletteIntent(),
       },
       child: Actions(
         actions: {
-          _OpenSearchIntent: CallbackAction<_OpenSearchIntent>(
+          _OpenPaletteIntent: CallbackAction<_OpenPaletteIntent>(
             onInvoke: (intent) {
-              ref
-                  .read(selectedSectionProvider.notifier)
-                  .select(LumenSection.search);
+              showCommandPalette(context);
               return null;
             },
           ),
@@ -165,7 +165,7 @@ class _AppShortcuts extends ConsumerWidget {
   }
 }
 
-/// The intent behind the search shortcut.
-class _OpenSearchIntent extends Intent {
-  const _OpenSearchIntent();
+/// The intent behind opening the command palette.
+class _OpenPaletteIntent extends Intent {
+  const _OpenPaletteIntent();
 }
