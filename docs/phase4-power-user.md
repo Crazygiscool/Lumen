@@ -552,10 +552,10 @@ impl LanguageServer for LumenLspServer {
 | 1 | ✅ Command palette (Flutter + TUI) | Core/Flutter/TUI | 3d |
 | 2 | Vim/Emacs keymaps (Flutter + TUI) | Flutter/TUI | 3d |
 | 3 | Canvas editor (Excalidraw) | Flutter | 5d |
-| 4 | Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
-| 5 | WASM runtime + plugin SDK | Core | 7d |
+| 4 | ✅ Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
+| 5 | ✅ WASM runtime + plugin SDK | Core | 7d |
 | 6 | Port built-in plugins to WASM | Core | 3d |
-| 7 | LSP server (`lumen-lsp`) | Core | 5d |
+| 7 | ✅ LSP server (lumen-lsp) | Core | 5d |
 | 8 | Graph analytics + export | Flutter | 3d |
 | 9 | Plugin permissions UI | Flutter | 2d |
 | 10 | AI privacy settings + model mgmt | Flutter | 2d |
@@ -571,6 +571,6 @@ impl LanguageServer for LumenLspServer {
 - [ ] Canvas editor creates `.canvas` files, embeds in notes, links to notes
 - [ ] Local AI: summarize, chat, related notes, tags — all via Ollama, zero cloud
 - [ ] WASM plugins run sandboxed with fuel/memory limits, native plugins still work
-- [ ] LSP server provides wikilink completion, goto def, rename, refs in VS Code/Neovim
+- [x] LSP server provides wikilink completion, goto def, rename, refs in VS Code/Neovim
 - [ ] Graph shows clusters, centrality, exports to GraphML
 - [ ] All features optional, privacy-preserving, work offline
