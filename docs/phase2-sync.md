@@ -78,6 +78,7 @@ pub struct SyncConflict {
     pub remote_modified: DateTime<Utc>,
     pub local_hash: String,   // SHA256 of local ciphertext
     pub remote_hash: String,  // SHA256 of remote ciphertext
+    pub source: String,       // "syncthing" or "webdav"
 }
 ```
 
@@ -123,6 +124,7 @@ pub struct SyncConflict {
 lumen sync status           # Show sync status
 lumen sync conflicts        # List conflicts
 lumen sync resolve <path>   # Interactive conflict resolution
+lumen sync webdav           # Two-way sync with the WebDAV account
 lumen sync setup syncthing  # Run setup wizard (text-based)
 ```
 
@@ -153,77 +155,83 @@ Conflict: 2026-02-03.md
 
 ---
 
-## 2. WebDAV Backup (Secondary)
+## 2. WebDAV Sync (Two-Way)
 
 ### Use Cases
 - User-controlled cloud (Nextcloud, ownCloud, Box, Yandex, etc.)
-- Encrypted backup to untrusted storage
-- Scheduled, one-way (backup) or two-way
+- Encrypted two-way sync between devices
+- Scheduled, manual, or on demand
 
 ### Core: WebDAV Client
 
-**Dependency**: `dav = "0.5"` (or `reqwest` + XML parsing)
+**Dependency**: `remotefs-webdav = "1.0"` (the `AsyncRemoteFs` trait)
 
 ```rust
 // core/src/sync/webdav.rs
 pub struct WebDAVConfig {
-    pub url: String,           // https://nextcloud.example.com/remote.php/dav/files/user/lumen/
+    pub url: String,
     pub username: String,
-    pub password: String,      // Stored in keyring/keychain
-    pub encrypt: bool,         // Encrypt before upload (age/rage)
+    pub password: Option<String>,   // Stored in keyring/keychain — never serialized
+    pub encryption_passphrase: Option<String>, // Separate secret, never serialized
+    pub encrypt: bool,
 }
 
 pub struct WebDAVSync {
-    client: dav::Client,
+    client: WebDAVFs,
     config: WebDAVConfig,
 }
 
+/// What one sync did: sent, taken, removed, conflicts, errors.
+pub struct SyncReport {
+    pub uploaded: Vec<String>,
+    pub downloaded: Vec<String>,
+    pub deleted: Vec<String>,
+    pub conflicts: Vec<SyncConflict>,
+    pub errors: Vec<String>,
+}
+
 impl WebDAVSync {
-    pub async fn upload(&self, local_path: &Path, remote_path: &str) -> Result<()> {
-        let data = if self.config.encrypt {
-            self.encrypt_file(local_path)?
-        } else {
-            fs::read(local_path)?
-        };
-        self.client.put(remote_path, data).await
-    }
-
-    pub async fn download(&self, remote_path: &str, local_path: &Path) -> Result<()> {
-        let data = self.client.get(remote_path).await?;
-        if self.config.encrypt {
-            self.decrypt_file(&data, local_path)?
-        } else {
-            fs::write(local_path, data)?
-        }
-        Ok(())
-    }
-
-    fn encrypt_file(&self, path: &Path) -> Result<Vec<u8>> {
-        // age encryption with passphrase-derived key
-        // Format: age-encrypted file with header
-    }
+    /// Sync the notes of a vault both ways.
+    ///
+    /// The server keeps a manifest (`lumen-manifest.json`, age-encrypted
+    /// when `encrypt` is on) of the notes it holds, with the SHA256 of each
+    /// note's ciphertext. Every device keeps a local manifest of the notes
+    /// the two sides last agreed on (`<config_dir>/webdav/<fingerprint>/`).
+    /// Comparing the local notes, the remote manifest and the local manifest
+    /// decides, per note:
+    ///
+    ///   Push   this device changed it, the other did not
+    ///   Pull   the other side changed it, this device did not
+    ///   Pull   this device removed it
+    ///   Push   the other side removed it
+    ///   Conflict  both sides changed it (or both created it) — left alone,
+    ///             the remote version is kept in the vault for the user to compare
+    ///   None   both sides agree
+    ///
+    /// Downloaded notes are written raw (the ciphertext the other device
+    /// produced), so every device agrees on which bytes a note has. A note
+    /// that does not hash to what the manifest promised is refused.
+    pub async fn sync_vault(&mut self, store: &str, vault_path: &str) -> Result<SyncReport> { ... }
 }
 ```
 
-### Encryption for Untrusted Storage (age/rage)
+### Three-way planning
+
+The decision itself is pure (`core/src/sync_plan.rs`): it takes the local
+manifest, the remote manifest and the last-agreed base and returns one
+`SyncAction` per note. Nothing is read, written or sent there, so the
+decisions can be tested without a server.
+
+### Encryption for Untrusted Storage (age)
 
 **Why age**: Modern, simple, CLI + library, Rust (`rage`) + Go (`age`) implementations
 
 ```rust
-// Encryption envelope for WebDAV/S3
-// File format: age-encrypted with passphrase-derived key
-use rage::{Encryptor, Decryptor};
-
-pub fn encrypt_for_backup(data: &[u8], passphrase: &str) -> Vec<u8> {
+// Encryption envelope for WebDAV uploads
+// File format: age-encrypted with the account's passphrase-derived key
+pub fn encrypt_for_upload(data: &[u8], passphrase: &str) -> Vec<u8> {
     let key = derive_backup_key(passphrase); // Argon2id, different salt than vault
-    let mut encryptor = Encryptor::with_passphrase(key);
-    encryptor.wrap(data).unwrap()
-}
-
-pub fn decrypt_backup(data: &[u8], passphrase: &str) -> Result<Vec<u8>> {
-    let key = derive_backup_key(passphrase);
-    let mut decryptor = Decryptor::with_passphrase(key);
-    decryptor.unwrap(data)
+    // ...
 }
 ```
 
@@ -233,9 +241,12 @@ pub fn decrypt_backup(data: &[u8], passphrase: &str) -> Result<Vec<u8>> {
 - Encryption toggle (recommended for untrusted providers)
 - Schedule: daily / weekly / manual
 - Retention: keep last N backups
-- Backup format: `.lumen.bak.age` (tar.gz + age)
+- "Sync Now" runs a two-way sync and shows how many notes were sent, taken
+  and removed, plus any conflicts that need the user
 
 ---
+
+## 3. Encrypted Export Bundle
 
 ## 3. Encrypted Export Bundle
 
@@ -427,11 +438,31 @@ Syncthing not running is not a failure — the journal works either way — so
 the reason is reported alongside the status (`device_error`) rather than
 failing it.
 
-### The WebDAV client is `remotefs-webdav`
+### The WebDAV client is `remotefs-webdav`, and the sync is two-way
 
-The plan left the client open. The build uses `remotefs-webdav` 1.0 and its
-`AsyncRemoteFs` trait, so the same client would serve other remote file
-systems later.
+The plan left the client open and imagined one-way backup. The build uses
+`remotefs-webdav` 1.0 and its `AsyncRemoteFs` trait, and the sync goes both
+directions:
+
+- The server keeps `lumen-manifest.json` (age-encrypted when `encrypt` is on)
+  mapping each note to the SHA256 of its ciphertext.
+- Every device keeps a local manifest of the notes it last agreed on with
+  the server, under `<config_dir>/webdav/<fingerprint>/`.
+- Comparing the three — local notes, remote manifest, local manifest —
+  decides per note whether to push, pull, delete, or leave a conflict for
+  the user.
+- Downloaded notes are written raw, so every device agrees on the bytes a
+  note has, and a note that does not hash to its manifest entry is refused.
+
+The pure planning lives in `core/src/sync_plan.rs`; the part that talks to
+the server is behind a small `NoteStore` trait, so the whole sync can be
+tested without a server.
+
+The result is a `SyncReport` (`uploaded`, `downloaded`, `deleted`,
+`conflicts`, `errors`), and the Flutter settings screen says what the sync
+did in a snack bar. Conflicts surface in the same conflict-resolution UI
+that Syncthing conflicts use, with the source noted (`syncthing` or
+`webdav`).
 
 ### The method and the account are written to the configuration
 
