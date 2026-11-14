@@ -14,17 +14,15 @@ use crate::graph::{build_graph_data, filter_graph_data, get_note_neighborhood};
 use crate::search::{init_search_index, search_entries};
 use crate::secrets;
 use crate::sync::{
-    create_backup_bundle,
-    generate_syncthing_config,
-    get_sync_status,
-    init_sync_store,
-    resolve_conflict,
-    restore_backup_bundle,
+    create_backup_bundle, generate_syncthing_config, get_sync_status, init_sync_store,
+    resolve_conflict, restore_backup_bundle,
     webdav::{WebDAVConfig, WebDAVSync},
 };
-use crate::template::{render_daily_template, daily_note_path, ensure_template_exists};
+use crate::template::{daily_note_path, ensure_template_exists, render_daily_template};
 use crate::vault::{self, STORE_JOURNAL};
-use crate::wikilinks::{Wikilink, parse_wikilinks, get_backlinks, resolve_wikilink, init_backlink_index};
+use crate::wikilinks::{
+    get_backlinks, init_backlink_index, parse_wikilinks, resolve_wikilink, Wikilink,
+};
 
 fn default_store() -> String {
     STORE_JOURNAL.to_string()
@@ -135,12 +133,21 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 Err(e) => return err(e),
             };
             let links = parse_wikilinks(&body);
-            ok(serde_json::json!({ "links": links.iter().map(wikilink_to_json).collect::<Vec<_>>() }))
+            ok(
+                serde_json::json!({ "links": links.iter().map(wikilink_to_json).collect::<Vec<_>>() }),
+            )
         }
         "kb.wikilinks.resolve" => {
             let a = parse!(WikilinkArgs);
             let resolved = resolve_wikilink(&a.store, &a.target);
             ok(serde_json::json!({ "path": resolved }))
+        }
+        "kb.wikilinks.create_missing" => {
+            let a = parse!(WikilinkArgs);
+            match crate::wikilinks::create_missing(&a.store, &a.target) {
+                Ok(created) => ok(serde_json::json!({ "created": created })),
+                Err(e) => err(e),
+            }
         }
         "kb.wikilinks.backlinks" => {
             let a = parse!(PathArgs);
@@ -404,18 +411,14 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             }
             ok(serde_json::json!({ "initialized": true }))
         }
-        "kb.sync.status" => {
-            match get_sync_status() {
-                Ok(status) => ok(serde_json::to_value(status).unwrap_or_default()),
-                Err(e) => err(e),
-            }
-        }
-        "kb.sync.conflicts" => {
-            match get_sync_status() {
-                Ok(status) => ok(serde_json::json!({ "conflicts": status.conflicts })),
-                Err(e) => err(e),
-            }
-        }
+        "kb.sync.status" => match get_sync_status() {
+            Ok(status) => ok(serde_json::to_value(status).unwrap_or_default()),
+            Err(e) => err(e),
+        },
+        "kb.sync.conflicts" => match get_sync_status() {
+            Ok(status) => ok(serde_json::json!({ "conflicts": status.conflicts })),
+            Err(e) => err(e),
+        },
         "kb.sync.resolve_conflict" => {
             #[derive(Deserialize)]
             struct ResolveConflictArgs {
@@ -685,10 +688,7 @@ fn string_to_cptr(s: String) -> *mut c_char {
 /// `method` and `args` must be null or valid NUL-terminated C strings for the
 /// duration of the call.
 #[no_mangle]
-pub unsafe extern "C" fn lumen_kb_call(
-    method: *const c_char,
-    args: *const c_char,
-) -> *mut c_char {
+pub unsafe extern "C" fn lumen_kb_call(method: *const c_char, args: *const c_char) -> *mut c_char {
     let method = unsafe { c_to_string(method) };
     let args_str = unsafe { c_to_string(args) };
     let args: serde_json::Value = if args_str.is_empty() {
@@ -734,7 +734,10 @@ mod tests {
                 .and_then(|v| v.as_str())
                 .unwrap_or("<no error>")
         );
-        result.get("data").cloned().unwrap_or(serde_json::Value::Null)
+        result
+            .get("data")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null)
     }
 
     /// Every knowledge-base method must work against a real vault.
@@ -775,6 +778,12 @@ mod tests {
 
         let resolved = call("kb.wikilinks.resolve", json!({ "target": "beta" }));
         assert_eq!(resolved["path"], "beta.md");
+
+        let created = call("kb.wikilinks.create_missing", json!({ "target": "gamma" }));
+        assert_eq!(created["created"], "gamma.md");
+        // Creating it again is an error.
+        let again = dispatch("kb.wikilinks.create_missing", &json!({ "target": "gamma" }));
+        assert_eq!(again.get("ok").and_then(|v| v.as_bool()), Some(false));
 
         let backlinks = call("kb.wikilinks.backlinks", json!({ "path": "beta.md" }));
         assert_eq!(
@@ -822,11 +831,17 @@ mod tests {
         assert_eq!(after.tags, vec!["work", "urgent"]);
         assert_eq!(after.title.as_deref(), Some("Beta"));
         let queried = call("kb.frontmatter.query", json!({ "tag": "urgent" }));
-        assert_eq!(queried["paths"].as_array().unwrap(), &vec![json!("beta.md")]);
+        assert_eq!(
+            queried["paths"].as_array().unwrap(),
+            &vec![json!("beta.md")]
+        );
 
         // The query language answers the same question in one string.
         let by_query = call("kb.query", json!({ "query": "tag:urgent" }));
-        assert_eq!(by_query["paths"].as_array().unwrap(), &vec![json!("beta.md")]);
+        assert_eq!(
+            by_query["paths"].as_array().unwrap(),
+            &vec![json!("beta.md")]
+        );
         let no_match = call("kb.query", json!({ "query": "tag:missing" }));
         assert!(no_match["paths"].as_array().unwrap().is_empty());
 
@@ -860,7 +875,10 @@ mod tests {
         );
         assert_eq!(saved["path"].as_str().unwrap(), template_path);
         let reread = call("kb.template.get", json!({}));
-        assert_eq!(reread["content"].as_str().unwrap(), "# {{date}}\n\ncustom\n");
+        assert_eq!(
+            reread["content"].as_str().unwrap(),
+            "# {{date}}\n\ncustom\n"
+        );
 
         // --- Search ---------------------------------------------------------
         call("kb.search.init", json!({}));
@@ -874,7 +892,8 @@ mod tests {
 
         // --- Graph ----------------------------------------------------------
         let graph = call("kb.graph.data", json!({}));
-        assert_eq!(graph["nodes"].as_array().unwrap().len(), 2);
+        // alpha.md, beta.md, and the gamma.md note created above.
+        assert_eq!(graph["nodes"].as_array().unwrap().len(), 3);
 
         let filtered = call("kb.graph.filter", json!({ "tags": ["work"] }));
         assert_eq!(filtered["nodes"].as_array().unwrap().len(), 1);

@@ -526,10 +526,11 @@ create_missing = true
 ## Definition of Done
 
 - [x] `[[wikilink]]` navigates in Flutter & TUI
-- [ ] `[[wikilink]]` *creates* a missing note — the links resolve and the
-      completion offers existing notes, but a link to a note that is not
-      there yet is not followed by a new note (`wikilinks.create_missing` is
-      a setting with nothing behind it yet)
+- [x] `[[wikilink]]` *creates* a missing note when `wikilinks.create_missing`
+      is on — tapping a link to a note that is not there yet offers to create
+      it, and the note is written through the vault so the indexes stay in
+      step. The setting is honoured: with it off, tapping a missing link says
+      so instead (`wikilinks.create_missing`).
 - [x] Backlinks panel shows all incoming links with context
 - [x] Daily notes use template with all placeholders
 - [x] Frontmatter editable in Flutter; queryable via `tag:`, `key:value`

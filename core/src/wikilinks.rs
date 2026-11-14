@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use lazy_static::lazy_static;
 use regex::Regex;
 
+use crate::config;
 use crate::vault::{self};
 
 /// A parsed wikilink with its position in the source text.
@@ -51,7 +52,10 @@ pub fn normalize_target(target: &str) -> String {
     // Replace spaces and underscores with hyphens
     s = s.replace(' ', "-").replace('_', "-");
     // Remove any non-alphanumeric/hyphen/dot characters (preserve .md extension)
-    s = s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.').collect();
+    s = s
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
+        .collect();
     // Collapse multiple hyphens
     while s.contains("--") {
         s = s.replace("--", "-");
@@ -113,6 +117,31 @@ pub fn resolve_wikilink(store: &str, target: &str) -> String {
         }
     }
     normalized
+}
+
+/// Create a note for a wikilink target that does not exist yet.
+///
+/// Only created when the `wikilinks.create_missing` setting is on, and only
+/// when there is no note with that (normalized) target already. The note is
+/// written empty, so the editor can open it and the user can fill it in.
+pub fn create_missing(store: &str, target: &str) -> crate::Result<String> {
+    let config = config::get_config();
+    if !config.wikilinks.create_missing {
+        return Err(
+            "creating missing notes is disabled; turn on wikilinks.create_missing".to_string(),
+        );
+    }
+
+    let normalized = normalize_target(target);
+
+    // A note with this target already exists: nothing to create.
+    if vault::read_text(&normalized, store).is_ok() {
+        return Err(format!("{normalized} already exists"));
+    }
+
+    vault::write_text(&normalized, "", store)?;
+
+    Ok(normalized)
 }
 
 /// Fold a name into a comparable form.
@@ -291,6 +320,56 @@ mod tests {
         assert_eq!(
             resolve_wikilink(crate::vault::STORE_JOURNAL, "missing note"),
             "missing-note.md"
+        );
+    }
+
+    #[test]
+    fn test_create_missing_makes_a_new_note() {
+        let _guard = crate::testutil::TestGuard::new();
+        let temp = tempfile::tempdir().unwrap();
+        let vault_path = temp.path().to_string_lossy().to_string();
+
+        crate::vault::create_with_passphrase(
+            &vault_path,
+            "testpass123",
+            crate::vault::STORE_JOURNAL,
+        )
+        .unwrap();
+        crate::vault::unlock(&vault_path, "testpass123", crate::vault::STORE_JOURNAL).unwrap();
+
+        // The setting is on by default, so a missing note gets created.
+        let created = create_missing(crate::vault::STORE_JOURNAL, "Brand New Note").unwrap();
+        assert_eq!(created, "brand-new-note.md");
+        assert_eq!(
+            crate::vault::read_text("brand-new-note.md", crate::vault::STORE_JOURNAL).unwrap(),
+            ""
+        );
+
+        // Creating it again is an error.
+        assert!(create_missing(crate::vault::STORE_JOURNAL, "Brand New Note").is_err());
+    }
+
+    #[test]
+    fn test_create_missing_is_honoured_when_off() {
+        let _guard = crate::testutil::TestGuard::new();
+        let temp = tempfile::tempdir().unwrap();
+        let vault_path = temp.path().to_string_lossy().to_string();
+
+        crate::vault::create_with_passphrase(
+            &vault_path,
+            "testpass123",
+            crate::vault::STORE_JOURNAL,
+        )
+        .unwrap();
+        crate::vault::unlock(&vault_path, "testpass123", crate::vault::STORE_JOURNAL).unwrap();
+
+        let mut config = config::get_config();
+        config.wikilinks.create_missing = false;
+        config::set_config(config);
+
+        assert!(
+            create_missing(crate::vault::STORE_JOURNAL, "Brand New Note").is_err(),
+            "create_missing is off"
         );
     }
 }
