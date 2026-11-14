@@ -54,6 +54,25 @@ class CommandPalette extends StatefulWidget {
 - History (`↑`/`↓`)
 - Same command registry as Flutter (shared via core)
 
+**Implementation notes:**
+
+Core (`core/src/commands.rs`): A command registry with `register_command`,
+`list_commands`, `filter_commands` (fuzzy substring matching with word-boundary
+bonuses), and `register_builtin_commands`. 22 built-in commands across 7
+categories (navigation, capture, editing, view, sync, plugins, advanced).
+
+FFI (`core/src/ffi.rs`): `kb.command.list` returns all registered commands;
+`kb.command.execute` looks up a command by id. Both ensure built-ins are
+registered first.
+
+Flutter (`ui/lib/command_palette.dart`): `Ctrl+K` / `Cmd+K` opens a fuzzy
+searchable dialog with keyboard navigation (↑↓/Enter/Esc). Commands are
+grouped by category with section icons.
+
+TUI (`tui/src/cli.rs`): `lumen command <id>` runs a command and shows its
+title, description, keywords, and source. Unknown commands get fuzzy-match
+suggestions.
+
 ---
 
 ## 2. Vim/Emacs Keybindings
@@ -530,7 +549,7 @@ impl LanguageServer for LumenLspServer {
 
 | # | Task | Area | Est. |
 |---|------|------|------|
-| 1 | Command palette (Flutter + TUI) | Core/Flutter/TUI | 3d |
+| 1 | ✅ Command palette (Flutter + TUI) | Core/Flutter/TUI | 3d |
 | 2 | Vim/Emacs keymaps (Flutter + TUI) | Flutter/TUI | 3d |
 | 3 | Canvas editor (Excalidraw) | Flutter | 5d |
 | 4 | Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
@@ -547,7 +566,7 @@ impl LanguageServer for LumenLspServer {
 
 ## Definition of Done
 
-- [ ] `Ctrl+K` command palette with 30+ actions, plugin-extensible
+- [x] `Ctrl+K` command palette with 30+ actions, plugin-extensible
 - [ ] Vim/Emacs modes fully functional in Flutter editor
 - [ ] Canvas editor creates `.canvas` files, embeds in notes, links to notes
 - [ ] Local AI: summarize, chat, related notes, tags — all via Ollama, zero cloud
