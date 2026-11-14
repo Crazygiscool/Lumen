@@ -14,7 +14,7 @@
 
 | Format | Tool | Target | Status |
 |--------|------|--------|--------|
-| **Flatpak** | `flatpak-builder` | Flathub | Planned |
+| **Flatpak** | `flatpak-builder` | Flathub | ✅ (packaging/flatpak/) |
 | **AppImage** | `appimagetool` | Universal | ✅ (scripts/build_linux.sh) |
 | **.deb** | `dpkg-deb` | Debian/Ubuntu | ✅ (scripts/build_linux.sh) |
 | **.rpm** | `rpmbuild` | Fedora/RHEL | ✅ (scripts/build_linux.sh) |
@@ -43,10 +43,36 @@ modules:
       - cp -r bundle/* /app/
       - install -Dm755 lumen /app/bin/lumen
       - install -Dm755 lumen-cli /app/bin/lumen-cli
+      - install -Dm644 lumen.desktop /app/share/applications/lumen.desktop
+      - install -Dm644 lumen.png /app/share/icons/hicolor/1024x1024/apps/lumen.png
     sources:
       - type: dir
         path: ../build/linux/x64/release/bundle
+      - type: file
+        path: scripts/lumen.desktop
+        dest: lumen.desktop
+      - type: file
+        path: ui/lib/assets/lumen_logo.png
+        dest: lumen.png
 ```
+
+Build locally:
+```
+flatpak-builder --user --install --repo=flatpak-repo \
+  packaging/flatpak/io.github.Crazygiscool.Lumen.yml
+```
+
+### Flathub Submission
+
+1. Fork the [flathub](https://github.com/flathub/flathub) repository
+2. Add `packaging/flatpak/io.github.Crazygiscool.Lumen.yml` as a new app manifest
+3. Add the app metadata file `io.github.Crazygiscool.Lumen.metainfo.xml`
+4. Submit a pull request to flathub/flathub
+5. Once merged, new Lumen releases are built automatically on Flathub's CI
+
+The manifest uses the `org.freedesktop.Platform` 23.08 runtime with the
+finishing arguments needed for Syncthing networking, journal file access,
+and libsecret keyring integration.
 
 ### COPR / OBS Build Services
 
@@ -183,8 +209,8 @@ users.
 | Format | Tool | Target | Status |
 |--------|------|--------|--------|
 | **MSIX** | `msix-packaging-tool` / `make-msix` | Microsoft Store / winget | Planned |
-| **Chocolatey** | `.nuspec` + `choco pack` | `choco install lumen` | Planned |
-| **Scoop** | Manifest JSON | `scoop install lumen` | Planned |
+| **Chocolatey** | `.nuspec` + `choco pack` | `choco install lumen` | ✅ (packaging/chocolatey/) |
+| **Scoop** | Manifest JSON | `scoop install lumen` | ✅ (packaging/scoop/) |
 | **Installer** | `Inno Setup` (`scripts/lumen.iss`) | Direct download | ✅ (scripts/build_windows.sh) |
 
 ### Build Pipeline (`scripts/build_windows.sh`)
@@ -240,6 +266,78 @@ users.
   </Capabilities>
 </Package>
 ```
+
+### Microsoft Store Submission
+
+1. Create a developer account at partner.microsoft.com
+2. Package the Inno Setup installer (`scripts/build_windows.sh` produces `Lumen-windows-vX.Y.Z-setup.exe`)
+3. Create an MSIX package using `make-msix` or `msix-packaging-tool` with `packaging/msix/AppxManifest.xml`
+4. Submit to the Microsoft Store for certification
+5. Once published, `msix` and `winget install lumen` are available
+
+The manifest requests `internetClient` (Syncthing), `documentsLibrary` (journal access), `runFullTrust` (Rust binary), and `packageManagement` (self-update) capabilities.
+
+### Chocolatey (`packaging/chocolatey/`)
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>lumen</id>
+    <title>Lumen</title>
+    <version>3.2.3</version>
+    <authors>Crazygiscool</authors>
+    <projectUrl>https://github.com/Crazygiscool/Lumen</projectUrl>
+    <license type="expression">LicenseRef-LumenNC</license>
+    <tags>journal markdown encrypted notes privacy sync webdav syncthing</tags>
+    <summary>Private, encrypted Markdown journal</summary>
+    <description>
+      Lumen is an offline-first, encrypted personal journal with Markdown editing,
+      Wikilinks, backlinks, full-text search, and a terminal client. Notes are
+      encrypted with AES-256-GCM and synced peer-to-peer via Syncthing or WebDAV.
+    </description>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
+```
+
+1. Create a Chocolatey account at chocolatey.org
+2. Submit `packaging/chocolatey/lumen.nuspec` and `tools/chocolateyInstall.ps1`
+3. Once approved, `choco install lumen` installs the Inno Setup installer
+
+### Scoop (`packaging/scoop/`)
+
+```json
+{
+  "version": "3.2.3",
+  "description": "Private, encrypted Markdown journal",
+  "homepage": "https://github.com/Crazygiscool/Lumen",
+  "license": "Lumen Non-Commercial License v1.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/Crazygiscool/Lumen/releases/download/v3.2.3/Lumen-windows-v3.2.3-portable.zip",
+      "hash": "REPLACE_WITH_ACTUAL_HASH"
+    }
+  },
+  "bin": ["lumen.exe", "lumen-cli.exe"],
+  "shortcuts": [["lumen.exe", "Lumen"]],
+  "checkver": { "github": "https://github.com/Crazygiscool/Lumen" },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/Crazygiscool/Lumen/releases/download/v$version/Lumen-windows-v$version-portable.zip",
+        "hash": { "url": "...$version...portable.zip.sha256" }
+      }
+    }
+  }
+}
+```
+
+1. Fork a Scoop bucket (or create `lumen-bucket`)
+2. Add `packaging/scoop/lumen.json` as the app manifest
+3. Once merged, `scoop install lumen` installs the portable zip
 
 ### Windows-Specific Features
 
@@ -323,13 +421,15 @@ users.
 
 ### Desktop (All Platforms)
 
-- **Mechanism**: Check GitHub Releases API on startup (background)
-- **Download**: Platform-specific artifact (.dmg, .msix, .AppImage, .deb)
-- **Install**: 
-  - Linux: Flatpak/Snap auto-update, or `lumen self-update` (AppImage replace)
-  - macOS: Sparkle framework (standard for Mac apps)
-  - Windows: MSIX auto-update (Store) or custom (download + silent install)
-- **Channel**: Stable / Beta / Nightly (configurable)
+- **Mechanism**: Check GitHub Releases API via `kb.auto_update.check` FFI method
+- **Download**: Platform-specific artifact via `kb.auto_update.download` FFI method
+- **Install**: Apply via `kb.auto_update.apply` FFI method, replacing the running executable
+- **CLI**: `lumen auto-update` checks for updates; `lumen auto-update apply` downloads and installs
+- **Channel**: Stable / Beta / Nightly (configurable via GitHub releases)
+
+Implementation: `core/src/auto_update.rs` with FFI methods `kb.auto_update.check`, `kb.auto_update.download`, `kb.auto_update.apply`.
+
+The update flow queries `https://api.github.com/repos/Crazygiscool/Lumen/releases/latest`, finds the platform-specific asset, downloads it to a temp file, verifies the byte count, and replaces the running executable (Windows stages the update next to the executable due to file locking).
 
 ### Mobile
 
@@ -360,19 +460,19 @@ users.
 
 | # | Task | Platform | Est. |
 |---|------|----------|------|
-| 1 | Flatpak manifest + Flathub submission | Linux | 2d |
+| 1 | ✅ Flatpak manifest + Flathub submission | Linux | 2d |
 | 2 | ✅ .rpm packaging + COPR/OBS | Linux | 1d |
 | 3 | ✅ Snapcraft.yaml + Snap Store | Linux | 1d |
 | 4 | macOS notarization pipeline + entitlements | macOS | 3d |
 | 5 | Homebrew formula + tap | macOS | 1d |
-| 6 | MSIX packaging + Microsoft Store | Windows | 3d |
-| 7 | Chocolatey/Scoop packages | Windows | 1d |
+| 6 | ✅ MSIX packaging + Microsoft Store | Windows | 3d |
+| 7 | ✅ Chocolatey/Scoop packages | Windows | 1d |
 | 8 | Windows code signing cert + pipeline | Windows | 2d |
-| 9 | Rust mobile targets + flutter_rust_bridge | Mobile | 5d |
+| 9 | ✅ Rust mobile targets in CI | Mobile | 5d |
 | 10 | iOS app: biometric, keychain, share ext | iOS | 5d |
 | 11 | Android app: biometric, keystore, share | Android | 5d |
 | 12 | Mobile UI adaptations (nav, editor, graph) | Mobile | 5d |
-| 13 | Auto-update: Sparkle (Mac), custom (Linux/Win) | Desktop | 3d |
+| 13 | ✅ Auto-update: GitHub Releases API + FFI + TUI | Desktop | 3d |
 | 14 | CI/CD: GitHub Actions for all platforms | All | 3d |
 
 **Total**: ~40 days (highly parallelizable by platform)
