@@ -45,6 +45,7 @@ reqwest = { version = "0.11", features = ["blocking", "json"] }
 # Phase 4: Power User
 wasmtime = { version = "18", features = ["cranelift", "async"] }
 wasmtime-wasi = { version = "18" }
+tower-lsp = { version = "0.19", features = ["tokio"] }
 
 [dev-dependencies]
 tempfile = "3.27"

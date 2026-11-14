@@ -19,6 +19,7 @@ pub mod syncthing;
 pub mod auto_update;
 pub mod commands;
 pub mod ai;
+pub mod lsp;
 pub mod template;
 pub mod vault;
 pub mod wikilinks;

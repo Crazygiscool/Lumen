@@ -149,7 +149,7 @@ pub fn create_missing(store: &str, target: &str) -> crate::Result<String> {
 /// The name is lower-cased and every run of characters that is not a letter
 /// or a digit becomes a single hyphen, so `My Note.md` and `my-note.md`
 /// fold to the same thing.
-fn slugify(name: &str) -> String {
+pub fn slugify(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut pending_separator = false;
 
