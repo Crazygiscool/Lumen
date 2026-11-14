@@ -201,6 +201,39 @@ EOF
     echo "Created: $APPIMAGE_OUT"
 fi
 
+# ---------------------------------------------------------------------------
+# RPM package
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Step 8: RPM package (.rpm) ==="
+if command -v rpmbuild >/dev/null 2>&1; then
+    RPM_ROOT="$DIST_DIR/rpm-root"
+    rm -rf "$RPM_ROOT"
+    install -d "$RPM_ROOT/SOURCES" "$RPM_ROOT/SPECS" "$RPM_ROOT/BUILDROOT"
+
+    # Build a source tarball whose top-level dir matches the spec's %setup.
+    mkdir -p "$RPM_ROOT/SOURCES/lumen-$VERSION"
+    cp -a "$BUNDLE_DIR/." "$RPM_ROOT/SOURCES/lumen-$VERSION/bundle/"
+    cp scripts/lumen.desktop "$RPM_ROOT/SOURCES/lumen-$VERSION/scripts/lumen.desktop"
+    cp "$UI_DIR/lib/assets/lumen_logo.png" "$RPM_ROOT/SOURCES/lumen-$VERSION/ui/lib/assets/lumen_logo.png"
+    cp "$ROOT_DIR/LICENSE" "$RPM_ROOT/SOURCES/lumen-$VERSION/LICENSE"
+    cd "$RPM_ROOT/SOURCES"
+    tar czf "lumen-$VERSION.tar.gz" "lumen-$VERSION"
+    cd "$ROOT_DIR"
+
+    cp "$ROOT_DIR/packaging/lumen.spec" "$RPM_ROOT/SPECS/lumen.spec"
+
+    rpmbuild --define "_topdir $RPM_ROOT" \
+               --define "_version $VERSION" \
+               -bb "$RPM_ROOT/SPECS/lumen.spec"
+
+    find "$RPM_ROOT/RPMS" -name '*.rpm' -exec cp {} "$DIST_DIR/" \;
+    rm -rf "$RPM_ROOT"
+    ls -lh "$DIST_DIR"/*.rpm 2>/dev/null && echo "Created: $DIST_DIR/*.rpm"
+else
+    echo "SKIPPED: rpmbuild not found (install rpm-build on Fedora/RHEL or rpm on Arch)." >&2
+fi
+
 echo ""
 echo "=== DONE ==="
 echo "Bundle: $BUNDLE_DIR"

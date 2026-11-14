@@ -17,7 +17,7 @@
 | **Flatpak** | `flatpak-builder` | Flathub | Planned |
 | **AppImage** | `appimagetool` | Universal | ✅ (scripts/build_linux.sh) |
 | **.deb** | `dpkg-deb` | Debian/Ubuntu | ✅ (scripts/build_linux.sh) |
-| **.rpm** | `rpmbuild` | Fedora/RHEL | Planned |
+| **.rpm** | `rpmbuild` | Fedora/RHEL | ✅ (scripts/build_linux.sh) |
 | **Arch/AUR** | `makepkg` | Arch Linux | ✅ (scripts/release.sh) |
 | **Snap** | `snapcraft` | Ubuntu Store | Planned |
 
@@ -47,6 +47,28 @@ modules:
       - type: dir
         path: ../build/linux/x64/release/bundle
 ```
+
+### COPR / OBS Build Services
+
+RPMs can be built automatically for Fedora (COPR) and openSUSE (OBS)
+without maintaining build infrastructure:
+
+**COPR** (`copr.fedoraproject.org`):
+1. Create a COPR project at copr.fedoraproject.org
+2. Enable the `lumen-core` and `lumen` chroots (e.g. `epel-9-x86_64`,
+   `fedora-40-x86_64`, `fedora-rawhide-x86_64`)
+3. Upload `packaging/lumen.spec` and the source tarball produced by
+   `scripts/build_linux.sh` (`lumen-<version>.tar.gz`)
+4. COPR builds the SRPM and RPMs for each enabled chroot
+
+**OBS** (Open Build Service, `build.opensuse.org`):
+1. Create an OBS project for Lumen
+2. Add `packaging/lumen.spec` and the source files (`lumen.desktop`,
+   `lumen_logo.png`, `LICENSE`, and the prebuilt bundle tarball)
+3. OBS builds RPMs for openSUSE Leap, Tumbleweed, and SLE targets
+
+Both services rebuild on every source change, so new Lumen releases are
+automatically packaged for Fedora and openSUSE users.
 
 ### Wayland Support
 
@@ -291,7 +313,7 @@ modules:
 | Feature | Linux | macOS | Windows | iOS | Android |
 |---------|-------|-------|---------|-----|---------|
 | **Native build** | ✅ | ✅ | ✅ | Planned | Planned |
-| **Packaging** | Flatpak, AppImage, .deb, AUR | .dmg, Homebrew | MSIX, Chocolatey, Inno | IPA | AAB |
+| **Packaging** | Flatpak, AppImage, .deb, .rpm, AUR | .dmg, Homebrew | MSIX, Chocolatey, Inno | IPA | AAB |
 | **Wayland** | ✅ | N/A | N/A | N/A | N/A |
 | **Notarized** | N/A | ✅ | N/A | N/A | N/A |
 | **Code signed** | N/A | ✅ | Planned | ✅ | ✅ |
@@ -309,7 +331,7 @@ modules:
 | # | Task | Platform | Est. |
 |---|------|----------|------|
 | 1 | Flatpak manifest + Flathub submission | Linux | 2d |
-| 2 | .rpm packaging + COPR/OBS | Linux | 1d |
+| 2 | ✅ .rpm packaging + COPR/OBS | Linux | 1d |
 | 3 | Snapcraft.yaml + Snap Store | Linux | 1d |
 | 4 | macOS notarization pipeline + entitlements | macOS | 3d |
 | 5 | Homebrew formula + tap | macOS | 1d |
