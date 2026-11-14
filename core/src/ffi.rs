@@ -10,6 +10,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::auto_update::{check_for_update, download_update, apply_update, current_version, UpdateStatus};
+use crate::commands::{list_commands, register_builtin_commands};
 
 use crate::config;
 use crate::frontmatter::{self, Frontmatter};
@@ -723,6 +724,38 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             match apply_update(path) {
                 Ok(()) => ok(serde_json::json!({ "applied": true })),
                 Err(e) => err(e),
+            }
+        }
+
+        // Command palette
+        "kb.command.list" => {
+            if let Err(e) = register_builtin_commands() {
+                return err(e);
+            }
+            ok(serde_json::json!({
+                "commands": list_commands()
+                    .into_iter()
+                    .map(|c| serde_json::to_value(c).unwrap_or_default())
+                    .collect::<Vec<_>>()
+            }))
+        }
+        "kb.command.execute" => {
+            #[derive(Deserialize)]
+            struct CommandExecuteArgs {
+                id: String,
+            }
+            let a = parse!(CommandExecuteArgs);
+            if let Err(e) = register_builtin_commands() {
+                return err(e);
+            }
+            let commands = list_commands();
+            if let Some(cmd) = commands.iter().find(|c| c.id == a.id) {
+                ok(serde_json::json!({
+                    "executed": true,
+                    "command": serde_json::to_value(cmd).unwrap_or_default(),
+                }))
+            } else {
+                err(format!("command '{}' not found", a.id))
             }
         }
 
