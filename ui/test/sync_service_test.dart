@@ -202,22 +202,91 @@ void main() {
       expect(settings.encrypt, isFalse);
     });
 
-    test('the notes are sent without the password', () async {
+    test('the notes are sent and taken, and what happened is said', () async {
       final ffi = _FakeFfi({
-        'kb.sync.webdav.sync': {'synced': true},
+        'kb.sync.webdav.sync': {
+          'uploaded': ['a.md'],
+          'downloaded': ['b.md', 'c.md'],
+          'deleted': <String>[],
+          'conflicts': <dynamic>[],
+          'errors': <String>[],
+        },
       });
       final service = SyncService(ffi);
 
-      await service.syncWebDAV(
-        vaultPath: '/vault',
-        url: 'https://dav.example.com',
-        username: 'me',
-        encrypt: true,
-      );
+      final report = await service.syncWebDAV(vaultPath: '/vault');
 
       expect(ffi.methods, ['kb.sync.webdav.sync']);
       expect(ffi.args.first['vault_path'], '/vault');
       expect(ffi.args.first.containsKey('password'), isFalse);
+      expect(report.uploaded, ['a.md']);
+      expect(report.downloaded, ['b.md', 'c.md']);
+      expect(report.conflicts, isEmpty);
+      expect(report.isEmpty, isFalse);
+    });
+
+    test('a conflict says where it came from', () async {
+      final ffi = _FakeFfi({
+        'kb.sync.status': {
+          'enabled': true,
+          'method': 'webdav',
+          'conflicts': [
+            {
+              'path': 'alpha.md',
+              'local_modified': '2026-01-01T00:00:00Z',
+              'remote_modified': '2026-01-02T00:00:00Z',
+              'local_hash': 'aaa',
+              'remote_hash': 'bbb',
+              'source': 'webdav',
+            },
+          ],
+        },
+      });
+      final service = SyncService(ffi);
+
+      final status = await service.status();
+
+      expect(status.conflicts, hasLength(1));
+      expect(status.conflicts.first.source, 'webdav');
+    });
+
+    test('a conflict of Syncthing says so', () async {
+      final ffi = _FakeFfi({
+        'kb.sync.status': {
+          'enabled': true,
+          'method': 'syncthing',
+          'conflicts': [
+            {
+              'path': 'alpha.md',
+              'local_modified': '2026-01-01T00:00:00Z',
+              'remote_modified': '2026-01-02T00:00:00Z',
+              'local_hash': 'aaa',
+              'remote_hash': 'bbb',
+            },
+          ],
+        },
+      });
+      final service = SyncService(ffi);
+
+      final status = await service.status();
+
+      expect(status.conflicts.first.source, 'syncthing');
+    });
+
+    test('a conflict is settled with the folder of the vault', () async {
+      final ffi = _FakeFfi({'kb.sync.resolve_conflict': <String, Object?>{}});
+      final service = SyncService(ffi);
+
+      await service.resolveConflict(
+        'alpha.md',
+        keepLocal: true,
+        vaultPath: '/vault',
+      );
+
+      expect(ffi.methods, ['kb.sync.resolve_conflict']);
+      expect(ffi.args.first['path'], 'alpha.md');
+      expect(ffi.args.first['keep_local'], isTrue);
+      expect(ffi.args.first['vault_path'], '/vault');
     });
 
     test('the sync method is written to the configuration', () async {

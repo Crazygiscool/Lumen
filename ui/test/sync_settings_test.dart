@@ -47,7 +47,13 @@ class _FakeFfi implements LumenFfi {
             'device_error': 'Syncthing is not running',
         };
       case 'kb.sync.webdav.sync':
-        return <String, Object?>{'synced': true};
+        return <String, Object?>{
+          'uploaded': ['a.md'],
+          'downloaded': <String>[],
+          'deleted': <String>[],
+          'conflicts': <dynamic>[],
+          'errors': <String>[],
+        };
       case 'kb.config.get':
         return <String, Object?>{
           'sync': {
@@ -97,7 +103,22 @@ void main() {
     final index = ffi.methods.indexOf('kb.sync.webdav.sync');
     final sync = ffi.args[index];
     expect(sync['vault_path'], '/vault');
-    expect(sync['url'], 'https://dav.example.com');
+    // The address and the name of the account are read by the core from the
+    // configuration, so they do not travel through the app.
+    expect(sync.containsKey('url'), isFalse);
+    expect(sync.containsKey('password'), isFalse);
+  });
+
+  testWidgets('what the sync did is said', (tester) async {
+    final ffi = _FakeFfi()..method = 'webdav';
+
+    await tester.pumpWidget(_screen(ffi));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sync Now'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('1 sent'), findsOneWidget);
   });
 
   testWidgets('syncing now does not send anything for Syncthing', (

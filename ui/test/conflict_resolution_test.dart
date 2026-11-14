@@ -113,6 +113,9 @@ void main() {
       (a) => a['path'] == 'gamma.md' && a.containsKey('keep_local'),
     );
     expect(resolve['keep_local'], isTrue);
+    // The version the other side sent is kept inside the vault, so the core
+    // needs to know where the vault is.
+    expect(resolve['vault_path'], '/vault');
   });
 
   testWidgets('keeping the remote version resolves the conflict', (

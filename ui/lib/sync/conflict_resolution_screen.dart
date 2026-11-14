@@ -69,6 +69,7 @@ class _ConflictResolutionScreenState extends State<ConflictResolutionScreen> {
       await _service.resolveConflict(
         widget.conflict.path,
         keepLocal: keepLocal,
+        vaultPath: widget.vaultPath,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
