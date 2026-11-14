@@ -91,3 +91,38 @@ jobs:
       - name: "Flutter: analyze"
         working-directory: ui
         run: flutter analyze
+
+  android:
+    name: Android (check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Android NDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libssl-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets:
+            - aarch64-linux-android
+            - armv7-linux-androideabi
+            - x86_64-linux-android
+          components:
+            - rustfmt
+            - clippy
+
+      - name: "Rust: check (Android targets)"
+        run: |
+          cargo check --workspace --locked --target aarch64-linux-android --target armv7-linux-androideabi --target x86_64-linux-android
+          cargo clippy --workspace --locked --all-targets
