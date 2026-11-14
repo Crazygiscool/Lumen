@@ -110,9 +110,7 @@ class SyncReport {
 
 /// The paths in a list the core sent.
 List<String> _strings(Object? value) =>
-    (value as List<dynamic>? ?? const [])
-        .map((e) => e.toString())
-        .toList();
+    (value as List<dynamic>? ?? const []).map((e) => e.toString()).toList();
 
 /// Connected device status.
 class DeviceStatus {

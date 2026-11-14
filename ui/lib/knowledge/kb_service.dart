@@ -244,8 +244,10 @@ class KbService {
   /// Which encrypted store this service reads.
   final String store;
 
-  Map<String, Object?> _args([Map<String, Object?> base = const {}]) =>
-      {...base, 'store': store};
+  Map<String, Object?> _args([Map<String, Object?> base = const {}]) => {
+    ...base,
+    'store': store,
+  };
 
   Map<String, dynamic> _map(Object? data) =>
       (data as Map<String, dynamic>? ?? const {}).cast();
@@ -274,6 +276,17 @@ class KbService {
     );
     final path = data['path'] as String?;
     return (path == null || path.isEmpty) ? null : path;
+  }
+
+  /// Create a note for a wikilink target that does not exist yet.
+  ///
+  /// Only works when `wikilinks.create_missing` is on and the note does not
+  /// already exist. Returns the path of the note that was created.
+  Future<String> createMissingNote(String target) async {
+    final data = _map(
+      _ffi.kb('kb.wikilinks.create_missing', _args({'target': target})),
+    );
+    return data['created'] as String? ?? '';
   }
 
   /// The notes that link to [path].
@@ -312,9 +325,7 @@ class KbService {
   Future<(KbFrontmatter, String)> parseFrontmatter(String body) async {
     final data = _map(_ffi.kb('kb.frontmatter.parse', {'body': body}));
     return (
-      KbFrontmatter.fromJson(
-        _map(data['frontmatter']).cast<String, dynamic>(),
-      ),
+      KbFrontmatter.fromJson(_map(data['frontmatter']).cast<String, dynamic>()),
       data['body'] as String? ?? '',
     );
   }
@@ -325,10 +336,10 @@ class KbService {
     String body,
   ) async {
     final data = _map(
-      _ffi.kb(
-        'kb.frontmatter.serialize',
-        {'frontmatter': frontmatter.toJson(), 'body': body},
-      ),
+      _ffi.kb('kb.frontmatter.serialize', {
+        'frontmatter': frontmatter.toJson(),
+        'body': body,
+      }),
     );
     return data['text'] as String? ?? body;
   }
@@ -358,10 +369,9 @@ class KbService {
   /// The path of the daily note for a date (`YYYY-MM-DD.md`).
   Future<String> dailyNotePath(DateTime date) async {
     final data = _map(
-      _ffi.kb(
-        'kb.template.daily_path',
-        {'date_ms': date.millisecondsSinceEpoch},
-      ),
+      _ffi.kb('kb.template.daily_path', {
+        'date_ms': date.millisecondsSinceEpoch,
+      }),
     );
     return data['path'] as String? ?? '';
   }
@@ -369,10 +379,9 @@ class KbService {
   /// The daily template, rendered for a date.
   Future<String> renderDailyTemplate(DateTime date) async {
     final data = _map(
-      _ffi.kb(
-        'kb.template.daily_render',
-        {'date_ms': date.millisecondsSinceEpoch},
-      ),
+      _ffi.kb('kb.template.daily_render', {
+        'date_ms': date.millisecondsSinceEpoch,
+      }),
     );
     return data['content'] as String? ?? '';
   }
@@ -395,9 +404,7 @@ class KbService {
 
   /// Save the daily template.
   Future<String> saveTemplate(String content) async {
-    final data = _map(
-      _ffi.kb('kb.template.save', {'content': content}),
-    );
+    final data = _map(_ffi.kb('kb.template.save', {'content': content}));
     return data['path'] as String? ?? '';
   }
 
@@ -407,13 +414,10 @@ class KbService {
   /// preview what the user is typing before saving it.
   Future<String> renderTemplate(String template, DateTime date) async {
     final data = _map(
-      _ffi.kb(
-        'kb.template.render',
-        {
-          'template': template,
-          'date_ms': date.millisecondsSinceEpoch,
-        },
-      ),
+      _ffi.kb('kb.template.render', {
+        'template': template,
+        'date_ms': date.millisecondsSinceEpoch,
+      }),
     );
     return data['content'] as String? ?? '';
   }
@@ -430,10 +434,7 @@ class KbService {
   /// Run a full-text query.
   Future<List<KbSearchHit>> search(String query, {int limit = 50}) async {
     final data = _map(
-      _ffi.kb(
-        'kb.search.query',
-        _args({'query': query, 'limit': limit}),
-      ),
+      _ffi.kb('kb.search.query', _args({'query': query, 'limit': limit})),
     );
     return [
       for (final h in _list(data['hits']))

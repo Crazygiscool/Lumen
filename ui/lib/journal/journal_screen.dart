@@ -93,10 +93,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       duration: const Duration(milliseconds: 260),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: child,
-      ),
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
       child: stage,
     );
   }
@@ -105,19 +103,14 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     final notesAsync = ref.watch(journalNotesProvider);
     final t = LumenColors.of(context);
     return notesAsync.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (e, _) => _ErrorState(message: '$e'),
       data: (notes) {
         final query = _search.trim().toLowerCase();
         final filtered = query.isEmpty
             ? notes
-            : notes
-                  .where(
-                    (n) => n.name.toLowerCase().contains(query),
-                  )
-                  .toList();
+            : notes.where((n) => n.name.toLowerCase().contains(query)).toList();
         return Row(
           children: [
             SizedBox(
@@ -141,10 +134,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 duration: const Duration(milliseconds: 200),
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: child,
-                ),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
                 child: _editing == null
                     ? JournalDashboard(
                         key: const ValueKey('dashboard'),
@@ -402,10 +393,7 @@ class _JournalGateState extends ConsumerState<_JournalGate> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(
-                  child: Image.asset(
-                    'lib/assets/lumen_logo.png',
-                    height: 56,
-                  ),
+                  child: Image.asset('lib/assets/lumen_logo.png', height: 56),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -542,10 +530,7 @@ class _JournalList extends StatelessWidget {
                       streakDays > 0
                           ? '$streakDays day streak'
                           : '${notes.length} notes',
-                      style: TextStyle(
-                        color: t.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: t.onSurfaceVariant, fontSize: 12),
                     ),
                   ],
                 ),
@@ -731,14 +716,15 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
         final feedback = await ref
             .read(pluginServiceProvider)
             .run(widget.relPath, title, _ctl.text);
-        if (feedback.isNotEmpty) message = 'Saved \u2014 ${feedback.join(' \u00b7 ')}';
+        if (feedback.isNotEmpty)
+          message = 'Saved \u2014 ${feedback.join(' \u00b7 ')}';
       } catch (_) {
         // Plugins are optional; never block saving a note.
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
       widget.onSaved();
     } catch (e) {
@@ -759,7 +745,8 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
     return 'Note';
   }
 
-  /// Opens the note a wikilink points at, creating it if it is missing.
+  /// Opens the note a wikilink points at, creating it if it is missing and
+  /// the `wikilinks.create_missing` setting allows it.
   Future<void> _openWikilink(String target) async {
     final service = ref.read(kbServiceProvider);
     final path = await service.resolveWikilink(target);
@@ -769,11 +756,34 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
         ref.read(journalNotesProvider).asData?.value ?? const <JournalNote>[];
     final exists = notes.any((note) => note.relPath == path);
     if (!exists) {
+      // Only offer to create when the setting allows it.
+      final config = await service.config();
+      final createMissing =
+          (config['wikilinks'] as Map? ??
+                  const <String, dynamic>{})['create_missing']
+              as bool? ??
+          true;
+      if (!createMissing) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'This note does not exist, and creating missing notes is disabled.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
       final create = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Create this note?'),
-          content: Text('\u201c${prettifyTarget(target)}\u201d does not exist yet.'),
+          content: Text(
+            '\u201c${prettifyTarget(target)}\u201d does not exist yet.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -787,7 +797,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
         ),
       );
       if (create != true) return;
-      await ref.read(journalServiceProvider).write(path, '');
+      await service.createMissingNote(target);
       ref.invalidate(journalNotesProvider);
     }
 
@@ -821,14 +831,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
       mode: PathPickerMode.file,
       initialPath: null,
       title: 'Choose an image to attach',
-      extensions: const [
-        '.png',
-        '.jpg',
-        '.jpeg',
-        '.gif',
-        '.webp',
-        '.heic',
-      ],
+      extensions: const ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic'],
     );
     if (picked == null || !mounted) return;
 
@@ -838,10 +841,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
       final rawName = file.uri.pathSegments.isEmpty
           ? 'image'
           : file.uri.pathSegments.last;
-      final safeName = rawName.replaceAll(
-        RegExp(r'[^A-Za-z0-9._-]'),
-        '_',
-      );
+      final safeName = rawName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final relPath = 'attachments/${stamp}_$safeName';
       await ref.read(journalVaultServiceProvider).writeBytes(relPath, bytes);
@@ -862,9 +862,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
         );
       } else {
         final current = _ctl.text;
-        _ctl.text = current.isEmpty
-            ? insertion
-            : '$current\n\n$insertion';
+        _ctl.text = current.isEmpty ? insertion : '$current\n\n$insertion';
       }
       widget.onDirty();
     } catch (e) {
@@ -904,10 +902,8 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
               ),
               IconButton(
                 tooltip: 'Backlinks',
-                onPressed: () => showBacklinksPanel(
-                  context,
-                  relPath: widget.relPath,
-                ),
+                onPressed: () =>
+                    showBacklinksPanel(context, relPath: widget.relPath),
                 icon: const Icon(Icons.link),
               ),
               IconButton(
