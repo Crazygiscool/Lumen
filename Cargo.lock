@@ -3083,7 +3083,7 @@ dependencies = [
 
 [[package]]
 name = "lumen"
-version = "3.2.3"
+version = "4.0.0"
 dependencies = [
  "aes-gcm",
  "age",
@@ -3124,7 +3124,7 @@ dependencies = [
 
 [[package]]
 name = "lumen-tui"
-version = "3.2.3"
+version = "4.0.0"
 dependencies = [
  "chrono",
  "clap",
