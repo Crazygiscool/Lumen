@@ -186,7 +186,7 @@ class _PluginTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = LumenColors.of(context);
-    final pluginService = ref.read(pluginServiceProvider);
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
