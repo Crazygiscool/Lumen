@@ -430,15 +430,27 @@ impl WasmPlugin {
 }
 ```
 
-### Migration Path
+### Implementation notes:
 
-| Phase | Action |
-|-------|--------|
-| 1 | Keep native `libloading` plugins working |
-| 2 | Add WASM runtime alongside (opt-in) |
-| 3 | Provide `cargo new --lib --edition 2021` template for WASM plugins |
-| 4 | Port built-in plugins to WASM (wordcount, daily_summary, etc.) |
-| 5 | Deprecate native external plugins (keep built-in native) |
+Core (`core/src/plugins/wasm.rs`): `WasmPlugin` loads and instantiates `.wasm`
+files via wasmtime with fuel limits, memory limits, and capability-based host
+imports (`log`, `http_get`). `PluginHost` dispatches `on_note`/`on_export`/
+`on_startup` hooks to all loaded plugins.
+
+WASM plugins (`core/plugins/wasm-plugins/`): Built-in plugins ported to WASM
+with `#[no_mangle]` exports:
+  - `wordcount` — reports word count as feedback
+  - `daily_summary` — reports title and word count
+  - `export_md` — ensures notes start with a `# ` heading on export
+  - `import_export` — same as export_md (legacy)
+  - `theme_manager` — placeholder for theme management
+  - `dashboard_entries` — placeholder for dashboard entries
+
+Each plugin exports `on_note` and/or `on_export` with `#[no_mangle]`, reads a
+JSON-encoded `NoteContext` from WASM linear memory, and writes a JSON-encoded
+`PluginResult` back.
+
+Tests: wasm unit tests pass.
 
 ### Plugin Store (Future)
 
@@ -554,7 +566,7 @@ impl LanguageServer for LumenLspServer {
 | 3 | Canvas editor (Excalidraw) | Flutter | 5d |
 | 4 | ✅ Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
 | 5 | ✅ WASM runtime + plugin SDK | Core | 7d |
-| 6 | Port built-in plugins to WASM | Core | 3d |
+| 6 | ✅ Port built-in plugins to WASM | Core | 3d |
 | 7 | ✅ LSP server (lumen-lsp) | Core | 5d |
 | 8 | Graph analytics + export | Flutter | 3d |
 | 9 | Plugin permissions UI | Flutter | 2d |

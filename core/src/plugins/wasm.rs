@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use wasmtime::*;
 
 /// Plugin configuration, loaded from plugin.toml.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PluginConfig {
     pub name: String,
     pub version: String,
@@ -470,5 +470,73 @@ mod tests {
         };
         assert_eq!(ctx.path, "test.md");
         assert_eq!(ctx.title, "Test");
+    }
+
+    #[test]
+    fn test_plugin_host_create_and_list() {
+        let mut host = PluginHost::new();
+        assert_eq!(host.plugin_names(), Vec::<String>::new());
+        assert!(host.load_plugin(b"wasm", PluginConfig::default()).is_err());
+    }
+
+    #[test]
+    fn test_plugin_config_serialization() {
+        let config = PluginConfig {
+            name: "test-plugin".to_string(),
+            version: "1.0.0".to_string(),
+            runtime: "wasm".to_string(),
+            entry: "test-plugin.wasm".to_string(),
+            permissions: PluginPermissions {
+                read_notes: true,
+                write_notes: false,
+                network: false,
+                fs_read: vec!["notes/".to_string()],
+                fs_write: vec![],
+                max_memory_mb: 128,
+                max_fuel: 5_000_000,
+            },
+            hooks: PluginHooks {
+                on_note: true,
+                on_export: false,
+                on_startup: true,
+            },
+            config: HashMap::from([("key".to_string(), serde_json::Value::String("value".to_string()))]),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: PluginConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-plugin");
+        assert_eq!(deserialized.permissions.max_memory_mb, 128);
+        assert_eq!(deserialized.permissions.max_fuel, 5_000_000);
+        assert!(deserialized.permissions.read_notes);
+        assert!(!deserialized.permissions.write_notes);
+        assert!(deserialized.hooks.on_note);
+        assert!(!deserialized.hooks.on_export);
+        assert!(deserialized.hooks.on_startup);
+    }
+
+    #[test]
+    fn test_plugin_result_serialization() {
+        let mut frontmatter_patch = HashMap::new();
+        frontmatter_patch.insert("tags".to_string(), serde_json::json!(["work"]));
+
+        let result = PluginResult {
+            feedback: Some("Added tag".to_string()),
+            frontmatter_patch: Some(frontmatter_patch),
+            commands: vec!["journal.openDailyNote".to_string()],
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: PluginResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.feedback, Some("Added tag".to_string()));
+        assert_eq!(
+            deserialized
+                .frontmatter_patch
+                .unwrap()
+                .get("tags")
+                .cloned(),
+            Some(serde_json::json!(["work"]))
+        );
+        assert_eq!(deserialized.commands, vec!["journal.openDailyNote".to_string()]);
     }
 }
