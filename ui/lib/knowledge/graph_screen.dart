@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
+import 'graph_analytics.dart';
+import 'graph_export.dart';
 import 'kb_provider.dart';
 import 'kb_service.dart';
 
@@ -179,6 +183,8 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
   final Set<String> _tags = {};
   String? _focus;
   Size _size = const Size(800, 600);
+  GraphAnalytics? _analytics;
+  bool _exporting = false;
 
   @override
   void dispose() {
@@ -203,6 +209,9 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
     final graph = ref.watch(
       kbGraphFilterProvider((_tags.toList(), _query.text.trim())),
     );
+
+    // Compute analytics when data changes.
+    _analytics = graph.whenData((g) => GraphAnalyticsEngine.compute(g)).value;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -230,6 +239,12 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
                   icon: const Icon(Icons.center_focus_strong),
                   label: const Text('Whole graph'),
                 ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _exporting ? null : () => _exportGraph(context),
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Export'),
+              ),
             ],
           ),
         ),
@@ -259,6 +274,76 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
             ),
           ),
         ),
+        if (_analytics != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Graph Analytics',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AnalyticsCard(
+                        title: 'Notes',
+                        value: _analytics!.stats.nodeCount.toString(),
+                        subtitle: '${_analytics!.stats.edgeCount} edges',
+                        icon: Icons.note_outlined,
+                      ),
+                    ),
+                    Expanded(
+                      child: _AnalyticsCard(
+                        title: 'Clusters',
+                        value: _analytics!.stats.clusterCount.toString(),
+                        subtitle: '${(_analytics!.stats.density * 100).toStringAsFixed(1)}% density',
+                        icon: Icons.layers_outlined,
+                      ),
+                    ),
+                    Expanded(
+                      child: _AnalyticsCard(
+                        title: 'Orphan Notes',
+                        value: _analytics!.stats.orphanCount.toString(),
+                        subtitle: 'No links',
+                        icon: Icons.person_outline,
+                      ),
+                    ),
+                    Expanded(
+                      child: _AnalyticsCard(
+                        title: 'Avg Degree',
+                        value: _analytics!.stats.averageDegree.toStringAsFixed(1),
+                        subtitle: 'Avg links per note',
+                        icon: Icons.share_outlined,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 32,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _analytics!.topCentral().take(5).map((path) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ActionChip(
+                          label: Text(
+                            path.length > 30 ? '${path.substring(0, 27)}…' : path,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          onPressed: () => setState(() => _focus = path),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         Expanded(
           child: graph.when(
             loading: () => const Center(
@@ -298,6 +383,131 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Export the graph to the user-selected location.
+  Future<void> _exportGraph(BuildContext context) async {
+    final graph = ref.read(
+      kbGraphFilterProvider((_tags.toList(), _query.text.trim())),
+    ).value;
+    if (graph == null) return;
+
+    final t = LumenColors.of(context);
+
+    final format = await showDialog<GraphExportFormat>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Export Graph'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.format_line_spacing),
+              title: const Text('GraphML'),
+              subtitle: const Text('GraphML format (.graphml)'),
+              onTap: () => Navigator.pop(context, GraphExportFormat.graphml),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('JSON'),
+              subtitle: const Text('JSON format (.json)'),
+              onTap: () => Navigator.pop(context, GraphExportFormat.json),
+            ),
+          ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (format == null || !context.mounted) return;
+
+    final defaultName = 'lumen-graph-${DateTime.now().toIso8601String().substring(0, 10)}.${format.extension}';
+    final downloadsDir = Directory('/storage/emulated/0/Download');
+    final exportPath = '${downloadsDir.path}/$defaultName';
+
+    final finalPath = '$exportPath.${format.extension}';
+    final content = GraphExporter.export(graph, format);
+
+    try {
+      await File(finalPath).writeAsString(content);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Graph exported to $finalPath'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: t.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+}
+
+/// A small analytics card showing one stat.
+class _AnalyticsCard extends StatelessWidget {
+  const _AnalyticsCard({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LumenColors.of(context);
+    return Container(
+      width: 120,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: t.surfaceContainer,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: t.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: t.primary),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: t.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: t.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -445,6 +445,38 @@ imports (`log`, `http_get`). `PluginHost` dispatches `on_note`/`on_export`/
 
 WASM plugins (`core/plugins/wasm-plugins/`): Built-in plugins ported to WASM
 with `#[no_mangle]` exports:
+- `wordcount` — reports word count as feedback
+- `daily_summary` — reports title and word count
+- `export_md` — ensures notes start with a `# ` heading on export
+- `import_export` — same as export_md (legacy)
+- `theme_manager` — placeholder for theme management
+- `dashboard_entries` — placeholder for dashboard entries
+
+Each plugin exports `on_note` and/or `on_export` with `#[no_mangle]`, reads a
+JSON-encoded `NoteContext` from WASM linear memory, and writes a JSON-encoded
+`PluginResult` back.
+
+### Plugin Permissions (`ui/lib/plugins/plugins_screen.dart`):
+
+Each plugin can be granted granular permissions:
+- **Read notes** — can read note content via `on_note` hook
+- **Write notes** — can modify note content via `on_export` hook
+- **Network** — can make HTTP requests via `http_get` host import
+- **Filesystem read/write** — specific paths the plugin can access
+
+Permissions are stored per-plugin in the config and enforced by the host
+before invoking plugin hooks. The permissions UI lives in the Plugins screen
+next to each plugin's toggle switch.
+
+---
+
+Core (`core/src/plugins/wasm.rs`): `WasmPlugin` loads and instantiates `.wasm`
+files via wasmtime with fuel limits, memory limits, and capability-based host
+imports (`log`, `http_get`). `PluginHost` dispatches `on_note`/`on_export`/
+`on_startup` hooks to all loaded plugins.
+
+WASM plugins (`core/plugins/wasm-plugins/`): Built-in plugins ported to WASM
+with `#[no_mangle]` exports:
   - `wordcount` — reports word count as feedback
   - `daily_summary` — reports title and word count
   - `export_md` — ensures notes start with a `# ` heading on export
@@ -575,7 +607,7 @@ impl LanguageServer for LumenLspServer {
 | 6 | ✅ Port built-in plugins to WASM | Core | 3d |
 | 7 | ✅ LSP server (lumen-lsp) | Core | 5d |
 | 8 | Graph analytics + export | Flutter | 3d |
-| 9 | Plugin permissions UI | Flutter | 2d |
+| 9 | ✅ Plugin permissions UI | Flutter | 2d |
 | 10 | ✅ AI privacy settings + model mgmt | Flutter | 2d |
 
 **Total**: ~38 days
