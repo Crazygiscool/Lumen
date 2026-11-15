@@ -415,13 +415,13 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
               onTap: () => Navigator.pop(context, GraphExportFormat.json),
             ),
           ],
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
     if (format == null || !context.mounted) return;
