@@ -44,8 +44,8 @@ class CanvasElement {
       'y': y,
       'width': width,
       'height': height,
-      'strokeColor': strokeColor.value.toRadixString(16).padLeft(8, '0'),
-      'fillColor': fillColor.value.toRadixString(16).padLeft(8, '0'),
+      'strokeColor': strokeColor.toARGB32().toRadixString(16).padLeft(8, '0'),
+      'fillColor': fillColor.toARGB32().toRadixString(16).padLeft(8, '0'),
       'strokeWidth': strokeWidth,
       if (text != null) 'text': text,
       if (fontSize != null) 'fontSize': fontSize,
@@ -72,6 +72,36 @@ class CanvasElement {
         ?.map((p) => Offset((p['x'] as num).toDouble(), (p['y'] as num).toDouble()))
         .toList(),
   );
+
+  CanvasElement copyWith({
+    String? id,
+    String? type,
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+    Color? strokeColor,
+    Color? fillColor,
+    double? strokeWidth,
+    String? text,
+    double? fontSize,
+    List<Offset>? points,
+  }) {
+    return CanvasElement(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      strokeColor: strokeColor ?? this.strokeColor,
+      fillColor: fillColor ?? this.fillColor,
+      strokeWidth: strokeWidth ?? this.strokeWidth,
+      text: text ?? this.text,
+      fontSize: fontSize ?? this.fontSize,
+      points: points ?? this.points,
+    );
+  }
 }
 
 /// A canvas document: a collection of elements with metadata.
@@ -115,6 +145,22 @@ class CanvasDocument {
     modifiedAt: DateTime.parse(j['modifiedAt'] as String? ??
         DateTime.now().toIso8601String()),
   );
+
+  CanvasDocument copyWith({
+    String? id,
+    String? title,
+    List<CanvasElement>? elements,
+    DateTime? createdAt,
+    DateTime? modifiedAt,
+  }) {
+    return CanvasDocument(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      elements: elements ?? this.elements,
+      createdAt: createdAt ?? this.createdAt,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+    );
+  }
 }
 
 /// Manages canvas documents in the vault.
@@ -124,7 +170,7 @@ class CanvasService {
   final LumenFfi _ffi;
 
   /// List all canvas documents in the vault.
-  Future<List<CanvasDocument>> list() async {
+  List<CanvasDocument> list() {
     final data = _ffi.kb('canvas.list') as Map<String, dynamic>;
     final list = data['documents'] as List<dynamic>? ?? const [];
     return [
