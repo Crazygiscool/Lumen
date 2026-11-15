@@ -212,7 +212,8 @@ if command -v rpmbuild >/dev/null 2>&1; then
     install -d "$RPM_ROOT/SOURCES" "$RPM_ROOT/SPECS" "$RPM_ROOT/BUILDROOT"
 
     # Build a source tarball whose top-level dir matches the spec's %setup.
-    mkdir -p "$RPM_ROOT/SOURCES/lumen-$VERSION"
+    mkdir -p "$RPM_ROOT/SOURCES/lumen-$VERSION/scripts" \
+             "$RPM_ROOT/SOURCES/lumen-$VERSION/ui/lib/assets"
     cp -a "$BUNDLE_DIR/." "$RPM_ROOT/SOURCES/lumen-$VERSION/bundle/"
     cp scripts/lumen.desktop "$RPM_ROOT/SOURCES/lumen-$VERSION/scripts/lumen.desktop"
     cp "$UI_DIR/lib/assets/lumen_logo.png" "$RPM_ROOT/SOURCES/lumen-$VERSION/ui/lib/assets/lumen_logo.png"
