@@ -44,9 +44,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          components:
-            - rustfmt
-            - clippy
+
+      - name: Install Rust components
+        run: |
+          rustup component add clippy
 
       - name: "Rust: check, test, clippy"
         run: |
@@ -75,13 +76,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets:
-            - aarch64-apple-darwin
-            - aarch64-apple-ios
-            - x86_64-apple-ios
-          components:
-            - rustfmt
-            - clippy
+
+      - name: Install Rust targets
+        run: |
+          rustup target add aarch64-apple-darwin aarch64-apple-ios x86_64-apple-ios
+
+      - name: Install Rust components
+        run: |
+          rustup component add clippy
 
       - name: "Rust: check + clippy (universal + iOS)"
         run: |
@@ -114,13 +116,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets:
-            - aarch64-linux-android
-            - armv7-linux-androideabi
-            - x86_64-linux-android
-          components:
-            - rustfmt
-            - clippy
+
+      - name: Install Rust targets
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Install Rust components
+        run: |
+          rustup component add clippy
 
       - name: "Rust: check (Android targets)"
         run: |
