@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,15 +9,8 @@ import '../knowledge/canvas_service.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
-/// A canvas editor for drawing diagrams, mind maps, and sketches.
-///
-/// Supports drawing rectangles, ellipses, lines, arrows, text boxes, and
-/// freehand strokes. Canvas documents are saved as JSON in the vault.
 class CanvasEditor extends ConsumerStatefulWidget {
-  const CanvasEditor({
-    super.key,
-    required this.path,
-  });
+  const CanvasEditor({super.key, required this.path});
 
   final String path;
 
@@ -58,9 +52,10 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
   }
 
   Future<void> _save() async {
-    if (_doc == null) return;
+    final doc = _doc;
+    if (doc == null) return;
     final service = ref.read(canvasServiceProvider);
-    await service.save(_doc!);
+    await service.save(doc);
   }
 
   void _startStroke(Offset localPosition) {
@@ -100,63 +95,14 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
     );
 
     setState(() {
-      _doc = _doc.copyWith(elements: [..._doc.elements, element]);
+      final doc = _doc;
+      if (doc == null) return;
+      _doc = doc.copyWith(elements: [...doc.elements, element]);
       _currentStroke = [];
       _startPoint = null;
       _currentPoint = null;
     });
     _save();
-  }
-
-  void _addElement(CanvasElement element) {
-    setState(() {
-      _doc = _doc.copyWith(elements: [..._doc.elements, element]);
-    });
-    _save();
-  }
-
-  Widget _toolButton(IconData icon, bool selected, VoidCallback onPressed) {
-    return IconButton(
-      icon: Icon(icon, color: selected ? LumenColors.of(context).primary : null),
-      onPressed: onPressed,
-    );
-  }
-
-  Widget _colorPicker(Color color, ValueChanged<Color> onChanged) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDialog<Color>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Pick a color'),
-            content: ColorPicker(
-              color: color,
-              onChanged: (c) {},
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, color),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, color),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        if (picked != null) onChanged(picked);
-      },
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.2)),
-        ),
-      ),
-    );
   }
 
   @override
@@ -182,9 +128,7 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
       ),
       body: Column(
         children: [
-          // Toolbar
           _buildToolbar(t),
-          // Canvas
           Expanded(
             child: GestureDetector(
               onPanStart: (details) => _startStroke(details.localPosition),
@@ -218,31 +162,23 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
       ),
       child: Row(
         children: [
-          _toolButton(Icons.edit, _tool == CanvasElementType.rectangle, () {
-            setState(() => _tool = CanvasElementType.rectangle);
-          }),
-          _toolButton(Icons.crop, _tool == CanvasElementType.ellipse, () {
-            setState(() => _tool = CanvasElementType.ellipse);
-          }),
-          _toolButton(Icons.line_style, _tool == CanvasElementType.line, () {
-            setState(() => _tool = CanvasElementType.line);
-          }),
-          _toolButton(Icons.arrow_right, _tool == CanvasElementType.arrow, () {
-            setState(() => _tool = CanvasElementType.arrow);
-          }),
-          _toolButton(Icons.text_fields, _tool == CanvasElementType.text, () {
-            setState(() => _tool = CanvasElementType.text);
-          }),
-          _toolButton(Icons.freehand, _tool == CanvasElementType.freehand, () {
-            setState(() => _tool = CanvasElementType.freehand);
-          }),
+          _toolButton(Icons.edit, _tool == CanvasElementType.rectangle, t,
+              () => setState(() => _tool = CanvasElementType.rectangle)),
+          _toolButton(Icons.crop, _tool == CanvasElementType.ellipse, t,
+              () => setState(() => _tool = CanvasElementType.ellipse)),
+          _toolButton(Icons.line_style, _tool == CanvasElementType.line, t,
+              () => setState(() => _tool = CanvasElementType.line)),
+          _toolButton(Icons.arrow_right, _tool == CanvasElementType.arrow, t,
+              () => setState(() => _tool = CanvasElementType.arrow)),
+          _toolButton(Icons.text_fields, _tool == CanvasElementType.text, t,
+              () => setState(() => _tool = CanvasElementType.text)),
+          _toolButton(Icons.format_align_center, _tool == CanvasElementType.freehand, t,
+              () => setState(() => _tool = CanvasElementType.freehand)),
           const Spacer(),
-          // Color pickers
           _colorPicker(_strokeColor, (c) => setState(() => _strokeColor = c)),
           const SizedBox(width: 8),
           _colorPicker(_fillColor, (c) => setState(() => _fillColor = c)),
           const SizedBox(width: 8),
-          // Stroke width
           const Text('Width:', style: TextStyle(fontSize: 12)),
           const SizedBox(width: 4),
           DropdownButton<double>(
@@ -259,9 +195,54 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
       ),
     );
   }
+
+  Widget _toolButton(IconData icon, bool selected, LumenPalette t,
+      VoidCallback onPressed) {
+    return IconButton(
+      icon: Icon(icon, color: selected ? t.primary : null),
+      onPressed: onPressed,
+    );
+  }
+
+  Widget _colorPicker(Color color, ValueChanged<Color> onChanged) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDialog<Color>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Pick a color'),
+            content: Container(
+              width: 200,
+              height: 200,
+              color: color,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, color),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, color),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.2)),
+        ),
+      ),
+    );
+  }
 }
 
-/// Paint the canvas.
 class _CanvasPainter extends CustomPainter {
   final CanvasDocument? doc;
   final CanvasElement? selected;
@@ -277,29 +258,19 @@ class _CanvasPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw current stroke (in progress)
     if (currentStroke.isNotEmpty && currentPoint != null) {
       final paint = Paint()
         ..color = Colors.black
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke;
-      canvas.drawPoints(
-        PointMode.points,
-        currentStroke,
-        paint,
-      );
-      canvas.drawLine(
-        currentStroke.last,
-        currentPoint!,
-        paint,
-      );
+      canvas.drawPoints(ui.PointMode.points, currentStroke, paint);
+      canvas.drawLine(currentStroke.last, currentPoint!, paint);
     }
 
-    // Draw all elements
-    final doc = this.doc;
-    if (doc == null) return;
+    final d = doc;
+    if (d == null) return;
 
-    for (final element in doc.elements) {
+    for (final element in d.elements) {
       final isSelected = selected?.id == element.id;
       final paint = Paint()
         ..color = element.strokeColor
@@ -354,20 +325,15 @@ class _CanvasPainter extends CustomPainter {
             textDirection: TextDirection.ltr,
           );
           textPainter.layout();
-          textPainter.paint(
-            canvas,
-            Offset(element.x, element.y),
-          );
+          textPainter.paint(canvas, Offset(element.x, element.y));
           break;
         case 'freehand':
           if (element.points != null && element.points!.isNotEmpty) {
             final path = Path();
-            path.moveTo(element.points!.first.dx, element.points!.first.dy);
+            path.moveTo(element.points!.first.dx,
+                element.points!.first.dy);
             for (var i = 1; i < element.points!.length; i++) {
-              path.lineTo(
-                element.points![i].dx,
-                element.points![i].dy,
-              );
+              path.lineTo(element.points![i].dx, element.points![i].dy);
             }
             canvas.drawPath(path, paint);
           }
@@ -392,7 +358,6 @@ class _CanvasPainter extends CustomPainter {
   }
 }
 
-/// Canvas element types.
 enum CanvasElementType {
   rectangle,
   ellipse,
