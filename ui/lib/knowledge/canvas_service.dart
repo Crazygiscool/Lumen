@@ -1,6 +1,7 @@
-import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ffi/lumen_ffi.dart';
 
@@ -109,8 +110,10 @@ class CanvasDocument {
     elements: (j['elements'] as List<dynamic>? ?? const [])
         .map((e) => CanvasElement.fromJson(e as Map<String, dynamic>))
         .toList(),
-    createdAt: DateTime.parse(j['createdAt'] as String? ?? DateTime.now().toIso8601String()),
-    modifiedAt: DateTime.parse(j['modifiedAt'] as String? ?? DateTime.now().toIso8601String()),
+    createdAt: DateTime.parse(j['createdAt'] as String? ??
+        DateTime.now().toIso8601String()),
+    modifiedAt: DateTime.parse(j['modifiedAt'] as String? ??
+        DateTime.now().toIso8601String()),
   );
 }
 
@@ -122,8 +125,8 @@ class CanvasService {
 
   /// List all canvas documents in the vault.
   Future<List<CanvasDocument>> list() async {
-    final data = await _ffi.kb('canvas.list');
-    final list = (data['documents'] as List<dynamic>? ?? const []);
+    final data = _ffi.kb('canvas.list') as Map<String, dynamic>;
+    final list = data['documents'] as List<dynamic>? ?? const [];
     return [
       for (final c in list)
         CanvasDocument.fromJson(c as Map<String, dynamic>),

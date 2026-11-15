@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,20 +42,19 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
   }
 
   Future<void> _load() async {
-    final doc = await _loadDoc(widget.path);
-    if (mounted) setState(() => _doc = doc);
-  }
-
-  Future<CanvasDocument> _loadDoc(String path) async {
-    // For now, load from a canvas file in the vault
     final service = ref.read(canvasServiceProvider);
-    // Try to find existing canvas doc
     final docs = await service.list();
     final existing = docs.firstWhere(
-      (d) => d.id == path || d.title == path,
-      orElse: () => throw Exception('Canvas not found'),
+      (d) => d.id == widget.path || d.title == widget.path,
+      orElse: () => CanvasDocument(
+        id: widget.path,
+        title: widget.path,
+        elements: const [],
+        createdAt: DateTime.now(),
+        modifiedAt: DateTime.now(),
+      ),
     );
-    return existing;
+    if (mounted) setState(() => _doc = existing);
   }
 
   Future<void> _save() async {
@@ -114,6 +113,50 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
       _doc = _doc.copyWith(elements: [..._doc.elements, element]);
     });
     _save();
+  }
+
+  Widget _toolButton(IconData icon, bool selected, VoidCallback onPressed) {
+    return IconButton(
+      icon: Icon(icon, color: selected ? LumenColors.of(context).primary : null),
+      onPressed: onPressed,
+    );
+  }
+
+  Widget _colorPicker(Color color, ValueChanged<Color> onChanged) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDialog<Color>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Pick a color'),
+            content: ColorPicker(
+              color: color,
+              onChanged: (c) {},
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, color),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, color),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.2)),
+        ),
+      ),
+    );
   }
 
   @override
@@ -216,43 +259,6 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
       ),
     );
   }
-
-  Widget _colorPicker(Color color, ValueChanged<Color> onChanged) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDialog<Color>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Pick a color'),
-            content: ColorPicker(
-              color: color,
-              onChanged: (c) {},
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, color),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, color),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        if (picked != null) onChanged(picked);
-      },
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.2)),
-        ),
-      ),
-    );
-  }
 }
 
 /// Paint the canvas.
@@ -290,6 +296,7 @@ class _CanvasPainter extends CustomPainter {
     }
 
     // Draw all elements
+    final doc = this.doc;
     if (doc == null) return;
 
     for (final element in doc.elements) {
