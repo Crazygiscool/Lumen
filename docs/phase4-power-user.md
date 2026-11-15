@@ -601,7 +601,7 @@ impl LanguageServer for LumenLspServer {
 |---|------|------|------|
 | 1 | ✅ Command palette (Flutter + TUI) | Core/Flutter/TUI | 3d |
 | 2 | ✅ Vim/Emacs keymaps (Flutter + TUI) | Flutter/TUI | 3d |
-| 3 | Canvas editor (Excalidraw) | Flutter | 5d |
+| 3 | ✅ Canvas editor (Excalidraw) | Flutter | 5d |
 | 4 | ✅ Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
 | 5 | ✅ WASM runtime + plugin SDK | Core | 7d |
 | 6 | ✅ Port built-in plugins to WASM | Core | 3d |

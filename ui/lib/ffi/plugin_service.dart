@@ -2,6 +2,44 @@ import 'package:flutter/foundation.dart';
 
 import 'lumen_ffi.dart';
 
+/// A permission that can be granted to a plugin.
+@immutable
+class PluginPermission {
+  const PluginPermission({
+    required this.readNotes,
+    required this.writeNotes,
+    required this.network,
+    required this.fsRead,
+    required this.fsWrite,
+  });
+
+  final bool readNotes;
+  final bool writeNotes;
+  final bool network;
+  final List<String> fsRead;
+  final List<String> fsWrite;
+
+  factory PluginPermission.fromJson(Map<String, dynamic> j) => PluginPermission(
+    readNotes: j['read_notes'] as bool? ?? false,
+    writeNotes: j['write_notes'] as bool? ?? false,
+    network: j['network'] as bool? ?? false,
+    fsRead: (j['fs_read'] as List<dynamic>? ?? const [])
+        .map((e) => e as String)
+        .toList(),
+    fsWrite: (j['fs_write'] as List<dynamic>? ?? const [])
+        .map((e) => e as String)
+        .toList(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'read_notes': readNotes,
+    'write_notes': writeNotes,
+    'network': network,
+    'fs_read': fsRead,
+    'fs_write': fsWrite,
+  };
+}
+
 /// A discovered plugin (built-in or external) with its manifest metadata.
 @immutable
 class PluginInfo {
@@ -16,6 +54,13 @@ class PluginInfo {
     this.hooks = const [],
     this.priority = 0,
     this.contributions = const <String, dynamic>{},
+    this.permissions = const PluginPermission(
+      readNotes: false,
+      writeNotes: false,
+      network: false,
+      fsRead: const [],
+      fsWrite: const [],
+    ),
   });
 
   final String name;
@@ -28,6 +73,9 @@ class PluginInfo {
   final bool enabled;
   final int priority;
   final Map<String, dynamic> contributions;
+
+  /// Permissions granted to this plugin.
+  final PluginPermission permissions;
 
   factory PluginInfo.fromJson(Map<String, dynamic> j) => PluginInfo(
     name: j['name'] as String? ?? '',
@@ -42,20 +90,25 @@ class PluginInfo {
     enabled: j['enabled'] as bool? ?? true,
     priority: (j['priority'] as num?)?.toInt() ?? 0,
     contributions: (j['contributes'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
+    permissions: PluginPermission.fromJson(
+      (j['permissions'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
+    ),
   );
 
-  PluginInfo copyWith({bool? enabled}) => PluginInfo(
-    name: name,
-    id: id,
-    version: version,
-    author: author,
-    description: description,
-    hooks: hooks,
-    builtin: builtin,
-    enabled: enabled ?? this.enabled,
-    priority: priority,
-    contributions: contributions,
-  );
+  PluginInfo copyWith({bool? enabled, PluginPermission? permissions}) =>
+      PluginInfo(
+        name: name,
+        id: id,
+        version: version,
+        author: author,
+        description: description,
+        hooks: hooks,
+        builtin: builtin,
+        enabled: enabled ?? this.enabled,
+        priority: priority,
+        contributions: contributions,
+        permissions: permissions ?? this.permissions,
+      );
 }
 
 @immutable
@@ -97,6 +150,25 @@ class PluginService {
 
   Future<void> setEnabled(String name, bool enabled) async {
     _ffi.plugins('plugins.set_enabled', {'name': name, 'enabled': enabled});
+  }
+
+  /// Set permissions for a plugin.
+  Future<void> setPluginPermissions(
+    String name, {
+    required bool readNotes,
+    required bool writeNotes,
+    required bool network,
+    required List<String> fsRead,
+    required List<String> fsWrite,
+  }) async {
+    _ffi.plugins('plugins.set_permissions', {
+      'name': name,
+      'read_notes': readNotes,
+      'write_notes': writeNotes,
+      'network': network,
+      'fs_read': fsRead,
+      'fs_write': fsWrite,
+    });
   }
 
   /// Runs enabled plugins against a saved note and returns their messages.

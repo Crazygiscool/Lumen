@@ -177,15 +177,17 @@ class _PluginGroup extends StatelessWidget {
   }
 }
 
-class _PluginTile extends StatelessWidget {
+class _PluginTile extends ConsumerWidget {
   const _PluginTile({required this.plugin, required this.onChanged});
 
   final PluginInfo plugin;
   final ValueChanged<bool> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = LumenColors.of(context);
+    final pluginService = ref.read(pluginServiceProvider);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
@@ -194,120 +196,280 @@ class _PluginTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: t.hairline),
       ),
-      child: Row(
-        children: [
-          expanded(context),
-          Switch(
-            value: plugin.enabled,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget expanded(BuildContext context) {
-    final t = LumenColors.of(context);
-    return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Flexible(
-                child: Text(
-                  plugin.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: lumenMonoFont,
-                  ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            plugin.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: lumenMonoFont,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: t.surfaceContainer,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'v${plugin.version}',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: t.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (plugin.description != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        plugin.description!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: t.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    if (plugin.hooks.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 3,
+                        children: [
+                          for (final hook in plugin.hooks)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: t.primaryContainer
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                hook,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontFamily: lumenMonoFont,
+                                  color: t.primary,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (plugin.contributions.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 3,
+                        children: [
+                          for (final key in plugin.contributions.keys)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: t.secondaryContainer
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                key,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontFamily: lumenMonoFont,
+                                  color: t.onSecondaryContainer,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (plugin.permissions.readNotes ||
+                        plugin.permissions.writeNotes ||
+                        plugin.permissions.network ||
+                        plugin.permissions.fsRead.isNotEmpty ||
+                        plugin.permissions.fsWrite.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Permissions',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: t.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          _PermissionChip(
+                            label: 'Read notes',
+                            value: plugin.permissions.readNotes,
+                            onChanged: (v) => _togglePermission(
+                              ref,
+                              plugin,
+                              'read_notes',
+                              v,
+                            ),
+                          ),
+                          _PermissionChip(
+                            label: 'Write notes',
+                            value: plugin.permissions.writeNotes,
+                            onChanged: (v) => _togglePermission(
+                              ref,
+                              plugin,
+                              'write_notes',
+                              v,
+                            ),
+                          ),
+                          _PermissionChip(
+                            label: 'Network',
+                            value: plugin.permissions.network,
+                            onChanged: (v) => _togglePermission(
+                              ref,
+                              plugin,
+                              'network',
+                              v,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (plugin.permissions.fsRead.isNotEmpty ||
+                          plugin.permissions.fsWrite.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            for (final p in plugin.permissions.fsRead)
+                              _PermissionChip(
+                                label: 'FS read: $p',
+                                value: true,
+                                onChanged: (v) => _togglePermission(
+                                  ref,
+                                  plugin,
+                                  'fs_read',
+                                  v,
+                                ),
+                              ),
+                            for (final p in plugin.permissions.fsWrite)
+                              _PermissionChip(
+                                label: 'FS write: $p',
+                                value: true,
+                                onChanged: (v) => _togglePermission(
+                                  ref,
+                                  plugin,
+                                  'fs_write',
+                                  v,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: t.surfaceContainer,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'v${plugin.version}',
-                  style: TextStyle(fontSize: 10.5, color: t.onSurfaceVariant),
-                ),
+              Switch(
+                value: plugin.enabled,
+                onChanged: onChanged,
               ),
             ],
           ),
-          if (plugin.description != null) ...[
-            const SizedBox(height: 3),
-            Text(
-              plugin.description!,
-              style: TextStyle(fontSize: 12.5, color: t.onSurfaceVariant),
-            ),
-          ],
-          if (plugin.hooks.isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Wrap(
-              spacing: 5,
-              runSpacing: 3,
-              children: [
-                for (final hook in plugin.hooks)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.primaryContainer.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      hook,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: lumenMonoFont,
-                        color: t.primary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          if (plugin.contributions.isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Wrap(
-              spacing: 5,
-              runSpacing: 3,
-              children: [
-                for (final key in plugin.contributions.keys)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.secondaryContainer.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      key,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: lumenMonoFont,
-                        color: t.onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
         ],
       ),
     );
   }
 }
+
+/// A tappable chip for toggling a permission.
+class _PermissionChip extends StatelessWidget {
+  const _PermissionChip({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LumenColors.of(context);
+    return FilterChip(
+      label: Text(label, style: TextStyle(fontSize: 11)),
+      selected: value,
+      onSelected: onChanged,
+      selectedColor: t.primary.withValues(alpha: 0.15),
+      checkmarkColor: t.primary,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+/// Toggles a single permission for a plugin.
+Future<void> _togglePermission(
+  WidgetRef ref,
+  PluginInfo plugin,
+  String permission,
+  bool value,
+) async {
+  final service = ref.read(pluginServiceProvider);
+  // The FFI method takes individual permission flags; we need to preserve
+  // existing permissions and only change the one being toggled.
+  final current = plugin.permissions;
+  final readNotes = permission == 'read_notes' ? value : current.readNotes;
+  final writeNotes = permission == 'write_notes' ? value : current.writeNotes;
+  final network = permission == 'network' ? value : current.network;
+  final fsRead = permission == 'fs_read'
+      ? (value ? [...current.fsRead] : <String>[])
+      : current.fsRead;
+  final fsWrite = permission == 'fs_write'
+      ? (value ? [...current.fsWrite] : <String>[])
+      : current.fsWrite;
+
+  try {
+    await service.setPluginPermissions(
+      plugin.name,
+      readNotes: readNotes,
+      writeNotes: writeNotes,
+      network: network,
+      fsRead: fsRead,
+      fsWrite: fsWrite,
+    );
+    // Update local state optimistically
+    // (The plugin list will be re-fetched on next screen open)
+  } catch (e) {
+    throw e;
+  }
+}
+
 Future<bool> _installPluginFromFolder(String source, String? destRoot) async {
   final sourceDir = Directory(source);
   if (!await sourceDir.exists()) return false;
