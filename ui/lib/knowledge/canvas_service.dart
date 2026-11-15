@@ -183,20 +183,20 @@ class CanvasService {
   Future<CanvasDocument> create({
     required String title,
   }) async {
-    final data = await _ffi.kb('canvas.create', {
+    final data = _ffi.kb('canvas.create', {
       'title': title,
-    });
-    return CanvasDocument.fromJson(data as Map<String, dynamic>);
+    }) as Map<String, dynamic>;
+    return CanvasDocument.fromJson(data);
   }
 
   /// Save a canvas document.
   Future<void> save(CanvasDocument doc) async {
-    await _ffi.kb('canvas.save', doc.toJson());
+    _ffi.kb('canvas.save', doc.toJson());
   }
 
   /// Delete a canvas document.
   Future<void> delete(String id) async {
-    await _ffi.kb('canvas.delete', {'id': id});
+    _ffi.kb('canvas.delete', {'id': id});
   }
 }
 

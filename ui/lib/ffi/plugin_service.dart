@@ -58,8 +58,8 @@ class PluginInfo {
       readNotes: false,
       writeNotes: false,
       network: false,
-      fsRead: const [],
-      fsWrite: const [],
+      fsRead: [],
+      fsWrite: [],
     ),
   });
 

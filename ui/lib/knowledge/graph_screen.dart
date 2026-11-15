@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -184,7 +183,7 @@ class _GraphScreenState extends ConsumerState<GraphScreen> {
   String? _focus;
   Size _size = const Size(800, 600);
   GraphAnalytics? _analytics;
-  bool _exporting = false;
+  final bool _exporting = false;
 
   @override
   void dispose() {

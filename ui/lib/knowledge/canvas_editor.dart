@@ -4,9 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../ffi/lumen_ffi.dart';
 import '../knowledge/canvas_service.dart';
-import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
 class CanvasEditor extends ConsumerStatefulWidget {
@@ -21,7 +19,6 @@ class CanvasEditor extends ConsumerStatefulWidget {
 class _CanvasEditorState extends ConsumerState<CanvasEditor> {
   CanvasDocument? _doc;
   CanvasElement? _selected;
-  Offset? _startPoint;
   Offset? _currentPoint;
   List<Offset> _currentStroke = [];
   CanvasElementType _tool = CanvasElementType.rectangle;
@@ -35,9 +32,9 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
     _load();
   }
 
-  Future<void> _load() async {
+  void _load() {
     final service = ref.read(canvasServiceProvider);
-    final docs = await service.list();
+    final docs = service.list();
     final existing = docs.firstWhere(
       (d) => d.id == widget.path || d.title == widget.path,
       orElse: () => CanvasDocument(
@@ -60,7 +57,6 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
 
   void _startStroke(Offset localPosition) {
     setState(() {
-      _startPoint = localPosition;
       _currentPoint = localPosition;
       _currentStroke = [localPosition];
     });
@@ -99,7 +95,6 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
       if (doc == null) return;
       _doc = doc.copyWith(elements: [...doc.elements, element]);
       _currentStroke = [];
-      _startPoint = null;
       _currentPoint = null;
     });
     _save();
@@ -243,6 +238,7 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
   }
 }
 
+/// Paint the canvas.
 class _CanvasPainter extends CustomPainter {
   final CanvasDocument? doc;
   final CanvasElement? selected;
@@ -258,15 +254,25 @@ class _CanvasPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Draw current stroke (in progress)
     if (currentStroke.isNotEmpty && currentPoint != null) {
       final paint = Paint()
         ..color = Colors.black
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke;
-      canvas.drawPoints(ui.PointMode.points, currentStroke, paint);
-      canvas.drawLine(currentStroke.last, currentPoint!, paint);
+      canvas.drawPoints(
+        ui.PointMode.points,
+        currentStroke,
+        paint,
+      );
+      canvas.drawLine(
+        currentStroke.last,
+        currentPoint!,
+        paint,
+      );
     }
 
+    // Draw all elements
     final d = doc;
     if (d == null) return;
 
@@ -325,7 +331,10 @@ class _CanvasPainter extends CustomPainter {
             textDirection: TextDirection.ltr,
           );
           textPainter.layout();
-          textPainter.paint(canvas, Offset(element.x, element.y));
+          textPainter.paint(
+            canvas,
+            Offset(element.x, element.y),
+          );
           break;
         case 'freehand':
           if (element.points != null && element.points!.isNotEmpty) {
@@ -333,7 +342,10 @@ class _CanvasPainter extends CustomPainter {
             path.moveTo(element.points!.first.dx,
                 element.points!.first.dy);
             for (var i = 1; i < element.points!.length; i++) {
-              path.lineTo(element.points![i].dx, element.points![i].dy);
+              path.lineTo(
+                element.points![i].dx,
+                element.points![i].dy,
+              );
             }
             canvas.drawPath(path, paint);
           }
@@ -358,6 +370,7 @@ class _CanvasPainter extends CustomPainter {
   }
 }
 
+/// Canvas element types.
 enum CanvasElementType {
   rectangle,
   ellipse,

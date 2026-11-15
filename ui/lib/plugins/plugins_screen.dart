@@ -466,7 +466,7 @@ Future<void> _togglePermission(
     // Update local state optimistically
     // (The plugin list will be re-fetched on next screen open)
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 

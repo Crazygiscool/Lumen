@@ -717,8 +717,9 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
         final feedback = await ref
             .read(pluginServiceProvider)
             .run(widget.relPath, title, _ctl.text);
-        if (feedback.isNotEmpty)
+        if (feedback.isNotEmpty) {
           message = 'Saved \u2014 ${feedback.join(' \u00b7 ')}';
+        }
       } catch (_) {
         // Plugins are optional; never block saving a note.
       }
