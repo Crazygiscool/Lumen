@@ -263,6 +263,10 @@ class AppSettings {
     this.activeThemeId,
     this.activeFontFamily,
     this.activeIconPackId,
+    this.aiEnabled = true,
+    this.aiOllamaUrl,
+    this.aiDefaultModel,
+    this.aiEmbeddingModel,
   });
   final ThemeSource themeSource;
 
@@ -278,6 +282,18 @@ class AppSettings {
   final String? activeFontFamily;
   final String? activeIconPackId;
 
+  /// Whether AI features (local Ollama chat, RAG) are enabled.
+  final bool aiEnabled;
+
+  /// Base URL of the local Ollama server.
+  final String? aiOllamaUrl;
+
+  /// Default model used for chat.
+  final String? aiDefaultModel;
+
+  /// Default embedding model used for RAG re-ranking.
+  final String? aiEmbeddingModel;
+
   AppSettings copyWith({
     ThemeSource? themeSource,
     String? journalVaultPath,
@@ -289,6 +305,13 @@ class AppSettings {
     bool clearActiveFontFamily = false,
     String? activeIconPackId,
     bool clearActiveIconPackId = false,
+    bool? aiEnabled,
+    String? aiOllamaUrl,
+    bool clearAiOllamaUrl = false,
+    String? aiDefaultModel,
+    bool clearAiDefaultModel = false,
+    String? aiEmbeddingModel,
+    bool clearAiEmbeddingModel = false,
   }) =>
       AppSettings(
         themeSource: themeSource ?? this.themeSource,
@@ -305,6 +328,16 @@ class AppSettings {
         activeIconPackId: clearActiveIconPackId
             ? null
             : (activeIconPackId ?? this.activeIconPackId),
+        aiEnabled: aiEnabled ?? this.aiEnabled,
+        aiOllamaUrl: clearAiOllamaUrl
+            ? null
+            : (aiOllamaUrl ?? this.aiOllamaUrl),
+        aiDefaultModel: clearAiDefaultModel
+            ? null
+            : (aiDefaultModel ?? this.aiDefaultModel),
+        aiEmbeddingModel: clearAiEmbeddingModel
+            ? null
+            : (aiEmbeddingModel ?? this.aiEmbeddingModel),
       );
 }
 
@@ -327,6 +360,10 @@ class SettingsNotifier extends Notifier<AppSettings> {
       activeThemeId: prefs.getString('activeThemeId'),
       activeFontFamily: prefs.getString('activeFontFamily'),
       activeIconPackId: prefs.getString('activeIconPackId'),
+      aiEnabled: prefs.getBool('aiEnabled') ?? true,
+      aiOllamaUrl: prefs.getString('aiOllamaUrl'),
+      aiDefaultModel: prefs.getString('aiDefaultModel'),
+      aiEmbeddingModel: prefs.getString('aiEmbeddingModel'),
     );
   }
 
@@ -377,6 +414,41 @@ class SettingsNotifier extends Notifier<AppSettings> {
     } else {
       state = state.copyWith(activeIconPackId: id);
       _prefs?.setString('activeIconPackId', id);
+    }
+  }
+
+  void setAiEnabled(bool enabled) {
+    state = state.copyWith(aiEnabled: enabled);
+    _prefs?.setBool('aiEnabled', enabled);
+  }
+
+  void setAiOllamaUrl(String? url) {
+    if (url == null || url.isEmpty) {
+      state = state.copyWith(clearAiOllamaUrl: true);
+      _prefs?.remove('aiOllamaUrl');
+    } else {
+      state = state.copyWith(aiOllamaUrl: url);
+      _prefs?.setString('aiOllamaUrl', url);
+    }
+  }
+
+  void setAiDefaultModel(String? model) {
+    if (model == null || model.isEmpty) {
+      state = state.copyWith(clearAiDefaultModel: true);
+      _prefs?.remove('aiDefaultModel');
+    } else {
+      state = state.copyWith(aiDefaultModel: model);
+      _prefs?.setString('aiDefaultModel', model);
+    }
+  }
+
+  void setAiEmbeddingModel(String? model) {
+    if (model == null || model.isEmpty) {
+      state = state.copyWith(clearAiEmbeddingModel: true);
+      _prefs?.remove('aiEmbeddingModel');
+    } else {
+      state = state.copyWith(aiEmbeddingModel: model);
+      _prefs?.setString('aiEmbeddingModel', model);
     }
   }
 }

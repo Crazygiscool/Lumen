@@ -290,6 +290,23 @@ max_context_tokens = 4000
 allow_external = false
 ```
 
+**Implementation notes:**
+
+Core (`core/src/ai.rs`): `OllamaClient` for chat, embeddings, and model listing;
+`retrieve_context()` does RAG via Tantivy + optional embedding re-ranking with
+cosine similarity scoring.
+
+FFI (`core/src/ffi.rs`): `kb.ai.chat`, `kb.ai.list_models`, `kb.ai.rag` methods
+expose the AI flow to clients.
+
+Flutter (`ui/lib/ai/ai_sidebar.dart`, `ui/lib/settings/ai_settings_screen.dart`):
+AI sidebar chat interface with model selection and RAG context; settings screen
+for Ollama URL, default model, embedding model, and AI enable/disable toggle.
+All requests go to `localhost:11434` by default — nothing leaves the user's
+machine.
+
+TUI (`tui/src/cli.rs`): `lumen ai chat`, `lumen ai list-models`, `lumen ai rag`.
+
 ---
 
 ## 5. Plugin System v2: WASM Sandbox
@@ -570,7 +587,7 @@ impl LanguageServer for LumenLspServer {
 | 7 | ✅ LSP server (lumen-lsp) | Core | 5d |
 | 8 | Graph analytics + export | Flutter | 3d |
 | 9 | Plugin permissions UI | Flutter | 2d |
-| 10 | AI privacy settings + model mgmt | Flutter | 2d |
+| 10 | ✅ AI privacy settings + model mgmt | Flutter | 2d |
 
 **Total**: ~38 days
 

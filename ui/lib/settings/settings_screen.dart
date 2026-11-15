@@ -6,6 +6,7 @@ import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 import '../widgets/path_picker.dart';
 import '../sync/syncthing_wizard.dart';
+import 'ai_settings_screen.dart';
 import 'sync_settings_screen.dart';
 import 'template_editor.dart';
 
@@ -252,6 +253,28 @@ class SettingsScreen extends ConsumerWidget {
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openSyncthingWizard(context, ref),
+            ),
+          ],
+        ),
+
+        _Section(
+          title: 'AI',
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.psychology_outlined),
+              title: const Text('AI & Local Models'),
+              subtitle: const Text(
+                'Configure local Ollama chat, summarization, and RAG.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AiSettingsScreen(),
+                  ),
+                );
+              },
             ),
           ],
         ),
