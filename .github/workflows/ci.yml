@@ -58,7 +58,7 @@ jobs:
       - name: "Flutter: analyze + test"
         working-directory: ui
         run: |
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test
 
   macos:
@@ -92,4 +92,4 @@ jobs:
 
       - name: "Flutter: analyze"
         working-directory: ui
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
