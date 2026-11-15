@@ -81,6 +81,36 @@ class SettingsScreen extends ConsumerWidget {
                 fontSize: 12,
               ),
             ),
+            const SizedBox(height: 8),
+            DropdownButton<KeybindingMode>(
+              value: settings.keybindingMode,
+              items: KeybindingMode.values
+                  .map(
+                    (m) => DropdownMenuItem(
+                      value: m,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(m.label),
+                          Text(
+                            m.description,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: t.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  notifier.setKeybindingMode(v);
+                }
+              },
+            ),
           ],
         ),
 

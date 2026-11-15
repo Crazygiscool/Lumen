@@ -20,6 +20,7 @@ import '../widgets/path_picker.dart';
 import 'dashboard.dart';
 import 'journal_provider.dart';
 import 'journal_service.dart';
+import 'keybinding_editor.dart';
 
 /// The journal: an encrypted list of Markdown notes with an inline editor.
 class JournalScreen extends ConsumerStatefulWidget {
@@ -964,12 +965,12 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
                   onInsert: _insertWikilink,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: TextField(
+                    child: KeybindingEditor(
                       controller: _ctl,
                       onChanged: (_) => widget.onDirty(),
                       expands: true,
-                      maxLines: null,
                       minLines: null,
+                      maxLines: null,
                       textAlignVertical: TextAlignVertical.top,
                       style: const TextStyle(
                         fontFamily: lumenMonoFont,

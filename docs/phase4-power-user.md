@@ -75,68 +75,57 @@ suggestions.
 
 ---
 
+### Implementation notes:
+
+Core (`core/src/commands.rs`): A command registry with `register_command`,
+`list_commands`, `filter_commands` (fuzzy substring matching with word-boundary
+bonuses), and `register_builtin_commands`. 22 built-in commands across 7
+categories (navigation, capture, editing, view, sync, plugins, advanced).
+
+FFI (`core/src/ffi.rs`): `kb.command.list` returns all registered commands;
+`kb.command.execute` looks up a command by id. Both ensure built-ins are
+registered first.
+
+Flutter (`ui/lib/command_palette.dart`): `Ctrl+K` / `Cmd+K` opens a fuzzy
+searchable dialog with keyboard navigation (↑↓/Enter/Esc). Commands are
+grouped by category with section icons.
+
+TUI (`tui/src/cli.rs`): `lumen command <id>` runs a command and shows its
+title, description, keywords, and source. Unknown commands get fuzzy-match
+suggestions.
+
+---
+
 ## 2. Vim/Emacs Keybindings
 
 ### Flutter
 
-**Package**: `flutter_keyboard_shortcuts` or custom `Shortcuts` + `Actions` map
+**Implementation** (`ui/lib/journal/keybinding_editor.dart`):
 
-```dart
-// ui/lib/editor/keybindings.dart
-enum KeybindingMode { Default, Vim, Emacs }
+`KeybindingEditor` wraps a `TextField` with keyboard shortcut handling for
+Vim and Emacs modes. The mode is configurable in Settings → Appearance.
 
-class KeybindingManager {
-  static Map<KeybindingMode, Map<LogicalKeySet, Intent>> keymaps = {
-    KeybindingMode.Vim: {
-      // Normal mode
-      LogicalKeySet(LogicalKeyboardKey.keyH): MoveCursorLeftIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyJ): MoveCursorDownIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyK): MoveCursorUpIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyL): MoveCursorRightIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyI): EnterInsertModeIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyX): DeleteCharIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyD, LogicalKeyboardKey.keyD): DeleteLineIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyY, LogicalKeyboardKey.keyY): YankLineIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyP): PasteAfterIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyU): UndoIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyR): RedoIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyG, LogicalKeyboardKey.keyG): GoToTopIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyG): GoToLineIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyF, LogicalKeyboardKey.keyF): FindIntent(),
-      // Visual mode, command mode...
-    },
-    KeybindingMode.Emacs: {
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyF): MoveCursorRightIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyB): MoveCursorLeftIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyN): MoveCursorDownIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyP): MoveCursorUpIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyA): MoveToLineStartIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyE): MoveToLineEndIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyK): KillLineIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyY): YankIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keySpace): SetMarkIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyW): KillRegionIntent(),
-      LogicalKeySet(LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyX, LogicalKeyboardKey.controlKey, LogicalKeyboardKey.keyS): SaveIntent(),
-      // ...
-    },
-  };
-}
-```
+**Vim mode:**
+- Normal mode: `h`/`j`/`k`/`l` movement, `i` insert, `x` delete char,
+  `dd` delete line (Shift+D), `yy` yank line (Shift+Y), `p` paste (Shift+P)
+- Insert mode: normal text input, `Esc` to normal mode
 
-- **Mode indicator** in status bar
-- **Settings**: Choose mode, customize bindings
-- **Vim**: Normal/Insert/Visual/Command modes
-- **Emacs**: Modeless with Ctrl/Meta chords
+**Emacs mode:**
+- `C-f`/`C-b`: forward/backward character
+- `C-p`/`C-n`: previous/next line
+- `C-a`/`C-e`: beginning/end of line
+- `C-k`: kill line, `C-y`: yank
 
-### TUI
-
-- Already uses `crossterm` — add keymap layer
-- `lumen --vim` / `lumen --emacs` flags
-- Config: `~/.config/lumen/keymap.toml`
+**Settings:** `Settings → Appearance → Keybinding mode` (Default / Vim / Emacs)
 
 ---
 
 ## 3. Canvas / Whiteboard (Excalidraw-style)
+
+### Why
+- Spatial thinking, mind maps, diagrams
+- Hand-drawn sketches, wireframes
+- Embed in notes as `![[canvas-name.canvas]]`
 
 ### Why
 - Spatial thinking, mind maps, diagrams
@@ -579,7 +568,7 @@ impl LanguageServer for LumenLspServer {
 | # | Task | Area | Est. |
 |---|------|------|------|
 | 1 | ✅ Command palette (Flutter + TUI) | Core/Flutter/TUI | 3d |
-| 2 | Vim/Emacs keymaps (Flutter + TUI) | Flutter/TUI | 3d |
+| 2 | ✅ Vim/Emacs keymaps (Flutter + TUI) | Flutter/TUI | 3d |
 | 3 | Canvas editor (Excalidraw) | Flutter | 5d |
 | 4 | ✅ Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
 | 5 | ✅ WASM runtime + plugin SDK | Core | 7d |

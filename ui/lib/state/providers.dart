@@ -255,6 +255,25 @@ ThemeMode resolveThemeMode(ThemeSource source) => switch (source) {
 // Settings
 // ---------------------------------------------------------------------------
 
+/// Editor keybinding mode: default, vim, or emacs.
+enum KeybindingMode {
+  defaultMode,
+  vim,
+  emacs;
+
+  String get label => switch (this) {
+    KeybindingMode.defaultMode => 'Default',
+    KeybindingMode.vim => 'Vim',
+    KeybindingMode.emacs => 'Emacs',
+  };
+
+  String get description => switch (this) {
+    KeybindingMode.defaultMode => 'Standard text editing',
+    KeybindingMode.vim => 'Modal editing (h/j/k/l, i, Esc, dd, yy, p)',
+    KeybindingMode.emacs => 'Ctrl chords (C-f/C-b/C-p/C-n, C-a/C-e, C-k/C-y)',
+  };
+}
+
 class AppSettings {
   const AppSettings({
     this.themeSource = ThemeSource.system,
@@ -267,6 +286,7 @@ class AppSettings {
     this.aiOllamaUrl,
     this.aiDefaultModel,
     this.aiEmbeddingModel,
+    this.keybindingMode = KeybindingMode.defaultMode,
   });
   final ThemeSource themeSource;
 
@@ -294,6 +314,9 @@ class AppSettings {
   /// Default embedding model used for RAG re-ranking.
   final String? aiEmbeddingModel;
 
+  /// Editor keybinding mode.
+  final KeybindingMode keybindingMode;
+
   AppSettings copyWith({
     ThemeSource? themeSource,
     String? journalVaultPath,
@@ -312,6 +335,8 @@ class AppSettings {
     bool clearAiDefaultModel = false,
     String? aiEmbeddingModel,
     bool clearAiEmbeddingModel = false,
+    KeybindingMode? keybindingMode,
+    bool clearKeybindingMode = false,
   }) =>
       AppSettings(
         themeSource: themeSource ?? this.themeSource,
@@ -338,6 +363,9 @@ class AppSettings {
         aiEmbeddingModel: clearAiEmbeddingModel
             ? null
             : (aiEmbeddingModel ?? this.aiEmbeddingModel),
+        keybindingMode: clearKeybindingMode
+            ? KeybindingMode.defaultMode
+            : (keybindingMode ?? this.keybindingMode),
       );
 }
 
@@ -364,6 +392,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
       aiOllamaUrl: prefs.getString('aiOllamaUrl'),
       aiDefaultModel: prefs.getString('aiDefaultModel'),
       aiEmbeddingModel: prefs.getString('aiEmbeddingModel'),
+      keybindingMode: KeybindingMode.values[
+          (prefs.getInt('keybindingMode') ?? 0).clamp(
+            0,
+            KeybindingMode.values.length - 1,
+          )],
     );
   }
 
@@ -450,6 +483,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
       state = state.copyWith(aiEmbeddingModel: model);
       _prefs?.setString('aiEmbeddingModel', model);
     }
+  }
+
+  void setKeybindingMode(KeybindingMode mode) {
+    state = state.copyWith(keybindingMode: mode);
+    _prefs?.setInt('keybindingMode', mode.index);
   }
 }
 
