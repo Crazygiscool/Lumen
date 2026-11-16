@@ -6,7 +6,6 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 UI_PUBSPEC="$ROOT_DIR/ui/pubspec.yaml"
 ROOT_CARGO="$ROOT_DIR/Cargo.toml"
 CORE_CARGO="$ROOT_DIR/core/Cargo.toml"
-TUI_CARGO="$ROOT_DIR/tui/Cargo.toml"
 
 DRY_RUN=false
 for arg in "$@"; do
@@ -66,8 +65,6 @@ sed -i.bak "s/^version = .*/version = \"$RUST_VERSION\"/" "$ROOT_CARGO"
 rm "$ROOT_CARGO.bak"
 sed -i.bak "s/^version = .*/version = \"$RUST_VERSION\"/" "$CORE_CARGO"
 rm "$CORE_CARGO.bak"
-sed -i.bak "s/^version = .*/version = \"$RUST_VERSION\"/" "$TUI_CARGO"
-rm "$TUI_CARGO.bak"
 
 # Back to project root so cargo picks up the workspace it belongs to
 cd "$ROOT_DIR"
@@ -80,7 +77,6 @@ echo "Updated:"
 echo " - ui/pubspec.yaml  (version: $FINAL_VERSION)"
 echo " - Cargo.toml       (workspace package: $RUST_VERSION)"
 echo " - core/Cargo.toml  ($RUST_VERSION)"
-echo " - tui/Cargo.toml   ($RUST_VERSION)"
 
 # Create tag
 TAG="v$RUST_VERSION"

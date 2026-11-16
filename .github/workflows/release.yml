@@ -62,7 +62,7 @@ jobs:
           test -f dist/*.tar.gz
           test -f dist/*.deb
           test -f dist/*.AppImage
-          tar tzf dist/*.tar.gz | grep -E 'lib/liblumen_core\.so|lumen-cli'
+          tar tzf dist/*.tar.gz | grep -E 'lib/liblumen_core\.so|lumen'
           dpkg-deb --info dist/*.deb
           dpkg-deb --contents dist/*.deb | grep -E 'opt/lumen/lumen|usr/bin/lumen'
           file dist/*.AppImage
@@ -106,7 +106,7 @@ jobs:
           test -d "$APP"
           test -f "$APP/Contents/MacOS/lib/liblumen_core.dylib"
           codesign --verify --deep --strict "$APP"
-          unzip -l dist/*.zip | grep -E 'Lumen\.app/Contents/MacOS/lumen|lumen-cli'
+          unzip -l dist/*.zip | grep -E 'Lumen\.app/Contents/MacOS/lumen'
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -147,7 +147,7 @@ jobs:
           ls -lh dist/
           test -f dist/Lumen-windows-v*.zip
           test -f dist/Lumen-windows-v*-setup.exe
-          unzip -l dist/*.zip | grep -E 'lib/lumen_core\.dll|lumen-cli\.exe'
+          unzip -l dist/*.zip | grep -E 'lib/lumen_core\.dll|lumen'
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

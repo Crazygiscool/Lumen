@@ -7,18 +7,14 @@
 # Targets:
 #   make / make run     Build core, stage the FFI lib, build & run the app
 #   make dev            Hot-reload dev mode (DDS + hot reload)
-#   make tui            Run the Rust TUI directly
 #   make build-linux    Release package: Linux  (delegates to scripts/)
 #   make build-macos    Release package: macOS  (delegates to scripts/)
 #   make build-windows  Release package: Windows (delegates to scripts/)
 #   make help           Show this help
 #
-# Any target accepts tui=1 to run the Rust TUI afterwards:
-#   make tui=1      # build & run app, then the TUI
-#   make dev tui=1  # hot reload, then the TUI
 # -----------------------------------------------------------------------------
 
-.PHONY: all run dev tui help build-linux build-macos build-windows
+.PHONY: all run dev help build-linux build-macos build-windows
 
 # ----- Platform detection ----------------------------------------------------
 ifeq ($(OS),Windows_NT)
@@ -73,7 +69,6 @@ run:
 	cp "$(TARGET_LIB)" "$(BUNDLE_DIR)/lib/$(LIB_NAME)"
 	@echo "[Lumen] 🚀 Running $(APP_NAME)..."
 	$(LAUNCH)
-	@if [ "$(tui)" = "1" ]; then echo "[Lumen] 🖥️  Running Rust TUI..."; cargo run --bin lumen; fi
 	@echo "[Lumen] ✨ Done."
 
 ## Hot-reload dev mode (DDS + hot reload)
@@ -85,12 +80,7 @@ dev:
 	cp "$(TARGET_LIB)" "$(DEV_LIB_DIR)/$(LIB_NAME)"
 	@echo "[Lumen] 🧪 Dev mode — running flutter run..."
 	cd ui && $(FLUTTER_ENABLE) && flutter run
-	@if [ "$(tui)" = "1" ]; then echo "[Lumen] 🖥️  Running Rust TUI..."; cargo run --bin lumen; fi
 	@echo "[Lumen] ✨ Done."
-
-## Run the Rust TUI directly
-tui:
-	cargo run --bin lumen
 
 ## Release package: Linux
 build-linux:
@@ -109,9 +99,7 @@ help:
 	@echo "Lumen targets:"
 	@echo "  make            Build core, stage the FFI lib, build & run the app"
 	@echo "  make dev        Hot-reload dev mode (DDS + hot reload)"
-	@echo "  make tui        Run the Rust TUI directly"
 	@echo "  make build-linux    Release package: Linux"
 	@echo "  make build-macos    Release package: macOS"
 	@echo "  make build-windows  Release package: Windows"
 	@echo ""
-	@echo "Add tui=1 to run the TUI afterwards:  make dev tui=1"

@@ -28,7 +28,6 @@ cp -a bundle/* %{buildroot}%{_datadir}/lumen/
 
 # Launch wrappers. The Flutter bundle stays together in %{_datadir}/lumen.
 ln -sf %{_datadir}/lumen/lumen %{buildroot}%{_bindir}/lumen
-ln -sf %{_datadir}/lumen/lumen-cli %{buildroot}%{_bindir}/lumen-cli
 
 install -Dm644 scripts/lumen.desktop \
     %{buildroot}%{_datadir}/applications/lumen.desktop
@@ -38,7 +37,6 @@ install -Dm644 LICENSE %{buildroot}%{_docdir}/%{name}/copyright
 
 %files
 %{_bindir}/lumen
-%{_bindir}/lumen-cli
 %{_datadir}/lumen/*
 %{_datadir}/applications/lumen.desktop
 %{_datadir}/icons/hicolor/1024x1024/apps/lumen.png

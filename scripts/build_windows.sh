@@ -45,7 +45,6 @@ else
     ZIP_NAME="Lumen-windows-v${VERSION}.zip"
 
     # Bundle TUI
-    cp "$ROOT_DIR/target/$TARGET/release/lumen.exe" "$BUNDLE_DIR/lumen-cli.exe"
 
     # Convert paths for Windows-native tools (PowerShell / ISCC). Git Bash
     # produces POSIX paths; cygpath converts them to Windows form when present.

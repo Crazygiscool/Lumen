@@ -64,9 +64,6 @@ parts:
         $SNAPCRAFT_PART_INSTALL/lib/lumen/liblumen_core.so
       # Copy the Flutter bundle into the snap
       cp -r build/linux/x64/release/bundle/* $SNAPCRAFT_PART_INSTALL/lib/lumen/
-      # Stage the TUI binary
-      install -D $SNAPCRAFT_PROJECT_DIR/target/release/lumen \
-        $SNAPCRAFT_PART_INSTALL/bin/lumen-cli
 
 apps:
   lumen:
@@ -86,10 +83,3 @@ apps:
     environment:
       LD_LIBRARY_PATH: $SNAP/lib/lumen
     desktop: usr/share/applications/lumen.desktop
-
-  lumen-cli:
-    command: lumen-cli
-    plugs:
-      - home
-    environment:
-      LD_LIBRARY_PATH: $SNAP/lib/lumen

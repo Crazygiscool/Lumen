@@ -16,7 +16,6 @@ modules:
     build-commands:
       - cp -r bundle/* /app/
       - install -Dm755 lumen /app/bin/lumen
-      - install -Dm755 lumen-cli /app/bin/lumen-cli
       - install -Dm644 lumen.desktop /app/share/applications/lumen.desktop
       - install -Dm644 lumen.png /app/share/icons/hicolor/1024x1024/apps/lumen.png
     sources:

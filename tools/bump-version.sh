@@ -11,7 +11,6 @@ NEW_VER=$1
 # Using a more specific regex to avoid matching dependencies
 sed -i "0,/^version = \".*\"/s//version = \"$NEW_VER\"/" Cargo.toml
 sed -i "0,/^version = \".*\"/s//version = \"$NEW_VER\"/" core/Cargo.toml
-sed -i "0,/^version = \".*\"/s//version = \"$NEW_VER\"/" tui/Cargo.toml
 
 # 2. Update Flutter pubspec.yaml
 sed -i "s/^version: .*/version: $NEW_VER/" ui/pubspec.yaml

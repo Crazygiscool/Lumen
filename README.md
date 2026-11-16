@@ -32,7 +32,6 @@ Make from Git Bash, MSYS2, or WSL).
 ```bash
 make           # Build the Rust core + Flutter app, then run it
 make dev       # Hot-reload dev mode
-make tui       # Run the terminal UI
 make build-linux / build-macos / build-windows
 make help      # List all targets
 ```
@@ -75,7 +74,6 @@ the TUI prompts for it. The vault path can also be set with `LUMEN_JOURNAL`.
 ```
 lumen/
  ├─ core/      # Rust library: vault encryption, importers, plugins, FFI
- ├─ tui/       # Rust terminal client (binary: lumen)
  ├─ ui/        # Flutter desktop app
  ├─ plugins/   # Example on-disk plugin
  ├─ scripts/   # Build + packaging scripts

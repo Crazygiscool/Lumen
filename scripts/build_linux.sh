@@ -71,10 +71,7 @@ if [ ! -d "$BUNDLE_DIR" ]; then
 fi
 
 echo ""
-echo "=== Step 4: Add the Rust TUI to the bundle ==="
-cp "$ROOT_DIR/target/release/lumen" "$BUNDLE_DIR/lumen-cli"
-chmod +x "$BUNDLE_DIR/lumen-cli"
-
+echo "=== Step 4: Build complete ==="
 mkdir -p "$DIST_DIR"
 
 echo ""
@@ -108,7 +105,6 @@ else
 
     # Launch wrappers. The Flutter bundle must stay together in /opt/lumen.
     ln -sf /opt/lumen/lumen "$DEB_ROOT/usr/bin/lumen"
-    ln -sf /opt/lumen/lumen-cli "$DEB_ROOT/usr/bin/lumen-cli"
 
     install -Dm644 "$ROOT_DIR/scripts/lumen.desktop" \
         "$DEB_ROOT/usr/share/applications/lumen.desktop"

@@ -57,13 +57,9 @@ else
     echo "=== Step 6: Packaging ==="
     mkdir -p "$DIST_DIR"
     ZIP_NAME="Lumen-macos-v${VERSION}.zip"
-    TUI_BIN="$ROOT_DIR/target/release/lumen"
 
     cd "$(dirname "$APP_PATH")"
     zip -r "$DIST_DIR/$ZIP_NAME" "$(basename "$APP_PATH")"
-    cp "$TUI_BIN" "lumen-cli"
-    zip -g "$DIST_DIR/$ZIP_NAME" "lumen-cli"
-    rm "lumen-cli"
 fi
 
 echo "=== macOS Build Step Finished ==="

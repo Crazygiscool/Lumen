@@ -59,7 +59,6 @@ Before contributing, please familiarize yourself with Lumen’s core principles:
 
 - Rust: Follow [rustfmt](https://github.com/rust-lang/rustfmt) and Clippy guidelines.
 - Dart/Flutter: Use `flutter format` and follow Dart style conventions.
-- TUI: Keep CLI commands intuitive and feedback expressive.
 - Documentation: Use Markdown with clear headings and examples.
 
 ---
