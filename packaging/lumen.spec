@@ -43,5 +43,5 @@ install -Dm644 LICENSE %{buildroot}%{_docdir}/%{name}/copyright
 %{_docdir}/%{name}/copyright
 
 %changelog
-* Thu Nov 13 2026 Crazygiscool <crazygiscool@proton.me> - %{version}-1
-- Initial RPM package
+* Sun Nov 15 2026 Crazygiscool <crazygiscool@proton.me> - %{version}-1
+- Remove TUI; prebuilt binary only
