@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
-# Update the AUR package (lumen-journal) to a released version.
+# Update an AUR package to a released version.
 #
 # Usage:
-#   scripts/update_aur.sh [version]
+#   scripts/update_aur.sh [--aur-pkg <name>] [version]
 #
 # With no argument the version is read from ui/pubspec.yaml.
+# --aur-pkg defaults to "lumen-journal".
 #
 # Env:
 #   AUR_SSH_PRIVATE_KEY  private SSH key for aur@aur.archlinux.org (CI)
@@ -15,9 +16,32 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-AUR_REPO="${AUR_REPO:-ssh://aur@aur.archlinux.org/lumen-journal.git}"
 
-VERSION="${1:-}"
+AUR_PKG="lumen-journal"
+VERSION=""
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --aur-pkg)
+            AUR_PKG="$2"
+            shift 2
+            ;;
+        --aur-pkg=*)
+            AUR_PKG="${1#*=}"
+            shift
+            ;;
+        -*)
+            echo "ERROR: unknown option $1" >&2
+            exit 1
+            ;;
+        *)
+            VERSION="$1"
+            shift
+            ;;
+    esac
+done
+
 if [ -z "$VERSION" ]; then
     VERSION=$(grep '^version:' "$ROOT_DIR/ui/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1 | tr -d '\r\n')
 fi
@@ -28,7 +52,9 @@ if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
     exit 1
 fi
 
-echo "Updating AUR package lumen-journal to v$VERSION"
+AUR_REPO="${AUR_REPO:-ssh://aur@aur.archlinux.org/${AUR_PKG}.git}"
+
+echo "Updating AUR package $AUR_PKG to v$VERSION"
 
 WORK_DIR="$(mktemp -d)"
 SSH_DIR=""
@@ -55,8 +81,8 @@ if [ -n "${AUR_SSH_PRIVATE_KEY:-}" ]; then
     export GIT_SSH_COMMAND="ssh -i $SSH_DIR/aur_key -o IdentitiesOnly=yes -o UserKnownHostsFile=$SSH_DIR/known_hosts -o StrictHostKeyChecking=yes"
 fi
 
-git clone --depth=1 "$AUR_REPO" "$WORK_DIR/lumen-journal"
-cd "$WORK_DIR/lumen-journal"
+git clone --depth=1 "$AUR_REPO" "$WORK_DIR/$AUR_PKG"
+cd "$WORK_DIR/$AUR_PKG"
 
 if [ ! -f PKGBUILD ] || [ ! -f .SRCINFO ]; then
     echo "ERROR: AUR checkout is missing PKGBUILD or .SRCINFO" >&2
@@ -96,4 +122,4 @@ git add PKGBUILD .SRCINFO
 git commit -m "Update to v$VERSION"
 git push origin master
 
-echo "AUR updated: https://aur.archlinux.org/packages/lumen-journal"
+echo "AUR updated: https://aur.archlinux.org/packages/$AUR_PKG"
