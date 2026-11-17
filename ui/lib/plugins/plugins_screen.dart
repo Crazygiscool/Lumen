@@ -123,6 +123,44 @@ class PluginsScreen extends ConsumerWidget {
                   icon: const Icon(Icons.add_box_outlined, size: 18),
                   label: const Text('Install from folder'),
                 ),
+                FilledButton.tonalIcon(
+                  onPressed: () async {
+                    final picked = await showPathPicker(
+                      context,
+                      mode: PathPickerMode.file,
+                      title: 'Choose a WASM plugin file',
+                    );
+                    if (picked == null || !context.mounted) return;
+                    final name = p.basename(p.withoutExtension(picked));
+                    final ok = await ref
+                        .read(pluginServiceProvider)
+                        .loadWasm(picked, name, {
+                          'runtime': 'wasm',
+                          'entry': name,
+                          'permissions': {
+                            'read_notes': true,
+                            'write_notes': false,
+                            'network': false,
+                            'fs_read': [],
+                            'fs_write': [],
+                            'max_memory_mb': 64,
+                            'max_fuel': 10_000_000,
+                          },
+                          'hooks': ['on_note'],
+                        });
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(ok
+                            ? 'WASM plugin loaded: $name'
+                            : 'Failed to load WASM plugin: $name'),
+                      ),
+                    );
+                    ref.invalidate(pluginsProvider);
+                  },
+                  icon: const Icon(Icons.extension, size: 18),
+                  label: const Text('Load WASM plugin'),
+                ),
               ],
             ),
           ],

@@ -9,8 +9,9 @@ pub use loader::{inventory, scan_plugins, LoadedPlugin};
 pub use manifest::PluginManifest;
 pub use plugin_trait::NoteContext;
 pub use plugin_trait::Plugin;
+pub use wasm::{PluginConfig, PluginHost, PluginPermissions, PluginHooks};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
@@ -98,6 +99,8 @@ pub fn builtins_metadata() -> Vec<PluginManifest> {
 pub struct PluginManager {
     builtins: Vec<(&'static str, Box<dyn Plugin>)>,
     externals: Vec<LoadedPlugin>,
+    /// WASM plugin sandbox host — runs WASM plugins alongside native ones.
+    host: PluginHost,
 }
 
 impl Default for PluginManager {
@@ -127,6 +130,7 @@ impl PluginManager {
         PluginManager {
             builtins,
             externals,
+            host: PluginHost::new(),
         }
     }
 
@@ -134,7 +138,7 @@ impl PluginManager {
         self.builtins.push((name, plugin));
     }
 
-    pub fn run_on_note(&self, note: &NoteContext<'_>) -> Vec<String> {
+    pub fn run_on_note(&mut self, note: &NoteContext<'_>) -> Vec<String> {
         let mut feedback = Vec::new();
 
         for (name, plugin) in &self.builtins {
@@ -171,6 +175,19 @@ impl PluginManager {
                 unsafe {
                     let _ = std::ffi::CString::from_raw(result_ptr);
                 }
+            }
+        }
+
+        // Run enabled WASM plugins in the sandbox.
+        let wasm_note = wasm::NoteContext {
+            path: note.id.to_string(),
+            title: note.title.to_string(),
+            body: note.body.to_string(),
+            frontmatter: std::collections::HashMap::new(),
+        };
+        for result in self.host.on_note(&wasm_note) {
+            if let Some(msg) = result.feedback {
+                feedback.push(format!("[wasm] {}", msg));
             }
         }
 

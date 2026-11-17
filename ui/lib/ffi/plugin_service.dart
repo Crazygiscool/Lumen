@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import 'lumen_ffi.dart';
@@ -182,5 +185,18 @@ class PluginService {
       for (final msg in (data['feedback'] as List<dynamic>? ?? const []))
         msg as String,
     ];
+  }
+
+  /// Load a WASM plugin from a file path. The file is read as bytes,
+  /// base64-encoded, and sent to the Rust side via `plugins.load_wasm`.
+  Future<bool> loadWasm(String path, String name, Map<String, dynamic> config) async {
+    final bytes = File(path).readAsBytesSync();
+    final wasmBase64 = base64Encode(bytes);
+    final data = _ffi.plugins('plugins.load_wasm', {
+      'name': name,
+      'wasm_base64': wasmBase64,
+      'config': config,
+    }) as Map<String, dynamic>;
+    return data['loaded'] as bool? ?? false;
   }
 }

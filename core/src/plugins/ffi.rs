@@ -7,16 +7,25 @@
 //! Plugins screen can render installed plugins (built-in + external) without
 //! executing untrusted code.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::sync::Mutex;
 
+use lazy_static::lazy_static;
 use serde::Deserialize;
 
 use super::{
     builtins_metadata, inventory, is_enabled, set_enabled, NoteContext, PluginManager,
     PluginManifest,
 };
+use super::wasm::{PluginConfig, PluginHost, PluginPermissions, PluginHooks};
+use super::wasm::NoteContext as WasmNoteContext;
+
+lazy_static! {
+    /// WASM plugins loaded via FFI, persisted across `plugins.run` calls.
+    static ref WASM_PLUGINS: Mutex<Vec<(String, Vec<u8>, PluginConfig)>> = Mutex::new(Vec::new());
+}
 
 #[derive(Deserialize)]
 struct EnabledArgs {
@@ -106,14 +115,57 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
         }
         "plugins.run" => {
             let a = parse!(RunArgs);
-            let manager = PluginManager::new();
+            let mut manager = PluginManager::new();
             let note = NoteContext {
                 id: &a.path,
                 title: &a.title,
                 body: &a.body,
             };
-            let feedback = manager.run_on_note(&note);
+            let mut feedback = manager.run_on_note(&note);
+
+            // Also run persisted WASM plugins through the sandbox.
+            let plugins = WASM_PLUGINS.lock().unwrap();
+            let mut host = PluginHost::new();
+            for (name, bytes, config) in plugins.iter() {
+                if let Ok(()) = host.load_plugin(bytes, config.clone()) {
+                    // Run on_note on this plugin.
+                    let note_ctx = WasmNoteContext {
+                        path: a.path.clone(),
+                        title: a.title.clone(),
+                        body: a.body.clone(),
+                        frontmatter: std::collections::HashMap::new(),
+                    };
+                    let results = host.on_note(&note_ctx);
+                    for result in results {
+                        if let Some(msg) = result.feedback {
+                            feedback.push(format!("[wasm:{name}] {msg}"));
+                        }
+                    }
+                }
+            }
+            drop(plugins);
+
             ok(serde_json::json!({ "feedback": feedback }))
+        }
+        "plugins.load_wasm" => {
+            #[derive(Deserialize)]
+            struct LoadWasmArgs {
+                name: String,
+                wasm_base64: String,
+                config: serde_json::Value,
+            }
+            let a = parse!(LoadWasmArgs);
+            let wasm_bytes = match base64::decode(&a.wasm_base64) {
+                Ok(b) => b,
+                Err(e) => return err(format!("invalid base64: {e}")),
+            };
+            let config: PluginConfig = match serde_json::from_value(a.config) {
+                Ok(c) => c,
+                Err(e) => return err(format!("invalid config: {e}")),
+            };
+            let name = a.name.clone();
+            WASM_PLUGINS.lock().unwrap().push((name.clone(), wasm_bytes, config));
+            ok(serde_json::json!({ "name": name, "loaded": true }))
         }
         other => err(format!("unknown method: {other}")),
     }
