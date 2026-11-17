@@ -68,10 +68,14 @@ jobs:
           test -f dist/*.tar.gz
           test -f dist/*.deb
           test -f dist/*.AppImage
-          tar tzf dist/*.tar.gz | grep -E 'lib/liblumen_core\.so|lumen'
+          # The bundle executable is 'lumen' (lowercase); every launcher
+          # must resolve to an existing file.
+          tar tzf dist/*.tar.gz | grep -qE 'bundle/lumen'
+          tar tzf dist/*.tar.gz | grep -E 'lib/liblumen_core\.so'
           dpkg-deb --info dist/*.deb
           dpkg-deb --contents dist/*.deb | grep -E 'opt/lumen/lumen|usr/bin/lumen'
           file dist/*.AppImage
+          file dist/*.rpm
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -81,6 +85,7 @@ jobs:
             dist/*.tar.gz
             dist/*.deb
             dist/*.AppImage
+            dist/*.rpm
           if-no-files-found: error
 
   build-macos:
@@ -190,6 +195,17 @@ jobs:
 
       - name: Show release assets
         run: ls -lh artifacts/
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+          for f in *; do
+            [ -f "$f" ] || continue
+            case "$f" in SHA256SUMS) continue ;; esac
+            sha256sum "$f" > "$f.sha256"
+          done
+          ls -lh
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

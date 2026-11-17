@@ -123,10 +123,18 @@ Homepage: https://github.com/Crazygiscool/Lumen
 Depends: libc6, libstdc++6, libgtk-3-0 | libgtk-3-0t64, libglib2.0-0 | libglib2.0-0t64, liblzma5, libsecret-1-0
 Description: Private, encrypted Markdown journal
  Lumen is an offline-first journal with AES-256-GCM encrypted notes,
- Markdown editing, imports, plugins, and a terminal client.
+ Markdown editing, imports, plugins, and a desktop GUI.
 EOF
 
     DEB_NAME="Lumen-linux-v${VERSION}-${DEB_ARCH}.deb"
+
+    # The Flutter bundle ships a 'lumen' executable; verify the launcher
+    # target exists before sealing the package.
+    if [ ! -x "$DEB_ROOT/opt/lumen/lumen" ]; then
+        echo "ERROR: /opt/lumen/lumen missing from .deb payload" >&2
+        exit 1
+    fi
+
     dpkg-deb --build --root-owner-group "$DEB_ROOT" "$DIST_DIR/$DEB_NAME" >/dev/null
     rm -rf "$DEB_ROOT"
     echo "Created: $DIST_DIR/$DEB_NAME"

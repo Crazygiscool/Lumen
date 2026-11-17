@@ -9,7 +9,7 @@ BuildArch: %{_arch}
 
 %description
 Lumen is an offline-first journal with AES-256-GCM encrypted notes,
-Markdown editing, imports, plugins, and a terminal client.
+Markdown editing, imports, plugins, and a desktop GUI.
 
 %prep
 %setup -q
