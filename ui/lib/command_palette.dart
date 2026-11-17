@@ -128,6 +128,24 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
       case 'advanced.verifyVault':
         break;
 
+      // --- AI --------------------------------------------------------------
+      case 'ai.summarizeWeek':
+        _runAiAction(context, service, 'Summarize this week',
+            'Summarize the most important events and insights from this week\'s notes. Focus on key decisions, people mentioned, and open questions.');
+        break;
+      case 'ai.findRelated':
+        _runAiAction(context, service, 'Find related notes',
+            'Find notes that are thematically related to the current note. List them with brief explanations of the connection.');
+        break;
+      case 'ai.suggestTags':
+        _runAiAction(context, service, 'Suggest tags',
+            'Suggest relevant tags for the current note based on its content. Return a comma-separated list of tags.');
+        break;
+      case 'ai.extractTasks':
+        _runAiAction(context, service, 'Extract tasks',
+            'Extract action items and tasks from the current note. Return them as a checklist.');
+        break;
+
       default:
         try {
           await service.executeCommand(command.id);
@@ -137,6 +155,53 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
     }
 
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Run an AI action: chat with the model and show the result in a dialog.
+  Future<void> _runAiAction(
+      BuildContext context, KbService service, String title, String prompt) async {
+    setState(() {}); // trigger rebuild to show loading state via cursor
+    try {
+      final models = await service.listAiModels();
+      if (models.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No Ollama models available')),
+          );
+        }
+        return;
+      }
+      final response = await service.chatAi(
+        model: models.first.name,
+        message: prompt,
+        stream: false,
+      );
+      if (mounted && context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text(title),
+            content: SingleChildScrollView(
+              child: Text(response.content.isEmpty
+                  ? 'No response from the model.'
+                  : response.content),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI action failed: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -312,6 +377,7 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
     if (id.startsWith('sync.')) return Icons.sync;
     if (id.startsWith('plugins.')) return Icons.extension;
     if (id.startsWith('advanced.')) return Icons.build;
+    if (id.startsWith('ai.')) return Icons.psychology;
     return Icons.help;
   }
 }

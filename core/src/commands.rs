@@ -248,6 +248,35 @@ pub fn register_builtin_commands() -> crate::Result<()> {
             keywords: vec!["verify".into(), "vault".into(), "integrity".into()],
             source: "builtin".into(),
         },
+        // AI
+        Command {
+            id: "ai.summarizeWeek".into(),
+            title: "Summarize This Week".into(),
+            description: Some("Summarize this week's notes using local AI".into()),
+            keywords: vec!["ai".into(), "summarize".into(), "week".into(), "summary".into()],
+            source: "builtin".into(),
+        },
+        Command {
+            id: "ai.findRelated".into(),
+            title: "Find Related Notes".into(),
+            description: Some("Find notes related to the current one".into()),
+            keywords: vec!["ai".into(), "related".into(), "similar".into(), "rag".into()],
+            source: "builtin".into(),
+        },
+        Command {
+            id: "ai.suggestTags".into(),
+            title: "Suggest Tags".into(),
+            description: Some("Suggest tags for the current note".into()),
+            keywords: vec!["ai".into(), "tags".into(), "suggest".into(), "categorize".into()],
+            source: "builtin".into(),
+        },
+        Command {
+            id: "ai.extractTasks".into(),
+            title: "Extract Tasks".into(),
+            description: Some("Extract action items from the current note".into()),
+            keywords: vec!["ai".into(), "tasks".into(), "extract".into(), "action".into()],
+            source: "builtin".into(),
+        },
     ];
     let mut first_error: Option<String> = None;
     for command in commands {
