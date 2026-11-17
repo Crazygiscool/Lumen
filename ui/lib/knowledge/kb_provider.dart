@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/providers.dart';
@@ -44,3 +45,96 @@ final kbGraphFilterProvider =
         query: query.isEmpty ? null : query,
       );
     });
+
+// ---------------------------------------------------------------------------
+// Auto-update state
+// ---------------------------------------------------------------------------
+
+@immutable
+class AutoUpdateState {
+  const AutoUpdateState({
+    this.status = AutoUpdateStatus.idle,
+    this.currentVersion,
+    this.latestTag,
+    this.error,
+  });
+  final AutoUpdateStatus status;
+  final String? currentVersion;
+  final String? latestTag;
+  final String? error;
+
+  bool get checking => status == AutoUpdateStatus.checking;
+  bool get updateAvailable => status == AutoUpdateStatus.updateAvailable;
+  bool get upToDate => status == AutoUpdateStatus.upToDate;
+}
+
+enum AutoUpdateStatus {
+  idle,
+  checking,
+  upToDate,
+  updateAvailable,
+  error,
+}
+
+class AutoUpdateNotifier extends Notifier<AutoUpdateState> {
+  @override
+  AutoUpdateState build() => const AutoUpdateState();
+
+  Future<void> check() async {
+    state = const AutoUpdateState(status: AutoUpdateStatus.checking);
+    try {
+      final service = ref.read(kbServiceProvider);
+      final result = await service.checkForUpdate();
+      if (result.upToDate) {
+        state = const AutoUpdateState(
+          status: AutoUpdateStatus.upToDate,
+        );
+        return;
+      }
+      if (result.updateAvailable) {
+        state = AutoUpdateState(
+          status: AutoUpdateStatus.updateAvailable,
+          currentVersion: result.currentVersion,
+          latestTag: result.tagName,
+        );
+      }
+    } catch (e) {
+      state = AutoUpdateState(
+        status: AutoUpdateStatus.error,
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<String?> download(String tagName) async {
+    state = const AutoUpdateState(status: AutoUpdateStatus.checking);
+    try {
+      final service = ref.read(kbServiceProvider);
+      final path = await service.downloadUpdate(tagName);
+      return path.isEmpty ? null : path;
+    } catch (e) {
+      state = AutoUpdateState(
+        status: AutoUpdateStatus.error,
+        error: e.toString(),
+      );
+      return null;
+    }
+  }
+
+  Future<void> apply(String path) async {
+    try {
+      final service = ref.read(kbServiceProvider);
+      await service.applyUpdate(path);
+    } catch (e) {
+      state = AutoUpdateState(
+        status: AutoUpdateStatus.error,
+        error: e.toString(),
+      );
+    }
+  }
+}
+
+final autoUpdateProvider =
+    NotifierProvider<AutoUpdateNotifier, AutoUpdateState>(
+  AutoUpdateNotifier.new,
+);

@@ -667,4 +667,69 @@ class KbService {
   Future<void> setConfig(Map<String, dynamic> config) async {
     _ffi.kb('kb.config.set', {'config': config});
   }
+
+  // ---------------------------------------------------------------------------
+  // Auto-update
+  // ---------------------------------------------------------------------------
+
+  /// Check GitHub Releases for a newer version.
+  Future<KbUpdateStatus> checkForUpdate() async {
+    final data = _map(_ffi.kb('kb.auto_update.check'));
+    final upToDate = data['up_to_date'] as bool? ?? true;
+    if (upToDate) {
+      return const KbUpdateStatus.upToDate();
+    }
+    return KbUpdateStatus.updateAvailable(
+      tagName: data['tag_name'] as String? ?? '',
+      currentVersion: data['current_version'] as String? ?? '',
+      assets: (data['assets'] as List<dynamic>?)
+          ?.map((a) => <String, dynamic>{
+                'name': a['name'] as String? ?? '',
+                'url': a['url'] as String? ?? '',
+                'size': a['size'] as int? ?? 0,
+              })
+          .toList() ?? const [],
+    );
+  }
+
+  /// Download the update asset for the current platform and verify its
+  /// SHA-256 checksum against the `.sha256` sidecar.
+  ///
+  /// Returns the path to the downloaded archive.
+  Future<String> downloadUpdate(String tagName) async {
+    final data = _map(_ffi.kb(
+      'kb.auto_update.download',
+      {'tag_name': tagName},
+    ));
+    return data['path'] as String? ?? '';
+  }
+
+  /// Extract and install a previously downloaded update archive.
+  Future<void> applyUpdate(String path) async {
+    _ffi.kb('kb.auto_update.apply', {'path': path});
+  }
+}
+
+/// The result of checking for an update.
+@immutable
+class KbUpdateStatus {
+  const KbUpdateStatus.upToDate()
+      : kind = 'up_to_date',
+        tagName = '',
+        currentVersion = '',
+        assets = const [];
+
+  const KbUpdateStatus.updateAvailable({
+    required this.tagName,
+    required this.currentVersion,
+    this.assets = const [],
+  }) : kind = 'update_available';
+
+  final String kind;
+  final String tagName;
+  final String currentVersion;
+  final List<Map<String, dynamic>> assets;
+
+  bool get upToDate => kind == 'up_to_date';
+  bool get updateAvailable => kind == 'update_available';
 }

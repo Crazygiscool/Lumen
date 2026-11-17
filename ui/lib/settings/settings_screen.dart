@@ -319,6 +319,8 @@ class SettingsScreen extends ConsumerWidget {
               'journal; nothing is written in plaintext.',
               style: TextStyle(color: t.onSurfaceVariant),
             ),
+            const SizedBox(height: 16),
+            _AutoUpdateTile(),
           ],
         ),
       ],
@@ -384,6 +386,99 @@ class _InfoRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A settings tile for checking and applying updates.
+class _AutoUpdateTile extends ConsumerStatefulWidget {
+  const _AutoUpdateTile();
+
+  @override
+  ConsumerState<_AutoUpdateTile> createState() => _AutoUpdateTileState();
+}
+
+class _AutoUpdateTileState extends ConsumerState<_AutoUpdateTile> {
+  bool _downloading = false;
+  bool _applying = false;
+
+  Future<void> _check() async {
+    await ref.read(autoUpdateProvider.notifier).check();
+  }
+
+  Future<void> _downloadAndApply() async {
+    final state = ref.read(autoUpdateProvider);
+    final tag = state.latestTag;
+    if (tag == null || _downloading || _applying) return;
+
+    setState(() => _downloading = true);
+    try {
+      final path = await ref.read(autoUpdateProvider.notifier).download(tag);
+      if (path == null) return;
+      setState(() {
+        _downloading = false;
+        _applying = true;
+      });
+      await ref.read(autoUpdateProvider.notifier).apply(path);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Update applied. Restart Lumen.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _applying = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(autoUpdateProvider);
+
+    Widget action;
+    if (state.checking || _downloading || _applying) {
+      action = SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    } else if (state.updateAvailable && state.latestTag != null) {
+      action = FilledButton.tonalIcon(
+        onPressed: _downloadAndApply,
+        icon: const Icon(Icons.file_download_outlined, size: 18),
+        label: Text('Update to ${state.latestTag}'),
+      );
+    } else if (state.error != null) {
+      action = Text(
+        'Error: ${state.error}',
+        style: const TextStyle(color: Colors.red, fontSize: 12),
+      );
+    } else {
+      action = OutlinedButton.icon(
+        onPressed: _check,
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('Check for updates'),
+      );
+    }
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.system_update_outlined),
+      title: const Text('Check for updates'),
+      subtitle: state.updateAvailable
+          ? const Text('A new version is available')
+          : Text(state.error ?? 'Check GitHub Releases for new versions'),
+      trailing: action,
     );
   }
 }
