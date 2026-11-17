@@ -17,6 +17,8 @@ if [ -z "$TAG" ]; then
     exit 1
 fi
 
+# Keep the full tag name (with 'v') for git show; strip 'v' for comparison.
+TAG_RAW="$TAG"
 TAG="${TAG#v}"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,11 +27,11 @@ ROOT_CARGO="$ROOT_DIR/Cargo.toml"
 CORE_CARGO="$ROOT_DIR/core/Cargo.toml"
 
 # Version recorded in the tag's tree.
-PUBSPEC_VERSION=$(git -C "$ROOT_DIR" show "$TAG:ui/pubspec.yaml" \
+PUBSPEC_VERSION=$(git -C "$ROOT_DIR" show "$TAG_RAW:ui/pubspec.yaml" \
     | grep '^version:' | awk '{print $2}' | cut -d'+' -f1 | tr -d '\r\n')
-ROOT_CARGO_VERSION=$(git -C "$ROOT_DIR" show "$TAG:Cargo.toml" \
+ROOT_CARGO_VERSION=$(git -C "$ROOT_DIR" show "$TAG_RAW:Cargo.toml" \
     | grep '^version =' | head -1 | sed 's/.*"\(.*\)".*/\1/')
-CORE_CARGO_VERSION=$(git -C "$ROOT_DIR" show "$TAG:core/Cargo.toml" \
+CORE_CARGO_VERSION=$(git -C "$ROOT_DIR" show "$TAG_RAW:core/Cargo.toml" \
     | grep '^version =' | head -1 | sed 's/.*"\(.*\)".*/\1/')
 
 fail=0
