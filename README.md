@@ -18,8 +18,6 @@ import writing you already have, and keep everything on your own machine.
   export, or a folder of Markdown files. Imports are re-encrypted on disk.
 - **Plugins** — built-in word count/summary plugins run when you save; on-disk
   plugins can be installed and toggled from the Plugins screen.
-- **Terminal UI** — browse, search, read, and edit the same encrypted journal
-  without leaving the terminal.
 - **No accounts, no telemetry.** The only optional network call is the dashboard
   quote source, which defaults to a bundled offline list.
 
@@ -36,7 +34,8 @@ make build-linux / build-macos / build-windows
 make help      # List all targets
 ```
 
-On Linux, Lumen is also packaged on the AUR as `lumen-journal`.
+On Linux, Lumen is packaged on the AUR as `lumen-journal` (built from
+source) and `lumen-journal-bin` (prebuilt release binary).
 
 ## Using the app
 
@@ -54,20 +53,6 @@ On Linux, Lumen is also packaged on the AUR as `lumen-journal`.
 
 The journal is a normal folder containing a `.lumen/journal.json` passphrase
 container and encrypted `.md` files. Back it up like any other folder.
-
-## Terminal UI
-
-```bash
-lumen --vault ~/Documents/lumen-journal            # interactive browser
-lumen --vault ~/Documents/lumen-journal init       # create the journal
-lumen --vault ~/Documents/lumen-journal list
-lumen --vault ~/Documents/lumen-journal search tea
-lumen --vault ~/Documents/lumen-journal today      # edit in $EDITOR
-lumen --vault ~/Documents/lumen-journal streak
-```
-
-The passphrase can be supplied with `--password` or `LUMEN_PASSWORD`; otherwise
-the TUI prompts for it. The vault path can also be set with `LUMEN_JOURNAL`.
 
 ## File structure
 

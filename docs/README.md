@@ -55,5 +55,4 @@ See [ROADMAP.md](ROADMAP.md) for detailed timeline and milestones.
 | The keyring | `core/src/secrets.rs` |
 | The difference between two versions | `core/src/diff.rs` |
 | The knowledge-base API | `core/src/ffi.rs` (`lumen_kb_call`) |
-| The terminal client | `tui/src/` (`cli.rs`, `app.rs`, `ui.rs`) |
 | The desktop app | `ui/lib/` |

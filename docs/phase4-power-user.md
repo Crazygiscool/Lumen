@@ -7,7 +7,7 @@
 
 ---
 
-## 1. Command Palette (Flutter + TUI)
+## 1. Command Palette (Flutter)
 
 ### Flutter: `Ctrl+K` / `Cmd+K` → Universal Action Search
 
@@ -44,16 +44,6 @@ class CommandPalette extends StatefulWidget {
 
 **Plugin API**: `contributes.commands[]` in `plugin.toml`
 
-### TUI: Command Mode (`:`)
-
-```
-:command-name [args]
-```
-
-- Tab completion
-- History (`↑`/`↓`)
-- Same command registry as Flutter (shared via core)
-
 **Implementation notes:**
 
 Core (`core/src/commands.rs`): A command registry with `register_command`,
@@ -68,10 +58,6 @@ registered first.
 Flutter (`ui/lib/command_palette.dart`): `Ctrl+K` / `Cmd+K` opens a fuzzy
 searchable dialog with keyboard navigation (↑↓/Enter/Esc). Commands are
 grouped by category with section icons.
-
-TUI (`tui/src/cli.rs`): `lumen command <id>` runs a command and shows its
-title, description, keywords, and source. Unknown commands get fuzzy-match
-suggestions.
 
 ---
 
@@ -89,10 +75,6 @@ registered first.
 Flutter (`ui/lib/command_palette.dart`): `Ctrl+K` / `Cmd+K` opens a fuzzy
 searchable dialog with keyboard navigation (↑↓/Enter/Esc). Commands are
 grouped by category with section icons.
-
-TUI (`tui/src/cli.rs`): `lumen command <id>` runs a command and shows its
-title, description, keywords, and source. Unknown commands get fuzzy-match
-suggestions.
 
 ---
 
@@ -170,8 +152,6 @@ class CanvasEditor extends StatefulWidget {
 - `![[canvas-name.canvas]]` → renders preview in markdown
 - Canvas elements can link to notes: `[[note-name]]` on shapes
 
-**TUI**: Not applicable (launch Flutter for canvas)
-
 ---
 
 ## 4. Local AI (Ollama Integration)
@@ -202,7 +182,7 @@ class CanvasEditor extends StatefulWidget {
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   Lumen App     │────▶│  Ollama HTTP    │────▶│  Local Model    │
-│  (Flutter/TUI)  │     │  (localhost)    │     │  (llama.cpp)    │
+│  (Flutter GUI)  │     │  (localhost)    │     │  (llama.cpp)    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
         │                       │                       │
         │ 1. User selects       │ 3. POST /api/chat   │ 5. Stream tokens
@@ -255,7 +235,7 @@ pub async fn retrieve_context(&self, query: &str, store: &str, k: usize) -> Vec<
 - **Context selector**: Current note / Selection / Date range / Tag / All
 - **Privacy notice**: "Only selected notes sent to local Ollama"
 
-### TUI: AI Commands
+### AI Commands
 
 ```bash
 lumen ai summarize --week
@@ -294,7 +274,8 @@ for Ollama URL, default model, embedding model, and AI enable/disable toggle.
 All requests go to `localhost:11434` by default — nothing leaves the user's
 machine.
 
-TUI (`tui/src/cli.rs`): `lumen ai chat`, `lumen ai list-models`, `lumen ai rag`.
+Flutter (`ui/lib/ai/ai_sidebar.dart`): `lumen ai summarize`, `lumen ai related`,
+`lumen ai chat`, `lumen ai tags` — available from the AI sidebar panel.
 
 ---
 
@@ -599,8 +580,8 @@ impl LanguageServer for LumenLspServer {
 
 | # | Task | Area | Est. |
 |---|------|------|------|
-| 1 | ✅ Command palette (Flutter + TUI) | Core/Flutter/TUI | 3d |
-| 2 | ✅ Vim/Emacs keymaps (Flutter + TUI) | Flutter/TUI | 3d |
+| 1 | ✅ Command palette (Flutter) | Core/Flutter | 3d |
+| 2 | ✅ Vim/Emacs keymaps (Flutter) | Flutter | 3d |
 | 3 | ✅ Canvas editor (Excalidraw) | Flutter | 5d |
 | 4 | ✅ Ollama client + RAG (Core + Flutter) | Core/Flutter | 5d |
 | 5 | ✅ WASM runtime + plugin SDK | Core | 7d |

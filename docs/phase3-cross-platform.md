@@ -14,117 +14,12 @@
 
 | Format | Tool | Target | Status |
 |--------|------|--------|--------|
-| **Flatpak** | `flatpak-builder` | Flathub | ✅ (packaging/flatpak/) |
 | **AppImage** | `appimagetool` | Universal | ✅ (scripts/build_linux.sh) |
 | **.deb** | `dpkg-deb` | Debian/Ubuntu | ✅ (scripts/build_linux.sh) |
 | **.rpm** | `rpmbuild` | Fedora/RHEL | ✅ (scripts/build_linux.sh) |
 | **Arch/AUR** | `makepkg` | Arch Linux | ✅ (scripts/release.sh) |
-| **Snap** | `snapcraft` | Ubuntu Store | ✅ (packaging/snapcraft.yaml) |
 
 ### Flatpak Manifest (`packaging/flatpak/io.github.Crazygiscool.Lumen.yml`)
-
-```yaml
-app-id: io.github.Crazygiscool.Lumen
-runtime: org.freedesktop.Platform
-runtime-version: '23.08'
-sdk: org.freedesktop.Sdk
-command: lumen
-finish-args:
-  - --share=network          # Syncthing
-  - --filesystem=home        # Journal access
-  - --filesystem=xdg-config/lumen:rw
-  - --filesystem=xdg-data/lumen:rw
-  - --device=all             # Hardware keys (YubiKey)
-  - --talk-name=org.freedesktop.secrets  # Keyring
-modules:
-  - name: lumen
-    buildsystem: simple
-    build-commands:
-      - cp -r bundle/* /app/
-      - install -Dm755 lumen /app/bin/lumen
-      - install -Dm755 lumen-cli /app/bin/lumen-cli
-      - install -Dm644 lumen.desktop /app/share/applications/lumen.desktop
-      - install -Dm644 lumen.png /app/share/icons/hicolor/1024x1024/apps/lumen.png
-    sources:
-      - type: dir
-        path: ../build/linux/x64/release/bundle
-      - type: file
-        path: scripts/lumen.desktop
-        dest: lumen.desktop
-      - type: file
-        path: ui/lib/assets/lumen_logo.png
-        dest: lumen.png
-```
-
-Build locally:
-```
-flatpak-builder --user --install --repo=flatpak-repo \
-  packaging/flatpak/io.github.Crazygiscool.Lumen.yml
-```
-
-### Flathub Submission
-
-1. Fork the [flathub](https://github.com/flathub/flathub) repository
-2. Add `packaging/flatpak/io.github.Crazygiscool.Lumen.yml` as a new app manifest
-3. Add the app metadata file `io.github.Crazygiscool.Lumen.metainfo.xml`
-4. Submit a pull request to flathub/flathub
-5. Once merged, new Lumen releases are built automatically on Flathub's CI
-
-The manifest uses the `org.freedesktop.Platform` 23.08 runtime with the
-finishing arguments needed for Syncthing networking, journal file access,
-and libsecret keyring integration.
-
-### COPR / OBS Build Services
-
-RPMs can be built automatically for Fedora (COPR) and openSUSE (OBS)
-without maintaining build infrastructure:
-
-**COPR** (`copr.fedoraproject.org`):
-1. Create a COPR project at copr.fedoraproject.org
-2. Enable the `lumen-core` and `lumen` chroots (e.g. `epel-9-x86_64`,
-   `fedora-40-x86_64`, `fedora-rawhide-x86_64`)
-3. Upload `packaging/lumen.spec` and the source tarball produced by
-   `scripts/build_linux.sh` (`lumen-<version>.tar.gz`)
-4. COPR builds the SRPM and RPMs for each enabled chroot
-
-**OBS** (Open Build Service, `build.opensuse.org`):
-1. Create an OBS project for Lumen
-2. Add `packaging/lumen.spec` and the source files (`lumen.desktop`,
-   `lumen_logo.png`, `LICENSE`, and the prebuilt bundle tarball)
-3. OBS builds RPMs for openSUSE Leap, Tumbleweed, and SLE targets
-
-Both services rebuild on every source change, so new Lumen releases are
-automatically packaged for Fedora and openSUSE users.
-
-### Snap Store
-
-Snaps are built automatically for Ubuntu and other snap-enabled distros
-without maintaining build infrastructure:
-
-**Snap Store** (`snapcraft.io`):
-1. Create a snap name at snapcraft.io (the name `lumen` is reserved on first
-   push)
-2. Push `packaging/snapcraft.yaml` and build the snap:
-   ```
-   snapcraft login
-   snapcraft
-   snapcraft upload --release=edge lumen_*.snap
-   ```
-3. The snap builds on Snapcraft's build farm for `amd64`, `arm64`,
-   `armhf`, and `i386`
-4. Promote to the `stable` channel once tested:
-   ```
-   snapcraft release lumen <revision> stable
-   ```
-
-The snap uses strict confinement with the `home`, `network`, `wayland`,
-`x11`, `unity7`, `desktop`, `desktop-legacy`, `gsettings`, and `libsecret`
-plugs. The Rust FFI library (`liblumen_core.so`) and the TUI binary
-(`lumen-cli`) are packaged alongside the Flutter bundle.
-
-Both COPR/OBS and the Snap Store rebuild on every source change, so new
-Lumen releases are automatically packaged for Fedora, openSUSE, and Ubuntu
-users.
 
 ### Wayland Support
 
@@ -208,8 +103,6 @@ users.
 
 | Format | Tool | Target | Status |
 |--------|------|--------|--------|
-| **MSIX** | `msix-packaging-tool` / `make-msix` | Microsoft Store / winget | Planned |
-| **Chocolatey** | `.nuspec` + `choco pack` | `choco install lumen` | ✅ (packaging/chocolatey/) |
 | **Scoop** | Manifest JSON | `scoop install lumen` | ✅ (packaging/scoop/) |
 | **Installer** | `Inno Setup` (`scripts/lumen.iss`) | Direct download | ✅ (scripts/build_windows.sh) |
 
@@ -225,110 +118,28 @@ users.
 # 5. Sign with signtool (if cert available)
 ```
 
-### MSIX Manifest (`packaging/msix/AppxManifest.xml`)
-
-```xml
-<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
-         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-  <Identity Name="Crazygiscool.Lumen" Publisher="CN=Crazygiscool" Version="3.2.1.0" />
-  <Properties>
-    <DisplayName>Lumen</DisplayName>
-    <PublisherDisplayName>Crazygiscool</PublisherDisplayName>
-    <Description>Private encrypted journal</Description>
-    <Logo>Assets/StoreLogo.png</Logo>
-  </Properties>
-  <Resources>
-    <Resource Language="en-us" />
-  </Resources>
-  <Applications>
-    <Application Id="Lumen" Executable="Lumen.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="Lumen" Square150x150Logo="Assets/Square150x150Logo.png"
-                          Square44x44Logo="Assets/Square44x44Logo.png" BackgroundColor="#1a1a1a">
-        <uap:DefaultTile Wide310x150Logo="Assets/Wide310x150Logo.png" />
-      </uap:VisualElements>
-      <Extensions>
-        <uap:Extension Category="windows.fileTypeAssociation">
-          <uap:FileTypeAssociation Name="lumen-journal">
-            <uap:SupportedFileTypes>
-              <uap:FileType>.lumen</uap:FileType>
-            </uap:SupportedFileTypes>
-          </uap:FileTypeAssociation>
-        </uap:Extension>
-      </Extensions>
-    </Application>
-  </Applications>
-  <Capabilities>
-    <Capability Name="internetClient" />          <!-- Syncthing -->
-    <Capability Name="documentsLibrary" />        <!-- Journal access -->
-    <rescap:Capability Name="runFullTrust" />     <!-- Rust binary -->
-    <rescap:Capability Name="packageManagement" /> <!-- Self-update -->
-  </Capabilities>
-</Package>
-```
-
-### Microsoft Store Submission
-
-1. Create a developer account at partner.microsoft.com
-2. Package the Inno Setup installer (`scripts/build_windows.sh` produces `Lumen-windows-vX.Y.Z-setup.exe`)
-3. Create an MSIX package using `make-msix` or `msix-packaging-tool` with `packaging/msix/AppxManifest.xml`
-4. Submit to the Microsoft Store for certification
-5. Once published, `msix` and `winget install lumen` are available
-
-The manifest requests `internetClient` (Syncthing), `documentsLibrary` (journal access), `runFullTrust` (Rust binary), and `packageManagement` (self-update) capabilities.
-
-### Chocolatey (`packaging/chocolatey/`)
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
-  <metadata>
-    <id>lumen</id>
-    <title>Lumen</title>
-    <version>3.2.3</version>
-    <authors>Crazygiscool</authors>
-    <projectUrl>https://github.com/Crazygiscool/Lumen</projectUrl>
-    <license type="expression">LicenseRef-LumenNC</license>
-    <tags>journal markdown encrypted notes privacy sync webdav syncthing</tags>
-    <summary>Private, encrypted Markdown journal</summary>
-    <description>
-      Lumen is an offline-first, encrypted personal journal with Markdown editing,
-      Wikilinks, backlinks, full-text search, and a terminal client. Notes are
-      encrypted with AES-256-GCM and synced peer-to-peer via Syncthing or WebDAV.
-    </description>
-  </metadata>
-  <files>
-    <file src="tools\**" target="tools" />
-  </files>
-</package>
-```
-
-1. Create a Chocolatey account at chocolatey.org
-2. Submit `packaging/chocolatey/lumen.nuspec` and `tools/chocolateyInstall.ps1`
-3. Once approved, `choco install lumen` installs the Inno Setup installer
-
 ### Scoop (`packaging/scoop/`)
 
 ```json
 {
-  "version": "3.2.3",
+  "version": "4.0.3",
   "description": "Private, encrypted Markdown journal",
   "homepage": "https://github.com/Crazygiscool/Lumen",
   "license": "Lumen Non-Commercial License v1.0",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Crazygiscool/Lumen/releases/download/v3.2.3/Lumen-windows-v3.2.3-portable.zip",
+      "url": "https://github.com/Crazygiscool/Lumen/releases/download/v4.0.3/Lumen-windows-v4.0.3.zip",
       "hash": "REPLACE_WITH_ACTUAL_HASH"
     }
   },
-  "bin": ["lumen.exe", "lumen-cli.exe"],
+  "bin": ["lumen.exe"],
   "shortcuts": [["lumen.exe", "Lumen"]],
   "checkver": { "github": "https://github.com/Crazygiscool/Lumen" },
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/Crazygiscool/Lumen/releases/download/v$version/Lumen-windows-v$version-portable.zip",
-        "hash": { "url": "...$version...portable.zip.sha256" }
+        "url": "https://github.com/Crazygiscool/Lumen/releases/download/v$version/Lumen-windows-v$version.zip",
+        "hash": { "url": "...$version...zip.sha256" }
       }
     }
   }
@@ -343,7 +154,8 @@ The manifest requests `internetClient` (Syncthing), `documentsLibrary` (journal 
 
 - **Credential Manager**: Store WebDAV passwords via `cmdkey` / Windows Credential Manager
 - **Windows Hello**: Biometric unlock (face/fingerprint/PIN) via `windows-rs`
-- **WSL integration**: `lumen` CLI works in WSL, accesses same journal
+- **WSL integration**: Journal files are accessible from WSL; unlock and use
+  them from the Windows desktop app
 - **Portable mode**: Run from USB without install (AppImage equivalent)
 - **Auto-start**: Optional background sync service
 
@@ -472,7 +284,7 @@ The update flow queries `https://api.github.com/repos/Crazygiscool/Lumen/release
 | 10 | iOS app: biometric, keychain, share ext | iOS | 5d |
 | 11 | Android app: biometric, keystore, share | Android | 5d |
 | 12 | Mobile UI adaptations (nav, editor, graph) | Mobile | 5d |
-| 13 | ✅ Auto-update: GitHub Releases API + FFI + TUI | Desktop | 3d |
+| 13 | ✅ Auto-update: GitHub Releases API + FFI | Desktop | 3d |
 | 14 | CI/CD: GitHub Actions for all platforms | All | 3d |
 
 **Total**: ~40 days (highly parallelizable by platform)

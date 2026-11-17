@@ -19,7 +19,6 @@ We encourage contributions in the following areas:
 
 - 🧱 Core engine improvements (Rust)
 - 🖼️ UI enhancements (Flutter)
-- 🧑‍💻 Terminal UI features (TUI)
 - 🔌 Plugin development and templates
 - 🔄 Import/export adapters for other journaling apps
 - 🧪 Tests, documentation, and onboarding UX

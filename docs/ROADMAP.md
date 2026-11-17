@@ -32,7 +32,6 @@
 - Core: `wikilinks.rs`, `template.rs`, `frontmatter.rs`, `search.rs`, `graph.rs`
 - FFI exports for all
 - Flutter: Search UI, wikilink completion, backlinks panel, frontmatter editor, daily note button, graph view
-- TUI: Search, wikilinks, backlinks, daily template, frontmatter commands
 
 ### Dependencies
 - `tantivy` in core
@@ -65,7 +64,6 @@ See [Phase 1](phase1-knowledge-base.md) for the details.
 ### Deliverables
 - Core: `sync.rs` (status, conflicts, Syncthing config generator), `webdav.rs`, `backup.rs`
 - Flutter: Syncthing wizard, sync dashboard, conflict resolution UI, WebDAV settings
-- TUI: `lumen sync` commands
 
 ### Security
 - Zero plaintext in sync transport
@@ -96,9 +94,9 @@ See [Phase 2](phase2-sync.md) for the details.
 
 | Platform | Packaging | Distribution | Key Features |
 |----------|-----------|--------------|--------------|
-| **Linux** | Flatpak, AppImage, .deb, .rpm, Snap, AUR | Flathub, GitHub, distro repos | Wayland, libsecret, pcscd |
+| **Linux** | AppImage, .deb, .rpm, AUR | GitHub, distro repos | Wayland, libsecret |
 | **macOS** | Notarized .dmg, Homebrew | GitHub, Homebrew | Keychain, Touch Bar, Universal binary |
-| **Windows** | MSIX, Chocolatey, Scoop, Inno Setup | Microsoft Store, winget, GitHub | Credential Manager, Windows Hello, WSL |
+| **Windows** | Scoop, Inno Setup | winget, GitHub | Credential Manager, Windows Hello, WSL |
 | **iOS** | IPA | TestFlight → App Store | Face ID, Share Extension, Keychain, BGAppRefresh |
 | **Android** | AAB | Play Store → F-Droid | Biometric, Keystore, Intent Filter, WorkManager |
 
@@ -114,7 +112,7 @@ See [Phase 2](phase2-sync.md) for the details.
 
 ### Features
 1. **Command Palette** (`Ctrl+K`) — 30+ actions, plugin-extensible
-2. **Vim/Emacs Keybindings** — Full modal editing in Flutter + TUI
+2. **Vim/Emacs Keybindings** — Full modal editing in Flutter
 3. **Canvas/Whiteboard** — Excalidraw-style, embed in notes, wikilinks on shapes
 4. **Local AI (Ollama)** — Summarize, chat, related notes, tags, tasks — zero cloud
 5. **WASM Plugin Sandbox** — `wasmtime`, fuel/memory limits, capability permissions
@@ -130,7 +128,6 @@ See [Phase 2](phase2-sync.md) for the details.
 |-------|-------|-----------------|
 | **Core (Rust)** | `cargo test`, `proptest` | 80% |
 | **Flutter** | `flutter test`, `integration_test` | 70% |
-| **TUI** | `cargo test`, snapshot tests | 60% |
 | **E2E** | Custom (vault + sync) | Critical paths |
 
 ### Performance Budgets
@@ -157,7 +154,7 @@ See [Phase 2](phase2-sync.md) for the details.
 | Milestone | Target Date |
 |-----------|-------------|
 | Phase 1 Core Complete | Week 3 |
-| Phase 1 Flutter/TUI Complete | Week 6 |
+| Phase 1 Flutter Complete | Week 6 |
 | Phase 2 Sync Working | Week 10 |
 | Phase 3 Desktop Packaged | Week 14 |
 | Phase 3 Mobile Beta | Week 18 |
@@ -172,7 +169,6 @@ See [Phase 2](phase2-sync.md) for the details.
 |------|---------|---------|---------|---------|
 | **Rust (Core)** | 1.0 FTE | 1.0 FTE | 0.5 FTE | 1.0 FTE |
 | **Flutter** | 1.0 FTE | 1.0 FTE | 1.0 FTE | 1.0 FTE |
-| **TUI** | 0.5 FTE | 0.5 FTE | 0.25 FTE | 0.5 FTE |
 | **DevOps/Packaging** | 0 | 0 | 1.0 FTE | 0.25 FTE |
 | **Design/UX** | 0.25 FTE | 0.25 FTE | 0.5 FTE | 0.5 FTE |
 
@@ -210,9 +206,10 @@ See [Phase 2](phase2-sync.md) for the details.
 Phase 1 and Phase 2 are done. Phase 3 is next:
 
 1. **Package the desktop app for the three desktops** — Linux (AppImage,
-   .deb, Flatpak), macOS (notarized .dmg), Windows (MSIX, Inno Setup)
+   .deb, .rpm), Windows (Scoop, Inno Setup), macOS (zip)
 2. **Auto-update** — Sparkle on macOS, a signed updater elsewhere
-3. **CI that builds all three desktops** — the builds are manual today
+3. **CI that builds all three desktops** — GitHub Actions builds Linux,
+   macOS, and Windows on every `v*` tag
 4. **The mobile clients** — the FFI layer is ready for it, but the FFI
    calls have to be checked against the restrictions of the app stores
 
