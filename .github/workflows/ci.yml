@@ -28,6 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify version files are consistent
+        run: |
+          chmod +x scripts/*.sh
+          PUB_VERSION=$(grep '^version:' ui/pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          CORE_VERSION=$(grep '^version = ' core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$PUB_VERSION" != "$CARGO_VERSION" ] || [ "$CARGO_VERSION" != "$CORE_VERSION" ]; then
+            echo "FAIL: version mismatch — pubspec=$PUB_VERSION Cargo.toml=$CARGO_VERSION core/Cargo.toml=$CORE_VERSION" >&2
+            exit 1
+          fi
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update

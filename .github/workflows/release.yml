@@ -31,6 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify tag matches version files
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/verify_version_tag.sh "${GITHUB_REF_NAME}"
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -93,6 +99,12 @@ jobs:
         with:
           targets: aarch64-apple-darwin
 
+      - name: Verify tag matches version files
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/verify_version_tag.sh "${GITHUB_REF_NAME}"
+
       - name: Build release artifacts
         run: |
           chmod +x scripts/*.sh
@@ -130,6 +142,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+
+      - name: Verify tag matches version files
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/verify_version_tag.sh "${GITHUB_REF_NAME}"
 
       - name: Install Inno Setup
         shell: bash

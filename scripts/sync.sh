@@ -7,10 +7,12 @@ UI_PUBSPEC="$ROOT_DIR/ui/pubspec.yaml"
 ROOT_CARGO="$ROOT_DIR/Cargo.toml"
 CORE_CARGO="$ROOT_DIR/core/Cargo.toml"
 
+NO_COMMIT=false
 DRY_RUN=false
 for arg in "$@"; do
     case $arg in
         --dry-run) DRY_RUN=true ;;
+        --no-commit) NO_COMMIT=true ;;
     esac
 done
 
@@ -56,6 +58,14 @@ if [ "$DRY_RUN" = true ]; then
     exit 0
 fi
 
+# Abort if there are unrelated dirty files — we must not accidentally
+# commit someone's in-progress work into a version bump.
+if [ -n "$(git -C "$ROOT_DIR" status --porcelain)" ]; then
+    echo "ERROR: working tree is dirty; refusing to commit version bump." >&2
+    git -C "$ROOT_DIR" status --porcelain >&2
+    exit 1
+fi
+
 # Update pubspec.yaml (keeps the +<commits> build metadata)
 sed -i.bak "s/^version:.*/version: $FINAL_VERSION/" "$UI_PUBSPEC"
 rm "$UI_PUBSPEC.bak"
@@ -78,11 +88,20 @@ echo " - ui/pubspec.yaml  (version: $FINAL_VERSION)"
 echo " - Cargo.toml       (workspace package: $RUST_VERSION)"
 echo " - core/Cargo.toml  ($RUST_VERSION)"
 
-# Create tag
+# Commit the version bump, then tag that exact commit so the tag always
+# points at files whose version matches the tag name.
 TAG="v$RUST_VERSION"
 if git -C "$ROOT_DIR" rev-parse "$TAG" >/dev/null 2>&1; then
     echo "Tag $TAG already exists — skipping tag"
 else
+    if [ "$NO_COMMIT" = true ]; then
+        echo "NOTE: --no-commit set; files written but not committed/tagged."
+        echo "Commit them, then tag $TAG manually, and push with --follow-tags."
+        exit 0
+    fi
+
+    git -C "$ROOT_DIR" add ui/pubspec.yaml Cargo.toml core/Cargo.toml Cargo.lock
+    git -C "$ROOT_DIR" commit -m "chore: bump version to $RUST_VERSION"
     git -C "$ROOT_DIR" tag -a "$TAG" -m "Release $RUST_VERSION"
     echo "Created tag: $TAG"
     echo "Push with: git push --follow-tags"
