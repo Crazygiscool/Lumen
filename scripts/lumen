@@ -52,8 +52,11 @@ if [ "$UNAME_S" = "Darwin" ]; then
 elif [ "$UNAME_S" = "Linux" ]; then
     candidates+=(
         "$UI_DIR/build/linux/x64/release/bundle/lumen"
+        "$UI_DIR/build/linux/x64/release/bundle/Lumen"
         "$UI_DIR/build/linux/x64/debug/bundle/lumen"
+        "$UI_DIR/build/linux/x64/debug/bundle/Lumen"
         "$UI_DIR/build/linux/x64/profile/bundle/lumen"
+        "$UI_DIR/build/linux/x64/profile/bundle/Lumen"
     )
 elif [ "$UNAME_S" = "Windows_NT" ] || [ -n "${MSYSTEM:-}" ]; then
     candidates+=(
