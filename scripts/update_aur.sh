@@ -96,9 +96,18 @@ if command -v makepkg >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
     # Regenerate from PKGBUILD when we are on a real Arch system.
     makepkg --printsrcinfo > .SRCINFO
 else
-    # Portable fallback for CI runners without makepkg. Only the version and
-    # expanded source tag change for a normal release.
+    # Portable fallback for CI runners without makepkg. Bump pkgver and
+    # every version-pinned source reference (tarball URLs and git tags).
+    OLD_VERSION=$(sed -n 's/^\tpkgver = \(.*\)/\1/p' .SRCINFO | head -1)
+
     sed -i "s/^\tpkgver = .*/\tpkgver = $VERSION/" .SRCINFO
+
+    # Tarball URLs like .../v4.0.2/Lumen-linux-v4.0.2.tar.gz
+    if [ -n "$OLD_VERSION" ]; then
+        sed -i "s|v${OLD_VERSION}|v${VERSION}|g" .SRCINFO
+    fi
+
+    # Git source tags like #tag=v4.0.2
     sed -i "s|#tag=v[0-9][^[:space:]]*|#tag=v$VERSION|" .SRCINFO
 fi
 
