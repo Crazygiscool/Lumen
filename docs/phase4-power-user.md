@@ -601,7 +601,7 @@ impl LanguageServer for LumenLspServer {
 - [ ] Vim/Emacs modes fully functional in Flutter editor
 - [x] Canvas editor creates `.canvas` files, embeds in notes, links to notes
 - [x] Local AI: summarize, chat, related notes, tags — all via Ollama, zero cloud
-- [ ] WASM plugins run sandboxed with fuel/memory limits, native plugins still work
+- [x] WASM plugins run sandboxed with fuel/memory limits, native plugins still work
 - [x] LSP server provides wikilink completion, goto def, rename, refs in VS Code/Neovim
-- [ ] Graph shows clusters, centrality, exports to GraphML
+- [x] Graph shows clusters, centrality, exports to GraphML
 - [ ] All features optional, privacy-preserving, work offline
