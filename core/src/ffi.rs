@@ -4,6 +4,7 @@
 //! Result envelope: `{ "ok": bool, "data": <value>, "error": <string> }`.
 
 use std::ffi::{CStr, CString};
+use std::fs;
 use std::os::raw::c_char;
 use std::path::Path;
 
@@ -836,6 +837,109 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 })),
                 Err(e) => err(e),
             }
+        }
+
+        // Canvas
+        //
+        // Canvas documents are stored as `.canvas` files (JSON, Excalidraw-compatible)
+        // inside the vault, encrypted like notes.
+        "canvas.list" => {
+            let a = parse!(StoreArgs);
+            let mut documents: Vec<serde_json::Value> = Vec::new();
+            match vault::list("", &a.store) {
+                Ok(entries) => {
+                    for entry in entries {
+                        if !entry.is_dir && entry.name.ends_with(".canvas") {
+                            match vault::read_text(&entry.rel_path, &a.store) {
+                                Ok(content) => {
+                                    if let Ok(doc) =
+                                        serde_json::from_str::<serde_json::Value>(&content)
+                                    {
+                                        documents.push(doc);
+                                    }
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                    }
+                    documents.sort_by(|a, b| {
+                        let ta = a.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                        let tb = b.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                        ta.cmp(tb)
+                    });
+                }
+                Err(e) => return err(e),
+            }
+            ok(serde_json::json!({ "documents": documents }))
+        }
+        "canvas.create" => {
+            #[derive(Deserialize)]
+            struct CreateArgs {
+                title: String,
+                #[serde(default = "default_store")]
+                store: String,
+            }
+            let a = parse!(CreateArgs);
+            let safe_title = a.title
+                .chars()
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+                .collect::<String>();
+            let rel_path = format!("canvas/{safe_title}.canvas");
+            let doc = serde_json::json!({
+                "type": "excalidraw",
+                "version": 2,
+                "source": "lumen",
+                "id": safe_title,
+                "title": a.title,
+                "createdAt": chrono::Utc::now().to_rfc3339(),
+                "modifiedAt": chrono::Utc::now().to_rfc3339(),
+                "elements": [],
+            });
+            let json = serde_json::to_string_pretty(&doc).unwrap_or_default();
+            if let Err(e) = vault::write_text(&rel_path, &json, &a.store) {
+                return err(e);
+            }
+            ok(doc.clone())
+        }
+        "canvas.save" => {
+            #[derive(Deserialize)]
+            struct SaveArgs {
+                document: serde_json::Value,
+                #[serde(default = "default_store")]
+                store: String,
+            }
+            let a = parse!(SaveArgs);
+            let title = a.document.get("title").and_then(|v| v.as_str()).unwrap_or("untitled");
+            let safe_title = title
+                .chars()
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+                .collect::<String>();
+            let rel_path = format!("canvas/{safe_title}.canvas");
+            let mut doc = a.document;
+            doc["modifiedAt"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
+            let json = serde_json::to_string_pretty(&doc).unwrap_or_default();
+            if let Err(e) = vault::write_text(&rel_path, &json, &a.store) {
+                return err(e);
+            }
+            ok(serde_json::json!({ "saved": true, "path": rel_path }))
+        }
+        "canvas.delete" => {
+            #[derive(Deserialize)]
+            struct DeleteArgs {
+                id: String,
+                #[serde(default = "default_store")]
+                store: String,
+            }
+            let a = parse!(DeleteArgs);
+            let safe_id = a.id
+                .chars()
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+                .collect::<String>();
+            let rel_path = format!("canvas/{safe_id}.canvas");
+            if let Err(e) = vault::delete(&rel_path, &a.store) {
+                return err(e);
+            }
+            ok(serde_json::json!({ "deleted": true, "path": rel_path }))
         }
 
         other => return err(format!("unknown method: {other}")),

@@ -7,6 +7,10 @@ edition = "2021"   # 2024 is not a valid Rust edition (yet)
 name = "lumen_core"
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "lumen-lsp"
+path = "src/lsp/bin.rs"
+
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -38,7 +42,7 @@ remotefs = { version = "1.0", features = ["tokio"] }
 remotefs-webdav = { version = "1.0", features = ["tokio"] }
 dav-xml-client = "0.2"
 futures = "0.3"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 keyring = "4"
 # Phase 3: Cross-Platform
 reqwest = { version = "0.11", features = ["blocking", "json"] }
@@ -46,6 +50,7 @@ reqwest = { version = "0.11", features = ["blocking", "json"] }
 wasmtime = { version = "18", features = ["cranelift", "async"] }
 wasmtime-wasi = { version = "18" }
 tower-lsp = { version = "0.19", features = ["tokio"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 
 [dev-dependencies]
 tempfile = "3.27"

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../knowledge/kb_service.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
@@ -8,8 +9,46 @@ import '../theme/lumen_colors.dart';
 ///
 /// Everything runs through the local Ollama server; nothing leaves the
 /// user's machine unless they configure a different URL.
-class AiSettingsScreen extends ConsumerWidget {
+class AiSettingsScreen extends ConsumerStatefulWidget {
   const AiSettingsScreen({super.key});
+
+  @override
+  ConsumerState<AiSettingsScreen> createState() => _AiSettingsScreenState();
+}
+
+class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
+  bool _testing = false;
+
+  Future<void> _testConnection() async {
+    setState(() => _testing = true);
+    try {
+      final service = ref.read(kbServiceProvider);
+      final models = await service.listAiModels();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              models.isEmpty
+                  ? 'Connected to Ollama, but no models found.'
+                  : 'Connected to Ollama — ${models.length} model(s) available.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ollama connection failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -126,15 +165,15 @@ class AiSettingsScreen extends ConsumerWidget {
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Ollama connection test not yet implemented'),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Test connection'),
+                  onPressed: _testing ? null : _testConnection,
+                  icon: _testing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_circle_outline, size: 18),
+                  label: Text(_testing ? 'Testing…' : 'Test connection'),
                 ),
               ],
             ),

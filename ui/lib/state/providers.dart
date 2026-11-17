@@ -175,13 +175,15 @@ final pluginsProvider = AsyncNotifierProvider<PluginNotifier, PluginList>(
 // Sections
 // ---------------------------------------------------------------------------
 
-enum LumenSection { journal, search, graph, plugins, settings }
+enum LumenSection { journal, search, graph, canvas, ai, plugins, settings }
 
 extension LumenSectionInfo on LumenSection {
   String get label => switch (this) {
     LumenSection.journal => 'Journal',
     LumenSection.search => 'Search',
     LumenSection.graph => 'Graph',
+    LumenSection.canvas => 'Canvas',
+    LumenSection.ai => 'AI',
     LumenSection.plugins => 'Plugins',
     LumenSection.settings => 'Settings',
   };
@@ -190,6 +192,8 @@ extension LumenSectionInfo on LumenSection {
     LumenSection.journal => Icons.edit_note,
     LumenSection.search => Icons.search,
     LumenSection.graph => Icons.hub_outlined,
+    LumenSection.canvas => Icons.edit_outlined,
+    LumenSection.ai => Icons.psychology,
     LumenSection.plugins => Icons.extension_outlined,
     LumenSection.settings => Icons.settings_outlined,
   };
