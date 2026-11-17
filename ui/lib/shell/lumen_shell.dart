@@ -264,7 +264,7 @@ class _LumenShellState extends ConsumerState<LumenShell> {
                           const JournalScreen(),
                           const KnowledgeSearchScreen(),
                           const GraphScreen(),
-                          const CanvasEditor(path: 'canvas'),
+                          const CanvasEditor(),
                           const AiSidebar(),
                           const PluginsScreen(),
                           const SettingsScreen(),

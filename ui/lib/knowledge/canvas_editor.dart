@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../knowledge/canvas_service.dart';
+import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
 class CanvasEditor extends ConsumerStatefulWidget {
-  const CanvasEditor({super.key, required this.path});
+  const CanvasEditor({super.key, this.path});
 
-  final String path;
+  /// Optional path of the canvas to open. When null, the editor waits for a
+  /// cross-screen navigation request via [openCanvasProvider].
+  final String? path;
 
   @override
   ConsumerState<CanvasEditor> createState() => _CanvasEditorState();
@@ -29,17 +32,25 @@ class _CanvasEditorState extends ConsumerState<CanvasEditor> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(widget.path);
+    // Listen for cross-screen navigation requests (e.g. wikilink taps).
+    ref.listen(openCanvasProvider, (_, next) {
+      if (next != null && mounted) {
+        ref.read(openCanvasProvider.notifier).consume();
+        _load(next);
+      }
+    });
   }
 
-  void _load() {
+  void _load(String? path) {
+    if (path == null || path.isEmpty) return;
     final service = ref.read(canvasServiceProvider);
     final docs = service.list();
     final existing = docs.firstWhere(
-      (d) => d.id == widget.path || d.title == widget.path,
+      (d) => d.id == path || d.title == path,
       orElse: () => CanvasDocument(
-        id: widget.path,
-        title: widget.path,
+        id: path,
+        title: path,
         elements: const [],
         createdAt: DateTime.now(),
         modifiedAt: DateTime.now(),
@@ -368,6 +379,154 @@ class _CanvasPainter extends CustomPainter {
         old.currentStroke != currentStroke ||
         old.currentPoint != currentPoint;
   }
+}
+
+/// A read-only canvas preview, embedded in a note via `![[name.canvas]]`.
+///
+/// Tapping the preview opens the full canvas editor.
+class CanvasPreview extends ConsumerWidget {
+  const CanvasPreview({super.key, required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final service = ref.read(canvasServiceProvider);
+    final docs = service.list();
+    final doc = docs.firstWhere(
+      (d) => d.id == path || d.title == path,
+      orElse: () => CanvasDocument(
+        id: path,
+        title: path,
+        elements: const [],
+        createdAt: DateTime.now(),
+        modifiedAt: DateTime.now(),
+      ),
+    );
+
+    return GestureDetector(
+      onTap: () => openCanvas(ref, path),
+      child: Card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit_outlined, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      doc.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Open canvas',
+                    style: TextStyle(fontSize: 11, color: Colors.blue),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _CanvasPreviewPainter(doc: doc),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Paint a canvas document for read-only preview.
+class _CanvasPreviewPainter extends CustomPainter {
+  final CanvasDocument doc;
+
+  _CanvasPreviewPainter({required this.doc});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final element in doc.elements) {
+      final paint = Paint()
+        ..color = element.strokeColor
+        ..strokeWidth = element.strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      final rect = Rect.fromLTWH(
+        element.x,
+        element.y,
+        element.width,
+        element.height,
+      );
+
+      switch (element.type) {
+        case 'rectangle':
+          canvas.drawRect(rect, paint..style = PaintingStyle.stroke);
+          canvas.drawRect(rect, Paint()
+            ..color = element.fillColor
+            ..style = PaintingStyle.fill);
+          break;
+        case 'ellipse':
+          canvas.drawOval(rect, paint..style = PaintingStyle.stroke);
+          canvas.drawOval(rect, Paint()
+            ..color = element.fillColor
+            ..style = PaintingStyle.fill);
+          break;
+        case 'line':
+          canvas.drawLine(
+            Offset(element.x, element.y),
+            Offset(element.x + element.width, element.y + element.height),
+            paint,
+          );
+          break;
+        case 'arrow':
+          canvas.drawLine(
+            Offset(element.x, element.y),
+            Offset(element.x + element.width, element.y + element.height),
+            paint,
+          );
+          break;
+        case 'text':
+          final textSpan = TextSpan(
+            text: element.text ?? '',
+            style: TextStyle(
+              color: element.strokeColor,
+              fontSize: element.fontSize ?? 16,
+            ),
+          );
+          final textPainter = TextPainter(
+            text: textSpan,
+            textDirection: TextDirection.ltr,
+          );
+          textPainter.layout();
+          textPainter.paint(
+            canvas,
+            Offset(element.x, element.y),
+          );
+          break;
+        case 'freehand':
+          if (element.points != null && element.points!.isNotEmpty) {
+            final path = Path();
+            path.moveTo(element.points!.first.dx, element.points!.first.dy);
+            for (var i = 1; i < element.points!.length; i++) {
+              path.lineTo(element.points![i].dx, element.points![i].dy);
+            }
+            canvas.drawPath(path, paint);
+          }
+          break;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CanvasPreviewPainter old) => old.doc != doc;
 }
 
 /// Canvas element types.

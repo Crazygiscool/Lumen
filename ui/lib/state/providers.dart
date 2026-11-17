@@ -242,6 +242,30 @@ void openJournalNote(WidgetRef ref, String relPath) {
   ref.read(openNoteProvider.notifier).open(relPath);
 }
 
+/// The canvas another screen asked the journal to open.
+///
+/// The journal screen and wikilink taps all navigate this way: the section
+/// switches to the canvas and the canvas is opened there.
+class OpenCanvasNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void open(String relPath) => state = relPath;
+
+  /// Clears the request once the canvas screen has acted on it.
+  void consume() => state = null;
+}
+
+final openCanvasProvider = NotifierProvider<OpenCanvasNotifier, String?>(
+  OpenCanvasNotifier.new,
+);
+
+/// Opens a canvas in the canvas editor, from wherever the app is.
+void openCanvas(WidgetRef ref, String relPath) {
+  ref.read(selectedSectionProvider.notifier).select(LumenSection.canvas);
+  ref.read(openCanvasProvider.notifier).open(relPath);
+}
+
 // ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
