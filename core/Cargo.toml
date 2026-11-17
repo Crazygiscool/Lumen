@@ -1,6 +1,6 @@
 [package]
 name = "lumen"
-version = "4.0.2"
+version = "4.0.3"
 edition = "2021"   # 2024 is not a valid Rust edition (yet)
 
 [lib]
