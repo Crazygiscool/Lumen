@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+#
+# lumen — debug launcher for the Lumen Flutter app.
+#
+# Usage:
+#   lumen                 # launch the built Flutter app (debug helper)
+#   lumen --help          # show this help
+#
+# This is a convenience wrapper for terminal debugging. It looks for the
+# built Flutter bundle in the usual build output directories and launches
+# the `Lumen`/`Lumen.app` executable found there.
+#
+# Add this directory to your PATH to run `lumen` from any terminal:
+#   export PATH="$PATH:/path/to/Lumen/scripts"
+#
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+UI_DIR="$ROOT_DIR/ui"
+
+usage() {
+    cat <<EOF
+Usage: lumen [--help]
+
+Launch the built Lumen Flutter app from the terminal (debug helper).
+
+Looks for the built bundle in:
+  ui/build/<platform>/<config>/bundle/   (Linux/Windows)
+  ui/build/macos/Build/Products/<config>/Lumen.app   (macOS)
+
+Options:
+  --help     Show this help message
+EOF
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    usage
+    exit 0
+fi
+
+UNAME_S="$(uname -s)"
+
+# Candidate bundle locations, most-specific first.
+candidates=()
+
+if [ "$UNAME_S" = "Darwin" ]; then
+    candidates+=(
+        "$UI_DIR/build/macos/Build/Products/Release/Lumen.app"
+        "$UI_DIR/build/macos/Build/Products/Debug/Lumen.app"
+        "$UI_DIR/build/macos/Build/Products/Profile/Lumen.app"
+    )
+elif [ "$UNAME_S" = "Linux" ]; then
+    candidates+=(
+        "$UI_DIR/build/linux/x64/release/bundle/lumen"
+        "$UI_DIR/build/linux/x64/debug/bundle/lumen"
+        "$UI_DIR/build/linux/x64/profile/bundle/lumen"
+    )
+elif [ "$UNAME_S" = "Windows_NT" ] || [ -n "${MSYSTEM:-}" ]; then
+    candidates+=(
+        "$UI_DIR/build/windows/x64/runner/Release/lumen.exe"
+        "$UI_DIR/build/windows/x64/runner/Debug/lumen.exe"
+        "$UI_DIR/build/windows/x64/runner/Profile/lumen.exe"
+    )
+fi
+
+app=""
+for c in "${candidates[@]}"; do
+    if [ -e "$c" ]; then
+        app="$c"
+        break
+    fi
+done
+
+if [ -z "$app" ]; then
+    echo "lumen: no built bundle found." >&2
+    echo "" >&2
+    echo "Build one first, then re-run:" >&2
+    echo "  make            # Linux" >&2
+    echo "  make build-macos  # macOS" >&2
+    echo "  make build-windows # Windows" >&2
+    echo "" >&2
+    echo "Searched:" >&2
+    for c in "${candidates[@]}"; do
+        echo "  $c" >&2
+    done
+    exit 1
+fi
+
+echo "lumen: launching $app"
+if [ "$UNAME_S" = "Darwin" ]; then
+    open "$app"
+elif [ "$UNAME_S" = "Windows_NT" ] || [ -n "${MSYSTEM:-}" ]; then
+    # Use cmd.exe /c start so the script returns immediately.
+    cmd.exe /c "start \"\" \"$app\"" 2>/dev/null || start "" "$app"
+else
+    "$app" "${@:2}"
+fi
