@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../journal/quotes.dart';
+import '../knowledge/kb_provider.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 import '../widgets/path_picker.dart';

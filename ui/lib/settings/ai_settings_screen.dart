@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../knowledge/kb_service.dart';
+import '../knowledge/kb_provider.dart';
 import '../state/providers.dart';
 import '../theme/lumen_colors.dart';
 
@@ -9,20 +8,20 @@ import '../theme/lumen_colors.dart';
 ///
 /// Everything runs through the local Ollama server; nothing leaves the
 /// user's machine unless they configure a different URL.
-class AiSettingsScreen extends ConsumerStatefulWidget {
+class AiSettingsScreen extends StatefulWidget {
   const AiSettingsScreen({super.key});
 
   @override
-  ConsumerState<AiSettingsScreen> createState() => _AiSettingsScreenState();
+  State<AiSettingsScreen> createState() => _AiSettingsScreenState();
 }
 
-class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
+class _AiSettingsScreenState extends State<AiSettingsScreen> {
   bool _testing = false;
 
   Future<void> _testConnection() async {
     setState(() => _testing = true);
     try {
-      final service = ref.read(kbServiceProvider);
+      final service = context.read(kbServiceProvider);
       final models = await service.listAiModels();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -51,9 +50,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
+  Widget build(BuildContext context) {
+    final settings = context.watch(settingsProvider);
+    final notifier = context.read(settingsProvider.notifier);
     final t = LumenColors.of(context);
 
     return ListView(
