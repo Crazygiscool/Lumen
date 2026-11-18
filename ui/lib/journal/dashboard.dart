@@ -163,10 +163,6 @@ class _JournalDashboardState extends ConsumerState<JournalDashboard> {
     final prefs = ref.watch(dashboardPrefsProvider);
     final notesAsync = ref.watch(journalNotesProvider);
 
-    ref.listen<AsyncValue<List<JournalNote>>>(journalNotesProvider, (_, next) {
-      if (next.hasValue) _refreshCounts();
-    });
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
