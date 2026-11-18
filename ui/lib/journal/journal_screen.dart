@@ -1027,7 +1027,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
             ),
             selectable: true,
             styleSheet: MarkdownStyleSheet(
-              bodyMedium: TextStyle(color: t.onSurface, height: 1.5),
+              p: TextStyle(color: t.onSurface, height: 1.5),
               code: TextStyle(
                 color: t.onSurfaceVariant,
                 fontFamily: 'monospace',
