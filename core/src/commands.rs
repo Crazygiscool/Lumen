@@ -103,13 +103,6 @@ pub fn register_builtin_commands() -> crate::Result<()> {
             source: "builtin".into(),
         },
         Command {
-            id: "navigation.openGraph".into(),
-            title: "Open Graph".into(),
-            description: Some("View the note graph".into()),
-            keywords: vec!["graph".into(), "visual".into(), "map".into()],
-            source: "builtin".into(),
-        },
-        Command {
             id: "navigation.openSettings".into(),
             title: "Open Settings".into(),
             description: Some("Configure Lumen".into()),
@@ -232,13 +225,6 @@ pub fn register_builtin_commands() -> crate::Result<()> {
             title: "Rebuild Search Index".into(),
             description: Some("Re-index all notes for search".into()),
             keywords: vec!["reindex".into(), "search".into(), "index".into()],
-            source: "builtin".into(),
-        },
-        Command {
-            id: "advanced.rebuildGraph".into(),
-            title: "Rebuild Graph".into(),
-            description: Some("Re-compute the note graph".into()),
-            keywords: vec!["graph".into(), "rebuild".into()],
             source: "builtin".into(),
         },
         Command {

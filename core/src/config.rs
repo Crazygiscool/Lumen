@@ -24,9 +24,6 @@ pub struct Config {
     /// Search settings.
     pub search: SearchConfig,
 
-    /// Graph settings.
-    pub graph: GraphConfig,
-
     /// Wikilink settings.
     pub wikilinks: WikilinkConfig,
 
@@ -78,29 +75,6 @@ fn default_true() -> bool {
 
 fn default_index_path() -> String {
     config_dir().join("search").to_string_lossy().to_string()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphConfig {
-    /// Enable graph view.
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Layout algorithm.
-    #[serde(default = "default_layout")]
-    pub layout: String,
-
-    /// Maximum nodes to render.
-    #[serde(default = "default_max_nodes")]
-    pub max_nodes: usize,
-}
-
-fn default_layout() -> String {
-    "force".to_string()
-}
-
-fn default_max_nodes() -> usize {
-    5000
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -330,11 +304,6 @@ pub fn load_config() -> Config {
             index_path: default_index_path(),
             auto_reindex: true,
         },
-        graph: GraphConfig {
-            enabled: true,
-            layout: default_layout(),
-            max_nodes: default_max_nodes(),
-        },
         wikilinks: WikilinkConfig {
             case_sensitive: false,
             create_missing: true,
@@ -401,13 +370,11 @@ mod tests {
         let config = Config {
             templates: TemplateConfig { daily: "test.md".to_string() },
             search: SearchConfig { enabled: true, index_path: "idx".to_string(), auto_reindex: true },
-            graph: GraphConfig { enabled: true, layout: "force".to_string(), max_nodes: 5000 },
             wikilinks: WikilinkConfig { case_sensitive: false, create_missing: true },
             sync: SyncConfig { method: "none".to_string(), syncthing: SyncthingConfig::default(), webdav: WebdavConfig::default() },
             ai: AiConfig { enabled: false, ollama_url: "http://localhost:11434".to_string(), default_model: "llama3".to_string(), embedding_model: "nomic".to_string(), max_context_notes: 10, max_context_tokens: 4000, allow_external: false },
             backup: BackupConfig { auto_export: false, export_path: "/tmp".to_string(), encrypt: true },
         };
         assert!(config.search.enabled);
-        assert_eq!(config.graph.max_nodes, 5000);
     }
 }

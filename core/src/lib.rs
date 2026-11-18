@@ -5,7 +5,6 @@ pub mod config;
 pub mod diff;
 pub mod ffi;
 pub mod frontmatter;
-pub mod graph;
 pub mod importer;
 pub mod paths;
 pub mod plugins;

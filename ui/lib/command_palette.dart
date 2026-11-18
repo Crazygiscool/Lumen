@@ -70,9 +70,6 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
       case 'navigation.openSearch':
         nav.select(LumenSection.search);
         break;
-      case 'navigation.openGraph':
-        nav.select(LumenSection.graph);
-        break;
       case 'navigation.openSettings':
         nav.select(LumenSection.settings);
         break;
@@ -122,8 +119,6 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
 
       // --- Advanced --------------------------------------------------------
       case 'advanced.rebuildSearchIndex':
-        break;
-      case 'advanced.rebuildGraph':
         break;
       case 'advanced.verifyVault':
         break;

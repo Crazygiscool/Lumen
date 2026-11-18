@@ -41,7 +41,7 @@ else
         PLATFORM       := linux
         LIB_NAME       := liblumen_core.so
         FLUTTER_TARGET := linux
-        APP_NAME       := Lumen
+        APP_NAME       := lumen
         BUNDLE_DIR     := ui/build/linux/x64/debug/bundle
         DEV_LIB_DIR    := ui/linux/lib
         FLUTTER_ENABLE := flutter config --enable-linux-desktop

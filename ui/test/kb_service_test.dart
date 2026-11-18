@@ -90,39 +90,6 @@ void main() {
       expect(fm.toJson()['project'], 'lumen');
     });
 
-    test('graph data parses nodes and edges', () async {
-      final ffi = _FakeFfi({
-        'kb.graph.data': {
-          'nodes': [
-            {
-              'id': 'alpha.md',
-              'title': 'Alpha',
-              'tags': ['work'],
-              'weight': 42,
-              'frontmatter': {'tags': ['work']},
-            },
-          ],
-          'edges': [
-            {
-              'source': 'alpha.md',
-              'target': 'beta.md',
-              'type': 'wikilink',
-            },
-          ],
-        },
-      });
-      final service = KbService(ffi);
-
-      final graph = await service.graphData();
-
-      expect(graph.nodes, hasLength(1));
-      expect(graph.nodes.first.id, 'alpha.md');
-      expect(graph.nodes.first.tags, ['work']);
-      expect(graph.nodes.first.weight, 42);
-      expect(graph.edges, hasLength(1));
-      expect(graph.edges.first.type, KbEdgeType.wikilink);
-    });
-
     test('wikilink resolution reports a missing target', () async {
       final ffi = _FakeFfi({
         'kb.wikilinks.resolve': {'path': ''},

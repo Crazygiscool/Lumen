@@ -175,14 +175,12 @@ final pluginsProvider = AsyncNotifierProvider<PluginNotifier, PluginList>(
 // Sections
 // ---------------------------------------------------------------------------
 
-enum LumenSection { journal, search, graph, canvas, ai, plugins, settings }
+enum LumenSection { journal, search, ai, plugins, settings }
 
 extension LumenSectionInfo on LumenSection {
   String get label => switch (this) {
     LumenSection.journal => 'Journal',
     LumenSection.search => 'Search',
-    LumenSection.graph => 'Graph',
-    LumenSection.canvas => 'Canvas',
     LumenSection.ai => 'AI',
     LumenSection.plugins => 'Plugins',
     LumenSection.settings => 'Settings',
@@ -191,8 +189,6 @@ extension LumenSectionInfo on LumenSection {
   IconData get icon => switch (this) {
     LumenSection.journal => Icons.edit_note,
     LumenSection.search => Icons.search,
-    LumenSection.graph => Icons.hub_outlined,
-    LumenSection.canvas => Icons.edit_outlined,
     LumenSection.ai => Icons.psychology,
     LumenSection.plugins => Icons.extension_outlined,
     LumenSection.settings => Icons.settings_outlined,
@@ -235,35 +231,11 @@ final openNoteProvider = NotifierProvider<OpenNoteNotifier, String?>(
 
 /// Opens a note in the journal, from wherever the app is.
 ///
-/// The search screen, the graph and the backlinks panel all navigate this
+/// The search screen and the backlinks panel all navigate this
 /// way: the section switches to the journal and the note is opened there.
 void openJournalNote(WidgetRef ref, String relPath) {
   ref.read(selectedSectionProvider.notifier).select(LumenSection.journal);
   ref.read(openNoteProvider.notifier).open(relPath);
-}
-
-/// The canvas another screen asked the journal to open.
-///
-/// The journal screen and wikilink taps all navigate this way: the section
-/// switches to the canvas and the canvas is opened there.
-class OpenCanvasNotifier extends Notifier<String?> {
-  @override
-  String? build() => null;
-
-  void open(String relPath) => state = relPath;
-
-  /// Clears the request once the canvas screen has acted on it.
-  void consume() => state = null;
-}
-
-final openCanvasProvider = NotifierProvider<OpenCanvasNotifier, String?>(
-  OpenCanvasNotifier.new,
-);
-
-/// Opens a canvas in the canvas editor, from wherever the app is.
-void openCanvas(WidgetRef ref, String relPath) {
-  ref.read(selectedSectionProvider.notifier).select(LumenSection.canvas);
-  ref.read(openCanvasProvider.notifier).open(relPath);
 }
 
 // ---------------------------------------------------------------------------
@@ -528,19 +500,17 @@ final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
 // ---------------------------------------------------------------------------
 
 /// A rearrangeable card on the journal dashboard.
-enum DashboardCard {graph, dayNight, quote}
+enum DashboardCard {dayNight, quote}
 
 extension DashboardCardInfo on DashboardCard {
   String get id => name;
 
   String get label => switch (this) {
-    DashboardCard.graph => 'Writing activity',
     DashboardCard.dayNight => 'Plan & reflect',
     DashboardCard.quote => 'Quote of the day',
   };
 
   IconData get icon => switch (this) {
-    DashboardCard.graph => Icons.grid_view_outlined,
     DashboardCard.dayNight => Icons.wb_twilight,
     DashboardCard.quote => Icons.format_quote_outlined,
   };

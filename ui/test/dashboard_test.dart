@@ -57,7 +57,7 @@ class _FakeFfi implements LumenFfi {
 void main() {
   group('dashboard cards', () {
     test('every card has a stable id and label', () {
-      expect(DashboardCard.values, hasLength(3));
+      expect(DashboardCard.values, hasLength(2));
       for (final card in DashboardCard.values) {
         expect(card.id, isNotEmpty);
         expect(card.label, isNotEmpty);
@@ -69,23 +69,22 @@ void main() {
     test('hidden cards are removed from the visible order', () {
       const prefs = DashboardPrefs(hidden: {DashboardCard.quote});
       expect(prefs.visibleOrder, isNot(contains(DashboardCard.quote)));
-      expect(prefs.visibleOrder, hasLength(2));
+      expect(prefs.visibleOrder, hasLength(1));
       expect(prefs.isVisible(DashboardCard.quote), isFalse);
     });
 
     test('reordering visible cards keeps hidden ones after them', () {
       // ReorderableListView.onReorderItem reports an already-adjusted index.
       final visible = [
-        DashboardCard.graph,
         DashboardCard.dayNight,
         DashboardCard.quote,
       ];
       const oldIndex = 0;
-      const newIndex = 2; // final position after removal
+      const newIndex = 1; // final position after removal
       final moved = visible.removeAt(oldIndex);
       visible.insert(newIndex, moved);
-      expect(visible.last, DashboardCard.graph);
-      expect(visible, hasLength(3));
+      expect(visible.last, DashboardCard.dayNight);
+      expect(visible, hasLength(2));
     });
 
     test('notifier reorders and hides cards', () {
@@ -93,10 +92,10 @@ void main() {
       addTearDown(container.dispose);
       final notifier = container.read(dashboardPrefsProvider.notifier);
       final initial = notifier.state.visibleOrder;
-      expect(initial.first, DashboardCard.graph);
+      expect(initial.first, DashboardCard.dayNight);
 
-      notifier.reorder(0, 2);
-      expect(notifier.state.visibleOrder.last, DashboardCard.graph);
+      notifier.reorder(0, 1);
+      expect(notifier.state.visibleOrder.last, DashboardCard.dayNight);
 
       notifier.setVisible(DashboardCard.quote, false);
       expect(notifier.state.visibleOrder, isNot(contains(DashboardCard.quote)));
@@ -309,24 +308,11 @@ void main() {
   ) async {
     await pumpDashboard(tester);
 
-    expect(find.text('Writing activity'), findsOneWidget);
     expect(find.text('Plan & reflect'), findsOneWidget);
     expect(find.text('Wizarding wisdom'), findsOneWidget);
     expect(find.byIcon(Icons.wb_sunny_outlined), findsOneWidget);
     expect(find.byIcon(Icons.nights_stay_outlined), findsOneWidget);
     expect(find.byTooltip('Another quote'), findsOneWidget);
-  });
-
-  testWidgets('activity graph fills the card instead of a fixed 20 weeks', (
-    tester,
-  ) async {
-    await pumpDashboard(tester);
-
-    final label = tester
-        .widget<Text>(find.textContaining(RegExp(r'^Last \d+ weeks$')))
-        .data!;
-    final weeks = int.parse(RegExp(r'\d+').firstMatch(label)!.group(0)!);
-    expect(weeks, greaterThan(20));
   });
 
   testWidgets('reorder controls stay hidden until Arrange is tapped', (

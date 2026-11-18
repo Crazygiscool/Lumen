@@ -16,7 +16,6 @@ use crate::ai::{self, OllamaClient};
 
 use crate::config;
 use crate::frontmatter::{self, Frontmatter};
-use crate::graph::{build_graph_data, filter_graph_data, get_note_neighborhood};
 use crate::search::{init_search_index, search_entries};
 use crate::secrets;
 use crate::sync::{
@@ -65,23 +64,6 @@ struct DateArgs {
 #[derive(Deserialize)]
 struct WikilinkArgs {
     target: String,
-    #[serde(default = "default_store")]
-    store: String,
-}
-
-#[derive(Deserialize)]
-struct GraphFilterArgs {
-    #[serde(default)]
-    tags: Vec<String>,
-    query: Option<String>,
-    #[serde(default = "default_store")]
-    store: String,
-}
-
-#[derive(Deserialize)]
-struct NeighborhoodArgs {
-    center: String,
-    depth: usize,
     #[serde(default = "default_store")]
     store: String,
 }
@@ -364,33 +346,6 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
                 return err(e);
             }
             ok(serde_json::json!({ "reindexed": true }))
-        }
-
-        // Graph
-        "kb.graph.data" => {
-            let a = parse!(StoreArgs);
-            let graph = match build_graph_data(&a.store) {
-                Ok(g) => g,
-                Err(e) => return err(e),
-            };
-            ok(serde_json::to_value(graph).unwrap_or_default())
-        }
-        "kb.graph.filter" => {
-            let a = parse!(GraphFilterArgs);
-            let graph = match build_graph_data(&a.store) {
-                Ok(g) => g,
-                Err(e) => return err(e),
-            };
-            let filtered = filter_graph_data(graph, &a.tags, a.query.as_deref());
-            ok(serde_json::to_value(filtered).unwrap_or_default())
-        }
-        "kb.graph.neighborhood" => {
-            let a = parse!(NeighborhoodArgs);
-            let graph = match get_note_neighborhood(&a.store, &a.center, a.depth) {
-                Ok(g) => g,
-                Err(e) => return err(e),
-            };
-            ok(serde_json::to_value(graph).unwrap_or_default())
         }
 
         // Config
@@ -839,109 +794,6 @@ fn dispatch(method: &str, args: &serde_json::Value) -> serde_json::Value {
             }
         }
 
-        // Canvas
-        //
-        // Canvas documents are stored as `.canvas` files (JSON, Excalidraw-compatible)
-        // inside the vault, encrypted like notes.
-        "canvas.list" => {
-            let a = parse!(StoreArgs);
-            let mut documents: Vec<serde_json::Value> = Vec::new();
-            match vault::list("", &a.store) {
-                Ok(entries) => {
-                    for entry in entries {
-                        if !entry.is_dir && entry.name.ends_with(".canvas") {
-                            match vault::read_text(&entry.rel_path, &a.store) {
-                                Ok(content) => {
-                                    if let Ok(doc) =
-                                        serde_json::from_str::<serde_json::Value>(&content)
-                                    {
-                                        documents.push(doc);
-                                    }
-                                }
-                                Err(_) => {}
-                            }
-                        }
-                    }
-                    documents.sort_by(|a, b| {
-                        let ta = a.get("title").and_then(|v| v.as_str()).unwrap_or("");
-                        let tb = b.get("title").and_then(|v| v.as_str()).unwrap_or("");
-                        ta.cmp(tb)
-                    });
-                }
-                Err(e) => return err(e),
-            }
-            ok(serde_json::json!({ "documents": documents }))
-        }
-        "canvas.create" => {
-            #[derive(Deserialize)]
-            struct CreateArgs {
-                title: String,
-                #[serde(default = "default_store")]
-                store: String,
-            }
-            let a = parse!(CreateArgs);
-            let safe_title = a.title
-                .chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
-                .collect::<String>();
-            let rel_path = format!("canvas/{safe_title}.canvas");
-            let doc = serde_json::json!({
-                "type": "excalidraw",
-                "version": 2,
-                "source": "lumen",
-                "id": safe_title,
-                "title": a.title,
-                "createdAt": chrono::Utc::now().to_rfc3339(),
-                "modifiedAt": chrono::Utc::now().to_rfc3339(),
-                "elements": [],
-            });
-            let json = serde_json::to_string_pretty(&doc).unwrap_or_default();
-            if let Err(e) = vault::write_text(&rel_path, &json, &a.store) {
-                return err(e);
-            }
-            ok(doc.clone())
-        }
-        "canvas.save" => {
-            #[derive(Deserialize)]
-            struct SaveArgs {
-                document: serde_json::Value,
-                #[serde(default = "default_store")]
-                store: String,
-            }
-            let a = parse!(SaveArgs);
-            let title = a.document.get("title").and_then(|v| v.as_str()).unwrap_or("untitled");
-            let safe_title = title
-                .chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
-                .collect::<String>();
-            let rel_path = format!("canvas/{safe_title}.canvas");
-            let mut doc = a.document;
-            doc["modifiedAt"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
-            let json = serde_json::to_string_pretty(&doc).unwrap_or_default();
-            if let Err(e) = vault::write_text(&rel_path, &json, &a.store) {
-                return err(e);
-            }
-            ok(serde_json::json!({ "saved": true, "path": rel_path }))
-        }
-        "canvas.delete" => {
-            #[derive(Deserialize)]
-            struct DeleteArgs {
-                id: String,
-                #[serde(default = "default_store")]
-                store: String,
-            }
-            let a = parse!(DeleteArgs);
-            let safe_id = a.id
-                .chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
-                .collect::<String>();
-            let rel_path = format!("canvas/{safe_id}.canvas");
-            if let Err(e) = vault::delete(&rel_path, &a.store) {
-                return err(e);
-            }
-            ok(serde_json::json!({ "deleted": true, "path": rel_path }))
-        }
-
         other => return err(format!("unknown method: {other}")),
     };
 
@@ -1168,20 +1020,6 @@ mod tests {
         assert_eq!(hits[0]["path"], "beta.md");
 
         call("kb.search.reindex", json!({}));
-
-        // --- Graph ----------------------------------------------------------
-        let graph = call("kb.graph.data", json!({}));
-        // alpha.md, beta.md, and the gamma.md note created above.
-        assert_eq!(graph["nodes"].as_array().unwrap().len(), 3);
-
-        let filtered = call("kb.graph.filter", json!({ "tags": ["work"] }));
-        assert_eq!(filtered["nodes"].as_array().unwrap().len(), 1);
-
-        let neighborhood = call(
-            "kb.graph.neighborhood",
-            json!({ "center": "alpha.md", "depth": 1 }),
-        );
-        assert!(!neighborhood["nodes"].as_array().unwrap().is_empty());
 
         // --- Config ---------------------------------------------------------
         let mut config = call("kb.config.get", json!({}));
