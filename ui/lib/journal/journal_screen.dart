@@ -1019,16 +1019,8 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
               ],
             ),
           ),
-        Theme(
-          data: Theme.of(context).copyWith(
-            textTheme: Theme.of(context).textTheme.copyWith(
-              bodyMedium: TextStyle(color: t.onSurface, height: 1.5),
-              bodyLarge: TextStyle(color: t.onSurface, height: 1.5),
-              bodySmall: TextStyle(color: t.onSurfaceVariant),
-              labelLarge: TextStyle(color: t.onSurface, fontSize: 13),
-              labelMedium: TextStyle(color: t.onSurfaceVariant, fontSize: 12),
-            ),
-          ),
+        DefaultTextStyle(
+          style: TextStyle(color: t.onSurface, height: 1.5),
           child: Markdown(
             data: rewriteWikilinks(
               _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
