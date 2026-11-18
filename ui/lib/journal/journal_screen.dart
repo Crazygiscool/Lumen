@@ -1019,42 +1019,51 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
               ],
             ),
           ),
-        Markdown(
-          data: rewriteWikilinks(
-            _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
-          ),
-          selectable: true,
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-            code: TextStyle(
-              color: t.onSurfaceVariant,
-              fontFamily: 'monospace',
-              backgroundColor: t.surfaceContainer.withValues(alpha: 0.3),
+        Theme(
+          data: Theme.of(context).copyWith(
+            textTheme: Theme.of(context).textTheme.copyWith(
+              bodyMedium: TextStyle(color: t.onSurface, height: 1.5),
+              bodyLarge: TextStyle(color: t.onSurface, height: 1.5),
+              bodySmall: TextStyle(color: t.onSurfaceVariant),
+              labelLarge: TextStyle(color: t.onSurface, fontSize: 13),
+              labelMedium: TextStyle(color: t.onSurfaceVariant, fontSize: 12),
             ),
           ),
-          onTapLink: (text, href, title) {
-            final target = wikilinkTargetFromUri(href);
-            if (target != null) _openWikilink(target);
-          },
-          imageBuilder: (uri, title, alt) {
-            final resolvedAlt = alt ?? title ?? 'image';
-            final scheme = uri.scheme.toLowerCase();
-            if (scheme == 'http' || scheme == 'https') {
-              return Image.network(uri.toString(), semanticLabel: resolvedAlt);
-            }
-            if (scheme == 'data' && uri.data != null) {
-              return Image.memory(
-                uri.data!.contentAsBytes(),
-                semanticLabel: resolvedAlt,
+          child: Markdown(
+            data: rewriteWikilinks(
+              _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
+            ),
+            selectable: true,
+            styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+              code: TextStyle(
+                color: t.onSurfaceVariant,
+                fontFamily: 'monospace',
+                backgroundColor: t.surfaceContainer.withValues(alpha: 0.3),
+              ),
+            ),
+            onTapLink: (text, href, title) {
+              final target = wikilinkTargetFromUri(href);
+              if (target != null) _openWikilink(target);
+            },
+            imageBuilder: (uri, title, alt) {
+              final resolvedAlt = alt ?? title ?? 'image';
+              final scheme = uri.scheme.toLowerCase();
+              if (scheme == 'http' || scheme == 'https') {
+                return Image.network(uri.toString(), semanticLabel: resolvedAlt);
+              }
+              if (scheme == 'data' && uri.data != null) {
+                return Image.memory(
+                  uri.data!.contentAsBytes(),
+                  semanticLabel: resolvedAlt,
+                );
+              }
+              return _EncryptedVaultImage(
+                vault: ref.read(journalVaultServiceProvider),
+                path: uri.toString(),
+                alt: resolvedAlt,
               );
-            }
-            // Canvas embeds: ![canvas-name.canvas](lumen-wikilink:canvas-name.canvas)
-            // Canvas feature removed; treat as regular image attachment.
-            return _EncryptedVaultImage(
-              vault: ref.read(journalVaultServiceProvider),
-              path: uri.toString(),
-              alt: resolvedAlt,
-            );
-          },
+            },
+          ),
         ),
       ],
     );
