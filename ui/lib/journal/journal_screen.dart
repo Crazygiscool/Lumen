@@ -1026,6 +1026,14 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
               _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
             ),
             selectable: true,
+            styleSheet: MarkdownStyleSheet(
+              bodyMedium: TextStyle(color: t.onSurface, height: 1.5),
+              code: TextStyle(
+                color: t.onSurfaceVariant,
+                fontFamily: 'monospace',
+                backgroundColor: t.surfaceContainer.withValues(alpha: 0.3),
+              ),
+            ),
             onTapLink: (text, href, title) {
               final target = wikilinkTargetFromUri(href);
               if (target != null) _openWikilink(target);
