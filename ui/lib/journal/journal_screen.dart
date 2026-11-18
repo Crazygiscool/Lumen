@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ffi/vault_service.dart';
 import '../knowledge/backlinks_panel.dart';
-import '../knowledge/canvas_editor.dart';
 import '../knowledge/daily_note.dart';
 import '../knowledge/frontmatter_editor.dart';
 import '../knowledge/kb_provider.dart';
@@ -750,15 +749,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
 
   /// Opens the note a wikilink points at, creating it if it is missing and
   /// the `wikilinks.create_missing` setting allows it.
-  ///
-  /// When the target is a `.canvas` file, opens the canvas editor instead.
   Future<void> _openWikilink(String target) async {
-    // Canvas wikilinks open the canvas editor, not a note.
-    if (target.endsWith('.canvas')) {
-      if (mounted) openCanvas(ref, target);
-      return;
-    }
-
     final service = ref.read(kbServiceProvider);
     final path = await service.resolveWikilink(target);
     if (path == null || !mounted) return;
@@ -1033,6 +1024,13 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
             _ctl.text.isEmpty ? '_Empty note_' : _ctl.text,
           ),
           selectable: true,
+          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+            code: TextStyle(
+              color: t.onSurfaceVariant,
+              fontFamily: 'monospace',
+              backgroundColor: t.surfaceContainer.withValues(alpha: 0.3),
+            ),
+          ),
           onTapLink: (text, href, title) {
             final target = wikilinkTargetFromUri(href);
             if (target != null) _openWikilink(target);
@@ -1050,12 +1048,7 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
               );
             }
             // Canvas embeds: ![canvas-name.canvas](lumen-wikilink:canvas-name.canvas)
-            if (scheme == 'lumen-wikilink') {
-              final target = wikilinkTargetFromUri(uri.toString());
-              if (target != null && target.endsWith('.canvas')) {
-                return CanvasPreview(path: target);
-              }
-            }
+            // Canvas feature removed; treat as regular image attachment.
             return _EncryptedVaultImage(
               vault: ref.read(journalVaultServiceProvider),
               path: uri.toString(),
