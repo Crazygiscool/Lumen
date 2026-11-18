@@ -51,13 +51,22 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
     final t = LumenColors.of(context);
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AI & Local Models'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Close',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
       children: [
         Text('AI & Local Models', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 20),
@@ -180,7 +189,8 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           ],
         ),
       ],
-    );
+    ),
+  );
   }
 }
 
