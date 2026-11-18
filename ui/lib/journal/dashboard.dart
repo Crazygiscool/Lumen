@@ -434,7 +434,14 @@ class _ContributionGraphState extends State<_ContributionGraph> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final weeks = _weeksForWidth(constraints.maxWidth - 32);
-          final end = today.subtract(Duration(days: _weeksBack * 7));
+          // When showing the most recent weeks (_weeksBack == 0), extend the
+          // end to the end of the current week so incomplete weeks display all
+          // 7 days, with future days rendered as empty cells (like a
+          // contribution graph).
+          final end = _weeksBack == 0
+              ? DateTime(now.year, now.month, now.day)
+                  .add(Duration(days: DateTime.sunday - now.weekday))
+              : today.subtract(Duration(days: _weeksBack * 7));
           final startDate = end.subtract(Duration(days: weeks * 7 - 1));
           final aligned = DateTime(startDate.year, startDate.month, startDate.day)
               .subtract(Duration(days: startDate.weekday - DateTime.monday));
