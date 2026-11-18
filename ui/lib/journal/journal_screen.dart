@@ -1047,7 +1047,6 @@ class _NoteEditorState extends ConsumerState<_NoteEditor> {
               if (scheme == 'data' && uri.data != null) {
                 return Image.memory(
                   uri.data!.contentAsBytes(),
-                  semanticLabel: resolvedAlt,
                 );
               }
               return _EncryptedVaultImage(
